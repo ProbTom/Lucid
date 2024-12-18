@@ -6,10 +6,10 @@ return {
         Theme = "Rose"
     },
     URLs = {
-        -- Fixed URLs that work with the latest Fluent UI version
-        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/main.lua",
-        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/Addons/SaveManager.lua",
-        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/Addons/InterfaceManager.lua"
+        -- Fixed URLs with correct paths
+        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Fluent.lua",
+        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
+        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
     },
     GameID = 16732694052
 }
