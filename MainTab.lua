@@ -11,9 +11,14 @@ end
 -- Ensure HttpService is correctly used
 local HttpService = game:GetService("HttpService")
 
-local Fluent = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local function safeLoadString(url)
+    local response = HttpService:GetAsync(url, true)
+    return loadstring(response)()
+end
+
+local Fluent = safeLoadString("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua")
+local SaveManager = safeLoadString("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua")
+local InterfaceManager = safeLoadString("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua")
 
 local DeviceType = game:GetService("UserInputService").TouchEnabled and "Mobile" or "PC"
 if DeviceType == "Mobile" then
@@ -32,7 +37,7 @@ if DeviceType == "Mobile" then
     MainFrame.Parent = ClickButton
     MainFrame.AnchorPoint = Vector2.new(1, 0)
     MainFrame.BackgroundTransparency = 0.8
-    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38) 
     MainFrame.BorderSizePixel = 0
     MainFrame.Position = UDim2.new(1, -60, 0, 10)
     MainFrame.Size = UDim2.new(0, 45, 0, 45)
@@ -193,7 +198,7 @@ local function autoShake()
             end
             task.wait(0.1)
             GuiService.SelectedObject = nil
-        end, function(err)
+        end,function (err)
         end)
     elseif ShakeMode == "Mouse" then
         task.wait()
@@ -203,10 +208,10 @@ local function autoShake()
             local safezone = shakeui:FindFirstChild("safezone")
             local button = safezone and safezone:FindFirstChild("button")
             local pos = button.AbsolutePosition
-            var size = button.AbsoluteSize
+            local size = button.AbsoluteSize
             VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, true, LocalPlayer, 0)
             VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, false, LocalPlayer, 0)
-        end, function(err)
+        end,function (err)
         end)
     end
 end
@@ -304,8 +309,8 @@ PlayerGui.DescendantRemoving:Connect(function(descendant)
     end
 end)
 
-if autoReelEnabled and PlayerGui:FindFirstChild("reel") and
-    PlayerGui.reel:FindFirstChild("bar") and
+if autoReelEnabled and PlayerGui:FindFirstChild("reel") and 
+    PlayerGui.reel:FindFirstChild("bar") and 
     PlayerGui.reel.bar:FindFirstChild("playerbar") then
     startAutoReel()
 end
@@ -350,9 +355,9 @@ end
 function GetPosition()
     if not game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         return {
-            Vector3.new(0, 0, 0),
-            Vector3.new(0, 0, 0),
-            Vector3.new(0, 0, 0)
+            Vector3.new(0,0,0),
+            Vector3.new(0,0,0),
+            Vector3.new(0,0,0)
         }
     end
     return {
@@ -363,26 +368,26 @@ function GetPosition()
 end
 
 function ExportValue(arg1, arg2)
-    return tonumber(string.format("%." .. (arg2 or 1) .. 'f', arg1))
+    return tonumber(string.format("%."..(arg2 or 1)..'f', arg1))
 end
 
 -- // // // Sell Item // // // --
 function rememberPosition()
     spawn(function()
         local initialCFrame = HumanoidRootPart.CFrame
-
+ 
         local bodyVelocity = Instance.new("BodyVelocity")
         bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
         bodyVelocity.Parent = HumanoidRootPart
-
+ 
         local bodyGyro = Instance.new("BodyGyro")
         bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
         bodyGyro.D = 100
         bodyGyro.P = 10000
         bodyGyro.CFrame = initialCFrame
         bodyGyro.Parent = HumanoidRootPart
-
+ 
         while AutoFreeze do
             HumanoidRootPart.CFrame = initialCFrame
             task.wait(0.01)
