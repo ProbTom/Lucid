@@ -7,7 +7,17 @@ local RunService = game:GetService("RunService")
 local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = LocalCharacter:WaitForChild("HumanoidRootPart")
 
--- Placeholder function definitions
+-- Define the Options table if not already defined
+if not Options then
+    Options = {
+        autoCast = { Value = false },
+        autoShake = { Value = false },
+        autoReel = { Value = false },
+        FreezeCharacter = { Value = false },
+    }
+end
+
+-- Define functions from CupPink.lua
 local function startAutoShake()
     print("startAutoShake called")
     -- Add your implementation here
@@ -33,10 +43,43 @@ local function WaitForSomeone(event)
     return true -- Placeholder return value
 end
 
+local function autoCast()
+    if LocalCharacter then
+        local tool = LocalCharacter:FindFirstChildOfClass("Tool")
+        if tool then
+            local hasBobber = tool:FindFirstChild("bobber")
+            if not hasBobber then
+                if CastMode == "Legit" then
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, LocalPlayer, 0)
+                    HumanoidRootPart.ChildAdded:Connect(function()
+                        if HumanoidRootPart:FindFirstChild("power") ~= nil and HumanoidRootPart.power.powerbar.bar ~= nil then
+                            HumanoidRootPart.power.powerbar.bar.Changed:Connect(function(property)
+                                if property == "Size" then
+                                    if HumanoidRootPart.power.powerbar.bar.Size == UDim2.new(1, 0, 1, 0) then
+                                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, LocalPlayer, 0)
+                                    end
+                                end
+                            end)
+                        end
+                    end)
+                elseif CastMode == "Blatant" then
+                    local rod = LocalCharacter and LocalCharacter:FindFirstChildOfClass("Tool")
+                    if rod and rod:FindFirstChild("values") and string.find(rod.Name, "Rod") then
+                        task.wait(0.5)
+                        local Random = math.random(90, 99)
+                        rod.events.cast:FireServer(Random)
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end
+
 -- // Main Tab // --
 local section = Tabs.Main:AddSection("Auto Fishing")
-local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
-autoCast:OnChanged(function()
+local autoCastToggle = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
+autoCastToggle:OnChanged(function()
     local RodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
     if Options.autoCast.Value == true then
         autoCastEnabled = true
