@@ -17,7 +17,7 @@ local Tabs = {
     Items = Window:AddTab({ Title = "Items", Icon = "box" }),
     Teleports = Window:AddTab({ Title = "Teleports", Icon = "map-pin" }),
     Misc = Window:AddTab({ Title = "Misc", Icon = "file-text" }),
-    Trade = Window:AddTab({ Title = "Trade", Icon = "gift" })
+    Trade = Window:AddTab({ Title = "Trade", Icon = "gift" }),
     Exclusives = Window:AddTab({ Title = "Credit", Icon = "heart" }),
 }
 
