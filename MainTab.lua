@@ -6,6 +6,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = LocalCharacter:WaitForChild("HumanoidRootPart")
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 -- Define the Options table if not already defined
 if not Options then
@@ -17,29 +18,89 @@ if not Options then
     }
 end
 
+-- Define additional variables
+local CastMode = "Legit"
+local ShakeMode = "Navigation"
+local ReelMode = "Legit"
+local autoCastEnabled = false
+local autoShakeEnabled = false
+local autoReelEnabled = false
+local FreezeChar = false
+
 -- Define functions from CupPink.lua
 local function startAutoShake()
-    print("startAutoShake called")
-    -- Add your implementation here
+    if ShakeMode == "Navigation" then
+        task.wait()
+        xpcall(function()
+            local shakeui = PlayerGui:FindFirstChild("shakeui")
+            if not shakeui then return end
+            local safezone = shakeui:FindFirstChild("safezone")
+            local button = safezone and safezone:FindFirstChild("button")
+            task.wait(0.2)
+            GuiService.SelectedObject = button
+            if GuiService.SelectedObject == button then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+            end
+            task.wait(0.1)
+            GuiService.SelectedObject = nil
+        end,function (err)
+        end)
+    elseif ShakeMode == "Mouse" then
+        task.wait()
+        xpcall(function()
+            local shakeui = PlayerGui:FindFirstChild("shakeui")
+            if not shakeui then return end
+            local safezone = shakeui:FindFirstChild("safezone")
+            local button = safezone and safezone:FindFirstChild("button")
+            local pos = button.AbsolutePosition
+            local size = button.AbsoluteSize
+            VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, true, LocalPlayer, 0)
+            VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, false, LocalPlayer, 0)
+        end,function (err)
+        end)
+    end
 end
 
 local function stopAutoShake()
-    print("stopAutoShake called")
-    -- Add your implementation here
+    if autoShakeConnection then
+        autoShakeConnection:Disconnect()
+        autoShakeConnection = nil
+    end
 end
 
 local function startAutoReel()
-    print("startAutoReel called")
-    -- Add your implementation here
+    if ReelMode == "Legit" then
+        if autoReelConnection or not autoReelEnabled then return end
+        task.wait(2)
+        autoReelConnection = RunService.RenderStepped:Connect(function()
+            local reel = PlayerGui:FindFirstChild("reel")
+            if not reel then return end
+            local bar = reel:FindFirstChild("bar")
+            local playerbar = bar and bar:FindFirstChild("playerbar")
+            local fish = bar and bar:FindFirstChild("fish")
+            if playerbar and fish then
+                playerbar.Position = fish.Position
+            end
+        end)
+    elseif ReelMode == "Blatant" then
+        local reel = PlayerGui:FindFirstChild("reel")
+        if not reel then return end
+        local bar = reel:FindFirstChild("bar")
+        local playerbar = bar and bar:FindFirstChild("playerbar")
+        playerbar:GetPropertyChangedSignal('Position'):Wait()
+        game.ReplicatedStorage:WaitForChild("events"):WaitForChild("reelfinished"):FireServer(100, false)
+    end
 end
 
 local function stopAutoReel()
-    print("stopAutoReel called")
-    -- Add your implementation here
+    if autoReelConnection then
+        autoReelConnection:Disconnect()
+        autoReelConnection = nil
+    end
 end
 
 local function WaitForSomeone(event)
-    -- Add your implementation here
     return true -- Placeholder return value
 end
 
@@ -86,43 +147,14 @@ autoCastToggle:OnChanged(function()
         if LocalPlayer.Backpack:FindFirstChild(RodName) then
             LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(RodName))
         end
-        if LocalCharacter then
-            local tool = LocalCharacter:FindFirstChildOfClass("Tool")
-            if tool then
-                local hasBobber = tool:FindFirstChild("bobber")
-                if not hasBobber then
-                    if CastMode == "Legit" then
-                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, LocalPlayer, 0)
-                        HumanoidRootPart.ChildAdded:Connect(function()
-                            if HumanoidRootPart:FindFirstChild("power") ~= nil and HumanoidRootPart.power.powerbar.bar ~= nil then
-                                HumanoidRootPart.power.powerbar.bar.Changed:Connect(function(property)
-                                    if property == "Size" then
-                                        if HumanoidRootPart.power.powerbar.bar.Size == UDim2.new(1, 0, 1, 0) then
-                                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, LocalPlayer, 0)
-                                        end
-                                    end
-                                end)
-                            end
-                        end)
-                    elseif CastMode == "Blatant" then
-                        local rod = LocalCharacter and LocalCharacter:FindFirstChildOfClass("Tool")
-                        if rod and rod:FindFirstChild("values") and string.find(rod.Name, "Rod") then
-                            task.wait(0.5)
-                            local Random = math.random(90, 99)
-                            rod.events.cast:FireServer(Random)
-                        end
-                    end
-                end
-            end
-            task.wait(1)
-        end
+        autoCast()
     else
         autoCastEnabled = false
     end
 end)
 
-local autoShake = Tabs.Main:AddToggle("autoShake", {Title = "Auto Shake", Default = false })
-autoShake:OnChanged(function()
+local autoShakeToggle = Tabs.Main:AddToggle("autoShake", {Title = "Auto Shake", Default = false })
+autoShakeToggle:OnChanged(function()
     if Options.autoShake.Value == true then
         autoShakeEnabled = true
         startAutoShake()
@@ -132,8 +164,8 @@ autoShake:OnChanged(function()
     end
 end)
 
-local autoReel = Tabs.Main:AddToggle("autoReel", {Title = "Auto Reel", Default = false })
-autoReel:OnChanged(function()
+local autoReelToggle = Tabs.Main:AddToggle("autoReel", {Title = "Auto Reel", Default = false })
+autoReelToggle:OnChanged(function()
     if Options.autoReel.Value == true then
         autoReelEnabled = true
         startAutoReel()
@@ -143,8 +175,8 @@ autoReel:OnChanged(function()
     end
 end)
 
-local FreezeCharacter = Tabs.Main:AddToggle("FreezeCharacter", {Title = "Freeze Character", Default = false })
-FreezeCharacter:OnChanged(function()
+local FreezeCharacterToggle = Tabs.Main:AddToggle("FreezeCharacter", {Title = "Freeze Character", Default = false })
+FreezeCharacterToggle:OnChanged(function()
     local oldpos = HumanoidRootPart.CFrame
     FreezeChar = Options.FreezeCharacter.Value
     task.wait()
@@ -160,32 +192,32 @@ end)
 
 -- // Mode Tab // --
 local section = Tabs.Main:AddSection("Mode Fishing")
-local autoCastMode = Tabs.Main:AddDropdown("autoCastMode", {
+local autoCastModeDropdown = Tabs.Main:AddDropdown("autoCastMode", {
     Title = "Auto Cast Mode",
     Values = {"Legit", "Blatant"},
     Multi = false,
     Default = CastMode,
 })
-autoCastMode:OnChanged(function(Value)
+autoCastModeDropdown:OnChanged(function(Value)
     CastMode = Value
 end)
 
-local autoShakeMode = Tabs.Main:AddDropdown("autoShakeMode", {
+local autoShakeModeDropdown = Tabs.Main:AddDropdown("autoShakeMode", {
     Title = "Auto Shake Mode",
     Values = {"Navigation", "Mouse"},
     Multi = false,
     Default = ShakeMode,
 })
-autoShakeMode:OnChanged(function(Value)
+autoShakeModeDropdown:OnChanged(function(Value)
     ShakeMode = Value
 end)
 
-local autoReelMode = Tabs.Main:AddDropdown("autoReelMode", {
+local autoReelModeDropdown = Tabs.Main:AddDropdown("autoReelMode", {
     Title = "Auto Reel Mode",
     Values = {"Legit", "Blatant"},
     Multi = false,
     Default = ReelMode,
 })
-autoReelMode:OnChanged(function(Value)
+autoReelModeDropdown:OnChanged(function(Value)
     ReelMode = Value
 end)
