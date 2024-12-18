@@ -1,10 +1,11 @@
-if getgenv().cuppink then warn("CupPink Hub : Already executed!") return end
+if getgenv().cuppink then warn("CupPink Hub: Already executed!") return end
 getgenv().cuppink = true
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+-- Ensure HttpService is correctly used
 local HttpService = game:GetService("HttpService")
 
 local Fluent = loadstring(HttpService:GetAsync("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -28,7 +29,7 @@ if DeviceType == "Mobile" then
     MainFrame.Parent = ClickButton
     MainFrame.AnchorPoint = Vector2.new(1, 0)
     MainFrame.BackgroundTransparency = 0.8
-    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38) 
+    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
     MainFrame.BorderSizePixel = 0
     MainFrame.Position = UDim2.new(1, -60, 0, 10)
     MainFrame.Size = UDim2.new(0, 45, 0, 45)
@@ -66,13 +67,13 @@ if DeviceType == "Mobile" then
 end
 
 local Window = Fluent:CreateWindow({
-    Title = game:GetService("MarketplaceService"):GetProductInfo(16732694052).Name .." | Fisch - Premium",
+    Title = game:GetService("MarketplaceService"):GetProductInfo(16732694052).Name .. " | Fisch - Premium",
     SubTitle = "https://discord.gg/bnWv9QEMQC",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely
     Theme = "Rose",
-    MinimizeKey = Enum.KeyCode.LeftControl -- Used when theres no MinimizeKeybind
+    MinimizeKey = Enum.KeyCode.LeftControl -- Used when there's no MinimizeKeybind
 })
 
 -- // // // Services // // // --
@@ -83,9 +84,9 @@ local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
-local CoreGui = game:GetService('StarterGui')
-local ContextActionService = game:GetService('ContextActionService')
-local UserInputService = game:GetService('UserInputService')
+local CoreGui = game:GetService("StarterGui")
+local ContextActionService = game:GetService("ContextActionService")
+local UserInputService = game:GetService("UserInputService")
 
 -- // // // Locals // // // --
 local LocalPlayer = Players.LocalPlayer
@@ -189,7 +190,7 @@ local function autoShake()
             end
             task.wait(0.1)
             GuiService.SelectedObject = nil
-        end,function (err)
+        end, function(err)
         end)
     elseif ShakeMode == "Mouse" then
         task.wait()
@@ -202,7 +203,7 @@ local function autoShake()
             local size = button.AbsoluteSize
             VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, true, LocalPlayer, 0)
             VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, false, LocalPlayer, 0)
-        end,function (err)
+        end, function(err)
         end)
     end
 end
@@ -282,52 +283,3 @@ local function stopAutoReel()
         autoReelConnection:Disconnect()
         autoReelConnection = nil
     end
-end
-
-PlayerGui.DescendantAdded:Connect(function(descendant)
-    if autoReelEnabled and descendant.Name == "playerbar" and descendant.Parent and descendant.Parent.Name == "bar" then
-        startAutoReel()
-    end
-end)
-
-PlayerGui.DescendantRemoving:Connect(function(descendant)
-    if descendant.Name == "playerbar" and descendant.Parent and descendant.Parent.Name == "bar" then
-        stopAutoReel()
-        if autoCastEnabled then
-            task.wait(1)
-            autoCast()
-        end
-    end
-end)
-
-if autoReelEnabled and PlayerGui:FindFirstChild("reel") and 
-    PlayerGui.reel:FindFirstChild("bar") and 
-    PlayerGui.reel.bar:FindFirstChild("playerbar") then
-    startAutoReel()
-end
-
--- // // // Zone Cast // // // --
-ZoneConnection = LocalCharacter.ChildAdded:Connect(function(child)
-    if ZoneCast and child:IsA("Tool") and FishingZonesFolder:FindFirstChild(Zone) ~= nil then
-        child.ChildAdded:Connect(function(blehh)
-            if blehh.Name == "bobber" then
-                local RopeConstraint = blehh:FindFirstChildOfClass("RopeConstraint")
-                if ZoneCast and RopeConstraint ~= nil then
-                    RopeConstraint.Changed:Connect(function(property)
-                        if property == "Length" then
-                            RopeConstraint.Length = math.huge
-                        end
-                    end)
-                    RopeConstraint.Length = math.huge
-                end
-                task.wait(1)
-                while WaitForSomeone(RenderStepped) do
-                    if ZoneCast and blehh.Parent ~= nil then
-                        task.wait()
-                        blehh.CFrame = FishingZonesFolder[Zone].CFrame
-                    else
-                        break
-                    end
-                end
-            end
-        end)
