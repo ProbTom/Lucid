@@ -1,9 +1,4 @@
--- Ensure required services and variables are correctly initialized
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
--- Placeholder function definitions (replace these with actual implementations)
+-- Placeholder function definitions
 local function startAutoShake()
     print("startAutoShake called")
     -- Add your implementation here
