@@ -28,82 +28,6 @@ local autoReelEnabled = false
 local FreezeChar = false
 
 -- Define functions from CupPink.lua
-local function startAutoShake()
-    if ShakeMode == "Navigation" then
-        task.wait()
-        xpcall(function()
-            local shakeui = PlayerGui:FindFirstChild("shakeui")
-            if not shakeui then return end
-            local safezone = shakeui:FindFirstChild("safezone")
-            local button = safezone and safezone:FindFirstChild("button")
-            task.wait(0.2)
-            GuiService.SelectedObject = button
-            if GuiService.SelectedObject == button then
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-            end
-            task.wait(0.1)
-            GuiService.SelectedObject = nil
-        end,function (err)
-        end)
-    elseif ShakeMode == "Mouse" then
-        task.wait()
-        xpcall(function()
-            local shakeui = PlayerGui:FindFirstChild("shakeui")
-            if not shakeui then return end
-            local safezone = shakeui:FindFirstChild("safezone")
-            local button = safezone and safezone:FindFirstChild("button")
-            local pos = button.AbsolutePosition
-            local size = button.AbsoluteSize
-            VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, true, LocalPlayer, 0)
-            VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, false, LocalPlayer, 0)
-        end,function (err)
-        end)
-    end
-end
-
-local function stopAutoShake()
-    if autoShakeConnection then
-        autoShakeConnection:Disconnect()
-        autoShakeConnection = nil
-    end
-end
-
-local function startAutoReel()
-    if ReelMode == "Legit" then
-        if autoReelConnection or not autoReelEnabled then return end
-        task.wait(2)
-        autoReelConnection = RunService.RenderStepped:Connect(function()
-            local reel = PlayerGui:FindFirstChild("reel")
-            if not reel then return end
-            local bar = reel:FindFirstChild("bar")
-            local playerbar = bar and bar:FindFirstChild("playerbar")
-            local fish = bar and bar:FindFirstChild("fish")
-            if playerbar and fish then
-                playerbar.Position = fish.Position
-            end
-        end)
-    elseif ReelMode == "Blatant" then
-        local reel = PlayerGui:FindFirstChild("reel")
-        if not reel then return end
-        local bar = reel:FindFirstChild("bar")
-        local playerbar = bar and bar:FindFirstChild("playerbar")
-        playerbar:GetPropertyChangedSignal('Position'):Wait()
-        game.ReplicatedStorage:WaitForChild("events"):WaitForChild("reelfinished"):FireServer(100, false)
-    end
-end
-
-local function stopAutoReel()
-    if autoReelConnection then
-        autoReelConnection:Disconnect()
-        autoReelConnection = nil
-    end
-end
-
-local function WaitForSomeone(event)
-    return true -- Placeholder return value
-end
-
 local function autoCast()
     if LocalCharacter then
         local tool = LocalCharacter:FindFirstChildOfClass("Tool")
@@ -171,6 +95,29 @@ local function autoShake()
     end
 end
 
+local function startAutoShake()
+    if autoShakeConnection or not autoShakeEnabled then return end
+    autoShakeConnection = RunService.RenderStepped:Connect(autoShake)
+end
+
+local function stopAutoShake()
+    if autoShakeConnection then
+        autoShakeConnection:Disconnect()
+        autoShakeConnection = nil
+    end
+end
+
+local function autoReel()
+    local reel = PlayerGui:FindFirstChild("reel")
+    if not reel then return end
+    local bar = reel:FindFirstChild("bar")
+    local playerbar = bar and bar:FindFirstChild("playerbar")
+    local fish = bar and bar:FindFirstChild("fish")
+    if playerbar and fish then
+        playerbar.Position = fish.Position
+    end
+end
+
 local function noperfect()
     local reel = PlayerGui:FindFirstChild("reel")
     if not reel then return end
@@ -180,6 +127,33 @@ local function noperfect()
         playerbar.Position = UDim2.new(0, 0, -35, 0)
         wait(0.2)
     end
+end
+
+local function startAutoReel()
+    if ReelMode == "Legit" then
+        if autoReelConnection or not autoReelEnabled then return end
+        noperfect()
+        task.wait(2)
+        autoReelConnection = RunService.RenderStepped:Connect(autoReel)
+    elseif ReelMode == "Blatant" then
+        local reel = PlayerGui:FindFirstChild("reel")
+        if not reel then return end
+        local bar = reel:FindFirstChild("bar")
+        local playerbar = bar and bar:FindFirstChild("playerbar")
+        playerbar:GetPropertyChangedSignal('Position'):Wait()
+        game.ReplicatedStorage:WaitForChild("events"):WaitForChild("reelfinished"):FireServer(100, false)
+    end
+end
+
+local function stopAutoReel()
+    if autoReelConnection then
+        autoReelConnection:Disconnect()
+        autoReelConnection = nil
+    end
+end
+
+local function WaitForSomeone(event)
+    return true -- Placeholder return value
 end
 
 -- // Main Tab // --
