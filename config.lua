@@ -6,8 +6,8 @@ return {
         Theme = "Rose"
     },
     URLs = {
-        -- Corrected URLs for the Fluent UI library
-        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Fluent.lua",
+        -- These are the working URLs from your original script
+        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
         SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
         InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
     },
