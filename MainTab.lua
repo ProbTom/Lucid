@@ -1,13 +1,19 @@
-if getgenv().cuppink then warn("CupPink Hub : Already executed!") return end
+if getgenv().cuppink then
+    warn("CupPink Hub: Already executed!")
+    return
+end
 getgenv().cuppink = true
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+-- Ensure HttpService is correctly used
+local HttpService = game:GetService("HttpService")
+
+local Fluent = loadstring(HttpService:GetAsync("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 local DeviceType = game:GetService("UserInputService").TouchEnabled and "Mobile" or "PC"
 if DeviceType == "Mobile" then
@@ -26,7 +32,7 @@ if DeviceType == "Mobile" then
     MainFrame.Parent = ClickButton
     MainFrame.AnchorPoint = Vector2.new(1, 0)
     MainFrame.BackgroundTransparency = 0.8
-    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38) 
+    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
     MainFrame.BorderSizePixel = 0
     MainFrame.Position = UDim2.new(1, -60, 0, 10)
     MainFrame.Size = UDim2.new(0, 45, 0, 45)
@@ -64,27 +70,26 @@ if DeviceType == "Mobile" then
 end
 
 local Window = Fluent:CreateWindow({
-    Title = game:GetService("MarketplaceService"):GetProductInfo(16732694052).Name .." | Fisch - Premium",
+    Title = game:GetService("MarketplaceService"):GetProductInfo(16732694052).Name .. " | Fisch - Premium",
     SubTitle = "https://discord.gg/bnWv9QEMQC",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely
     Theme = "Rose",
-    MinimizeKey = Enum.KeyCode.LeftControl -- Used when theres no MinimizeKeybind
+    MinimizeKey = Enum.KeyCode.LeftControl -- Used when there's no MinimizeKeybind
 })
 
 -- // // // Services // // // --
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
-local HttpService = game:GetService("HttpService")
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
-local CoreGui = game:GetService('StarterGui')
-local ContextActionService = game:GetService('ContextActionService')
-local UserInputService = game:GetService('UserInputService')
+local CoreGui = game:GetService("StarterGui")
+local ContextActionService = game:GetService("ContextActionService")
+local UserInputService = game:GetService("UserInputService")
 
 -- // // // Locals // // // --
 local LocalPlayer = Players.LocalPlayer
@@ -188,7 +193,7 @@ local function autoShake()
             end
             task.wait(0.1)
             GuiService.SelectedObject = nil
-        end,function (err)
+        end, function(err)
         end)
     elseif ShakeMode == "Mouse" then
         task.wait()
@@ -201,7 +206,7 @@ local function autoShake()
             local size = button.AbsoluteSize
             VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, true, LocalPlayer, 0)
             VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, false, LocalPlayer, 0)
-        end,function (err)
+        end, function(err)
         end)
     end
 end
@@ -299,8 +304,8 @@ PlayerGui.DescendantRemoving:Connect(function(descendant)
     end
 end)
 
-if autoReelEnabled and PlayerGui:FindFirstChild("reel") and 
-    PlayerGui.reel:FindFirstChild("bar") and 
+if autoReelEnabled and PlayerGui:FindFirstChild("reel") and
+    PlayerGui.reel:FindFirstChild("bar") and
     PlayerGui.reel.bar:FindFirstChild("playerbar") then
     startAutoReel()
 end
@@ -331,3 +336,81 @@ ZoneConnection = LocalCharacter.ChildAdded:Connect(function(child)
             end
         end)
     end
+end)
+
+-- // Find TpSpots // --
+local TpSpotsFolder = Workspace:FindFirstChild("world"):WaitForChild("spawns"):WaitForChild("TpSpots")
+for i, v in pairs(TpSpotsFolder:GetChildren()) do
+    if table.find(teleportSpots, v.Name) == nil then
+        table.insert(teleportSpots, v.Name)
+    end
+end
+
+-- // // // Get Position // // // --
+function GetPosition()
+    if not game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return {
+            Vector3.new(0, 0, 0),
+            Vector3.new(0, 0, 0),
+            Vector3.new(0, 0, 0)
+        }
+    end
+    return {
+        game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position.X,
+        game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position.Y,
+        game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position.Z
+    }
+end
+
+function ExportValue(arg1, arg2)
+    return tonumber(string.format("%." .. (arg2 or 1) .. 'f', arg1))
+end
+
+-- // // // Sell Item // // // --
+function rememberPosition()
+    spawn(function()
+        local initialCFrame = HumanoidRootPart.CFrame
+
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bodyVelocity.Parent = HumanoidRootPart
+
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bodyGyro.D = 100
+        bodyGyro.P = 10000
+        bodyGyro.CFrame = initialCFrame
+        bodyGyro.Parent = HumanoidRootPart
+
+        while AutoFreeze do
+            HumanoidRootPart.CFrame = initialCFrame
+            task.wait(0.01)
+        end
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+        end
+        if bodyGyro then
+            bodyGyro:Destroy()
+        end
+    end)
+end
+
+function SellHand()
+    local currentPosition = HumanoidRootPart.CFrame
+    local sellPosition = CFrame.new(464, 151, 232)
+    local wasAutoFreezeActive = false
+    if AutoFreeze then
+        wasAutoFreezeActive = true
+        AutoFreeze = false
+    end
+    HumanoidRootPart.CFrame = sellPosition
+    task.wait(0.5)
+    workspace:WaitForChild("world"):WaitForChild("npcs"):WaitForChild("Marc Merchant"):WaitForChild("merchant"):WaitForChild("sell"):InvokeServer()
+    task.wait(1)
+    HumanoidRootPart.CFrame = currentPosition
+    if wasAutoFreezeActive then
+        AutoFreeze = true
+        rememberPosition()
+    end
+end
