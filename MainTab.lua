@@ -15,7 +15,8 @@ if not LocalPlayer then
 end
 
 -- Debugging to check if playerstats is accessible
-if not ReplicatedStorage:FindFirstChild("playerstats") then
+local playerStats = ReplicatedStorage:FindFirstChild("playerstats")
+if not playerStats then
     warn("playerstats not found in ReplicatedStorage")
 else
     print("playerstats found in ReplicatedStorage")
@@ -33,18 +34,18 @@ autoCast:OnChanged(function()
             if LocalPlayer.Backpack:FindFirstChild(RodName) then
                 LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(RodName))
             end
-            if LocalCharacter then
-                local tool = LocalCharacter:FindFirstChildOfClass("Tool")
+            if LocalPlayer.Character then
+                local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
                 if tool then
                     local hasBobber = tool:FindFirstChild("bobber")
                     if not hasBobber then
                         if CastMode == "Legit" then
                             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, LocalPlayer, 0)
-                            HumanoidRootPart.ChildAdded:Connect(function()
-                                if HumanoidRootPart:FindFirstChild("power") ~= nil and HumanoidRootPart.power.powerbar.bar ~= nil then
-                                    HumanoidRootPart.power.powerbar.bar.Changed:Connect(function(property)
+                            LocalPlayer.Character.HumanoidRootPart.ChildAdded:Connect(function()
+                                if LocalPlayer.Character.HumanoidRootPart:FindFirstChild("power") ~= nil and LocalPlayer.Character.HumanoidRootPart.power.powerbar.bar ~= nil then
+                                    LocalPlayer.Character.HumanoidRootPart.power.powerbar.bar.Changed:Connect(function(property)
                                         if property == "Size" then
-                                            if HumanoidRootPart.power.powerbar.bar.Size == UDim2.new(1, 0, 1, 0) then
+                                            if LocalPlayer.Character.HumanoidRootPart.power.powerbar.bar.Size == UDim2.new(1, 0, 1, 0) then
                                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, LocalPlayer, 0)
                                             end
                                         end
@@ -52,7 +53,7 @@ autoCast:OnChanged(function()
                                 end
                             end)
                         elseif CastMode == "Blatant" then
-                            local rod = LocalCharacter and LocalCharacter:FindFirstChildOfClass("Tool")
+                            local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
                             if rod and rod:FindFirstChild("values") and string.find(rod.Name, "Rod") then
                                 task.wait(0.5)
                                 local Random = math.random(90, 99)
@@ -95,13 +96,13 @@ end)
 
 local FreezeCharacter = Tabs.Main:AddToggle("FreezeCharacter", {Title = "Freeze Character", Default = false })
 FreezeCharacter:OnChanged(function()
-    local oldpos = HumanoidRootPart.CFrame
+    local oldpos = LocalPlayer.Character.HumanoidRootPart.CFrame
     FreezeChar = Options.FreezeCharacter.Value
     task.wait()
     while WaitForSomeone(RenderStepped) do
-        if FreezeChar and HumanoidRootPart ~= nil then
+        if FreezeChar and LocalPlayer.Character.HumanoidRootPart ~= nil then
             task.wait()
-            HumanoidRootPart.CFrame = oldpos
+            LocalPlayer.Character.HumanoidRootPart.CFrame = oldpos
         else
             break
         end
