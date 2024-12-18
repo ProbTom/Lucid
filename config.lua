@@ -6,10 +6,10 @@ local Config = {
         Theme = "Rose"
     },
     URLs = {
-        -- Using Fluent-Renewed version
-        Fluent = "https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/main/src/Fluent.lua",
-        SaveManager = "https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/main/src/Addons/SaveManager.lua",
-        InterfaceManager = "https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/main/src/Addons/InterfaceManager.lua"
+        -- Using the latest working Fluent UI library
+        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/Fluent.lua",
+        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/Addons/SaveManager.lua",
+        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/Addons/InterfaceManager.lua"
     },
     GameID = 16732694052
 }
