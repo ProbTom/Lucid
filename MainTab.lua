@@ -137,6 +137,51 @@ local function autoCast()
     end
 end
 
+local function autoShake()
+    if ShakeMode == "Navigation" then
+        task.wait()
+        xpcall(function()
+            local shakeui = PlayerGui:FindFirstChild("shakeui")
+            if not shakeui then return end
+            local safezone = shakeui:FindFirstChild("safezone")
+            local button = safezone and safezone:FindFirstChild("button")
+            task.wait(0.2)
+            GuiService.SelectedObject = button
+            if GuiService.SelectedObject == button then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+            end
+            task.wait(0.1)
+            GuiService.SelectedObject = nil
+        end,function (err)
+        end)
+    elseif ShakeMode == "Mouse" then
+        task.wait()
+        xpcall(function()
+            local shakeui = PlayerGui:FindFirstChild("shakeui")
+            if not shakeui then return end
+            local safezone = shakeui:FindFirstChild("safezone")
+            local button = safezone and safezone:FindFirstChild("button")
+            local pos = button.AbsolutePosition
+            local size = button.AbsoluteSize
+            VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, true, LocalPlayer, 0)
+            VirtualInputManager:SendMouseButtonEvent(pos.X + size.X / 2, pos.Y + size.Y / 2, 0, false, LocalPlayer, 0)
+        end,function (err)
+        end)
+    end
+end
+
+local function noperfect()
+    local reel = PlayerGui:FindFirstChild("reel")
+    if not reel then return end
+    local bar = reel:FindFirstChild("bar")
+    local playerbar = bar and bar:FindFirstChild("playerbar")
+    if playerbar then
+        playerbar.Position = UDim2.new(0, 0, -35, 0)
+        wait(0.2)
+    end
+end
+
 -- // Main Tab // --
 local section = Tabs.Main:AddSection("Auto Fishing")
 local autoCastToggle = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
@@ -180,7 +225,7 @@ FreezeCharacterToggle:OnChanged(function()
     local oldpos = HumanoidRootPart.CFrame
     FreezeChar = Options.FreezeCharacter.Value
     task.wait()
-    while WaitForSomeone(RenderStepped) do
+    while WaitForSomeone(RunService.RenderStepped) do
         if FreezeChar and HumanoidRootPart ~= nil then
             task.wait()
             HumanoidRootPart.CFrame = oldpos
