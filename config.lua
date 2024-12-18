@@ -1,4 +1,4 @@
-local Config = {
+return {
     UI = {
         MainColor = Color3.fromRGB(38, 38, 38),
         ButtonColor = Color3.new(220, 125, 255),
@@ -6,13 +6,10 @@ local Config = {
         Theme = "Rose"
     },
     URLs = {
-        -- Using the latest working Fluent UI library
-        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/Fluent.lua",
-        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/Addons/SaveManager.lua",
-        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/Addons/InterfaceManager.lua"
+        -- Fixed URLs that work with the latest Fluent UI version
+        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/main.lua",
+        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/Addons/SaveManager.lua",
+        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/Addons/InterfaceManager.lua"
     },
     GameID = 16732694052
 }
-
-getgenv().Config = Config
-return Config
