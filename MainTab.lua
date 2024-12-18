@@ -1,34 +1,141 @@
--- Ensure required services and variables are correctly initialized
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local RunService = game:GetService("RunService")
-local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = LocalCharacter:WaitForChild("HumanoidRootPart")
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local GuiService = game:GetService("GuiService")
+if getgenv().cuppink then warn("CupPink Hub : Already executed!") return end
+getgenv().cuppink = true
 
--- Define the Options table if not already defined
-if not Options then
-    Options = {
-        autoCast = { Value = false },
-        autoShake = { Value = false },
-        autoReel = { Value = false },
-        FreezeCharacter = { Value = false },
-    }
+if not game:IsLoaded() then
+    game.Loaded:Wait()
 end
 
--- Define additional variables
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local DeviceType = game:GetService("UserInputService").TouchEnabled and "Mobile" or "PC"
+if DeviceType == "Mobile" then
+    local ClickButton = Instance.new("ScreenGui")
+    local MainFrame = Instance.new("Frame")
+    local ImageLabel = Instance.new("ImageLabel")
+    local TextButton = Instance.new("TextButton")
+    local UICorner = Instance.new("UICorner")
+    local UICorner_2 = Instance.new("UICorner")
+
+    ClickButton.Name = "ClickButton"
+    ClickButton.Parent = game.CoreGui
+    ClickButton.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    MainFrame.Name = "MainFrame"
+    MainFrame.Parent = ClickButton
+    MainFrame.AnchorPoint = Vector2.new(1, 0)
+    MainFrame.BackgroundTransparency = 0.8
+    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38) 
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Position = UDim2.new(1, -60, 0, 10)
+    MainFrame.Size = UDim2.new(0, 45, 0, 45)
+
+    UICorner.CornerRadius = UDim.new(1, 0)
+    UICorner.Parent = MainFrame
+
+    UICorner_2.CornerRadius = UDim.new(0, 10)
+    UICorner_2.Parent = ImageLabel
+
+    ImageLabel.Parent = MainFrame
+    ImageLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    ImageLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+    ImageLabel.BorderSizePixel = 0
+    ImageLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ImageLabel.Size = UDim2.new(0, 45, 0, 45)
+    ImageLabel.Image = "rbxassetid://"
+
+    TextButton.Parent = MainFrame
+    TextButton.BackgroundColor3 = Color3.new(1, 1, 1)
+    TextButton.BackgroundTransparency = 1
+    TextButton.BorderSizePixel = 0
+    TextButton.Position = UDim2.new(0, 0, 0, 0)
+    TextButton.Size = UDim2.new(0, 45, 0, 45)
+    TextButton.AutoButtonColor = false
+    TextButton.Font = Enum.Font.SourceSans
+    TextButton.Text = "Open"
+    TextButton.TextColor3 = Color3.new(220, 125, 255)
+    TextButton.TextSize = 20
+
+    TextButton.MouseButton1Click:Connect(function()
+        game:GetService("VirtualInputManager"):SendKeyEvent(true, "LeftControl", false, game)
+        game:GetService("VirtualInputManager"):SendKeyEvent(false, "LeftControl", false, game)
+    end)
+end
+
+local Window = Fluent:CreateWindow({
+    Title = game:GetService("MarketplaceService"):GetProductInfo(16732694052).Name .." | Fisch - Premium",
+    SubTitle = "https://discord.gg/bnWv9QEMQC",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely
+    Theme = "Rose",
+    MinimizeKey = Enum.KeyCode.LeftControl -- Used when theres no MinimizeKeybind
+})
+
+-- // // // Services // // // --
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService('StarterGui')
+local ContextActionService = game:GetService('ContextActionService')
+local UserInputService = game:GetService('UserInputService')
+
+-- // // // Locals // // // --
+local LocalPlayer = Players.LocalPlayer
+local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = LocalCharacter:FindFirstChild("HumanoidRootPart")
+local UserPlayer = HumanoidRootPart:WaitForChild("user")
+local ActiveFolder = Workspace:FindFirstChild("active")
+local FishingZonesFolder = Workspace:FindFirstChild("zones"):WaitForChild("fishing")
+local TpSpotsFolder = Workspace:FindFirstChild("world"):WaitForChild("spawns"):WaitForChild("TpSpots")
+local NpcFolder = Workspace:FindFirstChild("world"):WaitForChild("npcs")
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui", PlayerGui)
+local shadowCountLabel = Instance.new("TextLabel", screenGui)
+local RenderStepped = RunService.RenderStepped
+local WaitForSomeone = RenderStepped.Wait
+
+-- // // // Variables // // // --
 local CastMode = "Legit"
 local ShakeMode = "Navigation"
-local ReelMode = "Legit"
-local autoCastEnabled = false
-local autoShakeEnabled = false
-local autoReelEnabled = false
+local ReelMode = "Blatant"
+local CollectMode = "Teleports"
+local teleportSpots = {}
 local FreezeChar = false
+local DayOnlyLoop = nil
+local BypassGpsLoop = nil
+local Noclip = false
+local RunCount = false
 
--- Define functions from CupPink.lua
+-- // // // Functions // // // --
+function ShowNotification(String)
+    Fluent:Notify({
+        Title = "Fisch Hub",
+        Content = String,
+        Duration = 5
+    })
+end
+
+game.Players.LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+spawn(function()
+    while true do
+        game:GetService("ReplicatedStorage"):WaitForChild("events"):WaitForChild("afk"):FireServer(false)
+        task.wait(0.01)
+    end
+end)
+
+-- // // // Auto Cast // // // --
+local autoCastEnabled = false
 local function autoCast()
     if LocalCharacter then
         local tool = LocalCharacter:FindFirstChildOfClass("Tool")
@@ -62,6 +169,9 @@ local function autoCast()
     end
 end
 
+-- // // // Auto Shake // // // --
+local autoShakeEnabled = false
+local autoShakeConnection
 local function autoShake()
     if ShakeMode == "Navigation" then
         task.wait()
@@ -108,6 +218,26 @@ local function stopAutoShake()
     end
 end
 
+PlayerGui.DescendantAdded:Connect(function(descendant)
+    if autoShakeEnabled and descendant.Name == "button" and descendant.Parent and descendant.Parent.Name == "safezone" then
+        startAutoShake()
+    end
+end)
+
+PlayerGui.DescendantAdded:Connect(function(descendant)
+    if descendant.Name == "playerbar" and descendant.Parent and descendant.Parent.Name == "bar" then
+        stopAutoShake()
+    end
+end)
+
+if autoShakeEnabled and PlayerGui:FindFirstChild("shakeui") and PlayerGui.shakeui:FindFirstChild("safezone") and PlayerGui.shakeui.safezone:FindFirstChild("button") then
+    startAutoShake()
+end
+
+-- // // // Auto Reel // // // --
+local autoReelEnabled = false
+local PerfectCatchEnabled = false
+local autoReelConnection
 local function autoReel()
     local reel = PlayerGui:FindFirstChild("reel")
     if not reel then return end
@@ -153,91 +283,51 @@ local function stopAutoReel()
     end
 end
 
-local function WaitForSomeone(event)
-    return true -- Placeholder return value
+PlayerGui.DescendantAdded:Connect(function(descendant)
+    if autoReelEnabled and descendant.Name == "playerbar" and descendant.Parent and descendant.Parent.Name == "bar" then
+        startAutoReel()
+    end
+end)
+
+PlayerGui.DescendantRemoving:Connect(function(descendant)
+    if descendant.Name == "playerbar" and descendant.Parent and descendant.Parent.Name == "bar" then
+        stopAutoReel()
+        if autoCastEnabled then
+            task.wait(1)
+            autoCast()
+        end
+    end
+end)
+
+if autoReelEnabled and PlayerGui:FindFirstChild("reel") and 
+    PlayerGui.reel:FindFirstChild("bar") and 
+    PlayerGui.reel.bar:FindFirstChild("playerbar") then
+    startAutoReel()
 end
 
--- // Main Tab // --
-local section = Tabs.Main:AddSection("Auto Fishing")
-local autoCastToggle = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
-autoCastToggle:OnChanged(function()
-    local RodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-    if Options.autoCast.Value == true then
-        autoCastEnabled = true
-        if LocalPlayer.Backpack:FindFirstChild(RodName) then
-            LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(RodName))
-        end
-        autoCast()
-    else
-        autoCastEnabled = false
+-- // // // Zone Cast // // // --
+ZoneConnection = LocalCharacter.ChildAdded:Connect(function(child)
+    if ZoneCast and child:IsA("Tool") and FishingZonesFolder:FindFirstChild(Zone) ~= nil then
+        child.ChildAdded:Connect(function(blehh)
+            if blehh.Name == "bobber" then
+                local RopeConstraint = blehh:FindFirstChildOfClass("RopeConstraint")
+                if ZoneCast and RopeConstraint ~= nil then
+                    RopeConstraint.Changed:Connect(function(property)
+                        if property == "Length" then
+                            RopeConstraint.Length = math.huge
+                        end
+                    end)
+                    RopeConstraint.Length = math.huge
+                end
+                task.wait(1)
+                while WaitForSomeone(RenderStepped) do
+                    if ZoneCast and blehh.Parent ~= nil then
+                        task.wait()
+                        blehh.CFrame = FishingZonesFolder[Zone].CFrame
+                    else
+                        break
+                    end
+                end
+            end
+        end)
     end
-end)
-
-local autoShakeToggle = Tabs.Main:AddToggle("autoShake", {Title = "Auto Shake", Default = false })
-autoShakeToggle:OnChanged(function()
-    if Options.autoShake.Value == true then
-        autoShakeEnabled = true
-        startAutoShake()
-    else
-        autoShakeEnabled = false
-        stopAutoShake()
-    end
-end)
-
-local autoReelToggle = Tabs.Main:AddToggle("autoReel", {Title = "Auto Reel", Default = false })
-autoReelToggle:OnChanged(function()
-    if Options.autoReel.Value == true then
-        autoReelEnabled = true
-        startAutoReel()
-    else
-        autoReelEnabled = false
-        stopAutoReel()
-    end
-end)
-
-local FreezeCharacterToggle = Tabs.Main:AddToggle("FreezeCharacter", {Title = "Freeze Character", Default = false })
-FreezeCharacterToggle:OnChanged(function()
-    local oldpos = HumanoidRootPart.CFrame
-    FreezeChar = Options.FreezeCharacter.Value
-    task.wait()
-    while WaitForSomeone(RunService.RenderStepped) do
-        if FreezeChar and HumanoidRootPart ~= nil then
-            task.wait()
-            HumanoidRootPart.CFrame = oldpos
-        else
-            break
-        end
-    end
-end)
-
--- // Mode Tab // --
-local section = Tabs.Main:AddSection("Mode Fishing")
-local autoCastModeDropdown = Tabs.Main:AddDropdown("autoCastMode", {
-    Title = "Auto Cast Mode",
-    Values = {"Legit", "Blatant"},
-    Multi = false,
-    Default = CastMode,
-})
-autoCastModeDropdown:OnChanged(function(Value)
-    CastMode = Value
-end)
-
-local autoShakeModeDropdown = Tabs.Main:AddDropdown("autoShakeMode", {
-    Title = "Auto Shake Mode",
-    Values = {"Navigation", "Mouse"},
-    Multi = false,
-    Default = ShakeMode,
-})
-autoShakeModeDropdown:OnChanged(function(Value)
-    ShakeMode = Value
-end)
-
-local autoReelModeDropdown = Tabs.Main:AddDropdown("autoReelMode", {
-    Title = "Auto Reel Mode",
-    Values = {"Legit", "Blatant"},
-    Multi = false,
-    Default = ReelMode,
-})
-autoReelModeDropdown:OnChanged(function(Value)
-    ReelMode = Value
-end)
