@@ -21,6 +21,7 @@ local Tabs = {
     Exclusives = Window:AddTab({ Title = "Credit", Icon = "heart" }),
 }
 
+getgenv().Tabs = Tabs
 
 Tabs.Home:AddButton({
     Title = "Copy Owner Discord",
