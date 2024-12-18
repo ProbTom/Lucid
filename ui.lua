@@ -1,6 +1,6 @@
 -- ui.lua
 if getgenv().cuppink and game.CoreGui:FindFirstChild("ClickButton") then 
-    warn("Skibidi Tom : Already executed!") 
+    warn("Lucid Hub : Already executed!") 
     return 
 end
 
