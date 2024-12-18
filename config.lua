@@ -1,4 +1,5 @@
-return {
+-- config.lua
+local Config = {
     UI = {
         MainColor = Color3.fromRGB(38, 38, 38),
         ButtonColor = Color3.new(220, 125, 255),
@@ -12,3 +13,6 @@ return {
     },
     GameID = 16732694052
 }
+
+getgenv().Config = Config
+return Config
