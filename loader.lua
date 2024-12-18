@@ -1,6 +1,16 @@
+local function notify(title, content)
+    if game:GetService("StarterGui") then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = title,
+            Text = content,
+            Duration = 5
+        })
+    end
+end
+
 -- Check for multiple executions
 if getgenv().LucidHubLoaded then
-    warn("Lucid Hub: Already executed!")
+    notify("Lucid Hub", "Already loaded!")
     return
 end
 
@@ -9,67 +19,106 @@ local function fetchURL(url)
     local success, result = pcall(function()
         return game:HttpGet(url)
     end)
-    if success and type(result) == "string" and #result > 0 then
-        return result
+    
+    if not success then
+        notify("Error", "Failed to fetch: " .. url)
+        return nil
     end
-    warn("Failed to fetch:", url)
-    return nil
+    
+    if type(result) ~= "string" or #result == 0 then
+        notify("Error", "Invalid response from: " .. url)
+        return nil
+    end
+    
+    if result:match("404: Not Found") then
+        notify("Error", "File not found: " .. url)
+        return nil
+    end
+    
+    return result
 end
 
 local function loadScript(source, name)
     if not source then
-        warn("No source provided for:", name)
+        notify("Error", "No source for: " .. name)
         return false
     end
     
     local func, err = loadstring(source)
-    if func then
-        local success, result = pcall(func)
-        if not success then
-            warn("Failed to execute:", name, result)
-            return false
-        end
-        return true
+    if not func then
+        notify("Error", "Failed to parse " .. name .. ": " .. tostring(err))
+        return false
     end
-    warn("Failed to load script:", name, err)
-    return false
+    
+    local success, result = pcall(func)
+    if not success then
+        notify("Error", "Failed to run " .. name .. ": " .. tostring(result))
+        return false
+    end
+    
+    return true
 end
 
--- Base URL for your scripts
+-- Base URL for scripts
 local baseUrl = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
 
--- Files to load in order
+-- Try to load config first
+local configSource = fetchURL(baseUrl .. "config.lua")
+if not configSource then
+    notify("Error", "Failed to load config")
+    return
+end
+
+local success = loadScript(configSource, "config")
+if not success then
+    notify("Error", "Failed to execute config")
+    return
+end
+
+-- Load required external libraries
+if getgenv().Config and getgenv().Config.URLs then
+    for name, url in pairs(getgenv().Config.URLs) do
+        local source = fetchURL(url)
+        if not source then
+            notify("Error", "Failed to load " .. name)
+            return
+        end
+        if not loadScript(source, name) then
+            notify("Error", "Failed to execute " .. name)
+            return
+        end
+        task.wait(0.1)
+    end
+end
+
+-- Load main scripts
 local files = {
-    "config.lua",
     "init.lua",
     "ui.lua",
     "Tab.lua",
     "MainTab.lua"
 }
 
--- Load each file
 for _, file in ipairs(files) do
-    print("Fetching:", file) -- Debug print
     local source = fetchURL(baseUrl .. file)
     if not source then
-        warn("Failed to fetch:", file)
+        notify("Error", "Failed to fetch " .. file)
         return
     end
-    print("Loading:", file) -- Debug print
-    local success = loadScript(source, file)
-    if not success then
-        warn("Failed to load:", file)
+    
+    if not loadScript(source, file) then
+        notify("Error", "Failed to load " .. file)
         return
     end
-    task.wait(0.1) -- Small delay between loads
+    
+    task.wait(0.1)
 end
 
 -- Set loaded flag
 getgenv().LucidHubLoaded = true
 
-print("Lucid Hub loaded successfully!")
+notify("Success", "Lucid Hub loaded!")
 
--- Show success notification if Fluent is loaded
 if getgenv().Fluent then
     getgenv().Fluent:Notify({
         Title = "Lucid Hub",
