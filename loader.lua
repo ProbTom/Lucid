@@ -1,97 +1,27 @@
-local function notify(title, content)
-    if game:GetService("StarterGui") then
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = title,
-            Text = content,
-            Duration = 5
-        })
-    end
-end
-
--- Check for multiple executions
 if getgenv().LucidHubLoaded then
-    notify("Lucid Hub", "Already loaded!")
+    warn("Lucid Hub: Already executed!")
     return
 end
 
--- Initialize loading
-local function fetchURL(url)
-    local success, result = pcall(function()
-        return game:HttpGet(url)
-    end)
-    
-    if not success then
-        notify("Error", "Failed to fetch: " .. url)
-        return nil
-    end
-    
-    if type(result) ~= "string" or #result == 0 then
-        notify("Error", "Invalid response from: " .. url)
-        return nil
-    end
-    
-    if result:match("404: Not Found") then
-        notify("Error", "File not found: " .. url)
-        return nil
-    end
-    
-    return result
+if not game:IsLoaded() then
+    game.Loaded:Wait()
 end
 
-local function loadScript(source, name)
-    if not source then
-        notify("Error", "No source for: " .. name)
-        return false
-    end
-    
-    local func, err = loadstring(source)
-    if not func then
-        notify("Error", "Failed to parse " .. name .. ": " .. tostring(err))
-        return false
-    end
-    
-    local success, result = pcall(func)
-    if not success then
-        notify("Error", "Failed to run " .. name .. ": " .. tostring(result))
-        return false
-    end
-    
-    return true
-end
+-- Load config first
+local configSource = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua")
+local config = loadstring(configSource)()
 
--- Base URL for scripts
-local baseUrl = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
+-- Load UI Libraries using the same method as your working script
+local Fluent = loadstring(game:HttpGet(config.URLs.Fluent))()
+local SaveManager = loadstring(game:HttpGet(config.URLs.SaveManager))()
+local InterfaceManager = loadstring(game:HttpGet(config.URLs.InterfaceManager))()
 
--- Try to load config first
-local configSource = fetchURL(baseUrl .. "config.lua")
-if not configSource then
-    notify("Error", "Failed to load config")
-    return
-end
+-- Store in global
+getgenv().Fluent = Fluent
+getgenv().SaveManager = SaveManager
+getgenv().InterfaceManager = InterfaceManager
 
-local success = loadScript(configSource, "config")
-if not success then
-    notify("Error", "Failed to execute config")
-    return
-end
-
--- Load required external libraries
-if getgenv().Config and getgenv().Config.URLs then
-    for name, url in pairs(getgenv().Config.URLs) do
-        local source = fetchURL(url)
-        if not source then
-            notify("Error", "Failed to load " .. name)
-            return
-        end
-        if not loadScript(source, name) then
-            notify("Error", "Failed to execute " .. name)
-            return
-        end
-        task.wait(0.1)
-    end
-end
-
--- Load main scripts
+-- Load the rest of your scripts
 local files = {
     "init.lua",
     "ui.lua",
@@ -100,27 +30,19 @@ local files = {
 }
 
 for _, file in ipairs(files) do
-    local source = fetchURL(baseUrl .. file)
-    if not source then
-        notify("Error", "Failed to fetch " .. file)
+    local source = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. file)
+    local success, result = pcall(loadstring(source))
+    if not success then
+        warn("Failed to load " .. file .. ": " .. tostring(result))
         return
     end
-    
-    if not loadScript(source, file) then
-        notify("Error", "Failed to load " .. file)
-        return
-    end
-    
     task.wait(0.1)
 end
 
--- Set loaded flag
 getgenv().LucidHubLoaded = true
 
-notify("Success", "Lucid Hub loaded!")
-
-if getgenv().Fluent then
-    getgenv().Fluent:Notify({
+if Fluent then
+    Fluent:Notify({
         Title = "Lucid Hub",
         Content = "Successfully loaded!",
         Duration = 5
