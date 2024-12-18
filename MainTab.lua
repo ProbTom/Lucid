@@ -1,3 +1,34 @@
+-- Ensure required services and variables are correctly initialized
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Placeholder function definitions (replace these with actual implementations)
+local function startAutoShake()
+    print("startAutoShake called")
+    -- Add your implementation here
+end
+
+local function stopAutoShake()
+    print("stopAutoShake called")
+    -- Add your implementation here
+end
+
+local function startAutoReel()
+    print("startAutoReel called")
+    -- Add your implementation here
+end
+
+local function stopAutoReel()
+    print("stopAutoReel called")
+    -- Add your implementation here
+end
+
+local function WaitForSomeone(event)
+    -- Add your implementation here
+    return true -- Placeholder return value
+end
+
 -- // Main Tab // --
 local section = Tabs.Main:AddSection("Auto Fishing")
 local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
@@ -96,7 +127,7 @@ FreezeCharacter:OnChanged(function()
     local oldpos = LocalPlayer.Character.HumanoidRootPart.CFrame
     FreezeChar = Options.FreezeCharacter.Value
     task.wait()
-    while WaitForSomeone(RenderStepped) do
+    while WaitForSomeone(game:GetService("RunService").RenderStepped) do
         if FreezeChar and LocalPlayer.Character.HumanoidRootPart ~= nil then
             task.wait()
             LocalPlayer.Character.HumanoidRootPart.CFrame = oldpos
