@@ -7,6 +7,17 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+-- Define config globally to be used by other scripts
+getgenv().Config = {
+    UI = {
+        MainColor = Color3.fromRGB(38, 38, 38),
+        ButtonColor = Color3.new(220, 125, 255),
+        MinimizeKey = Enum.KeyCode.RightControl,
+        Theme = "Rose"
+    },
+    GameID = 16732694052
+}
+
 -- Load UI Libraries directly
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
