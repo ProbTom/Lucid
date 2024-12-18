@@ -1,9 +1,9 @@
--- main_tab.lua
+-- main tab
 local Fluent = getgenv().Fluent
 
 local Window = Fluent:CreateWindow({
-    Title = game:GetService("MarketplaceService"):GetProductInfo(16732694052).Name .." | Fisch - Premium",
-    SubTitle = "Skibidi Tom ?)",
+    Title = game:GetService("MarketplaceService"):GetProductInfo(16732694052).Name .." | Lucid Hub",
+    SubTitle = "Lucid Hub",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = false, -- The blur may be detectable, setting this to false disables blur entirely
@@ -21,7 +21,7 @@ local Tabs = {
     Trade = Window:AddTab({ Title = "Trade", Icon = "gift" })
 }
 
--- Example of adding a button to the "Home" tab
+
 Tabs.Home:AddButton({
     Title = "Copy Owner Discord",
     Description = "Any problem ? Add Me",
@@ -32,7 +32,7 @@ Tabs.Home:AddButton({
 
 Window:SelectTab(1)
 Fluent:Notify({
-    Title = "Fisch",
+    Title = "Lucid Hub",
     Content = "Executed!",
     Duration = 8
 })
