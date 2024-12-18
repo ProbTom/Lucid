@@ -1,4 +1,7 @@
-if getgenv().cuppink then warn("CupPink Hub: Already executed!") return end
+if getgenv().cuppink then
+    warn("CupPink Hub: Already executed!")
+    return
+end
 getgenv().cuppink = true
 
 if not game:IsLoaded() then
@@ -8,9 +11,21 @@ end
 -- Ensure HttpService is correctly used
 local HttpService = game:GetService("HttpService")
 
-local Fluent = loadstring(HttpService:GetAsync("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local function safeHttpGet(url)
+    local success, result = pcall(function()
+        return HttpService:GetAsync(url)
+    end)
+    if success then
+        return result
+    else
+        warn("Failed to fetch URL:", url)
+        return nil
+    end
+end
+
+local Fluent = loadstring(safeHttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(safeHttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(safeHttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 local DeviceType = game:GetService("UserInputService").TouchEnabled and "Mobile" or "PC"
 if DeviceType == "Mobile" then
@@ -283,3 +298,131 @@ local function stopAutoReel()
         autoReelConnection:Disconnect()
         autoReelConnection = nil
     end
+end
+
+PlayerGui.DescendantAdded:Connect(function(descendant)
+    if autoReelEnabled and descendant.Name == "playerbar" and descendant.Parent and descendant.Parent.Name == "bar" then
+        startAutoReel()
+    end
+end)
+
+PlayerGui.DescendantRemoving:Connect(function(descendant)
+    if descendant.Name == "playerbar" and descendant.Parent and descendant.Parent.Name == "bar" then
+        stopAutoReel()
+        if autoCastEnabled then
+            task.wait(1)
+            autoCast()
+        end
+    end
+end)
+
+if autoReelEnabled and PlayerGui:FindFirstChild("reel") and
+    PlayerGui.reel:FindFirstChild("bar") and
+    PlayerGui.reel.bar:FindFirstChild("playerbar") then
+    startAutoReel()
+end
+
+-- // // // Zone Cast // // // --
+ZoneConnection = LocalCharacter.ChildAdded:Connect(function(child)
+    if ZoneCast and child:IsA("Tool") and FishingZonesFolder:FindFirstChild(Zone) ~= nil then
+        child.ChildAdded:Connect(function(blehh)
+            if blehh.Name == "bobber" then
+                local RopeConstraint = blehh:FindFirstChildOfClass("RopeConstraint")
+                if ZoneCast and RopeConstraint ~= nil then
+                    RopeConstraint.Changed:Connect(function(property)
+                        if property == "Length" then
+                            RopeConstraint.Length = math.huge
+                        end
+                    end)
+                    RopeConstraint.Length = math.huge
+                end
+                task.wait(1)
+                while WaitForSomeone(RenderStepped) do
+                    if ZoneCast and blehh.Parent ~= nil then
+                        task.wait()
+                        blehh.CFrame = FishingZonesFolder[Zone].CFrame
+                    else
+                        break
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- // Find TpSpots // --
+local TpSpotsFolder = Workspace:FindFirstChild("world"):WaitForChild("spawns"):WaitForChild("TpSpots")
+for i, v in pairs(TpSpotsFolder:GetChildren()) do
+    if table.find(teleportSpots, v.Name) == nil then
+        table.insert(teleportSpots, v.Name)
+    end
+end
+
+-- // // // Get Position // // // --
+function GetPosition()
+    if not game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return {
+            Vector3.new(0, 0, 0),
+            Vector3.new(0, 0, 0),
+            Vector3.new(0, 0, 0)
+        }
+    end
+    return {
+        game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position.X,
+        game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position.Y,
+        game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position.Z
+    }
+end
+
+function ExportValue(arg1, arg2)
+    return tonumber(string.format("%." .. (arg2 or 1) .. 'f', arg1))
+end
+
+-- // // // Sell Item // // // --
+function rememberPosition()
+    spawn(function()
+        local initialCFrame = HumanoidRootPart.CFrame
+
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bodyVelocity.Parent = HumanoidRootPart
+
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bodyGyro.D = 100
+        bodyGyro.P = 10000
+        bodyGyro.CFrame = initialCFrame
+        bodyGyro.Parent = HumanoidRootPart
+
+        while AutoFreeze do
+            HumanoidRootPart.CFrame = initialCFrame
+            task.wait(0.01)
+        end
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+        end
+        if bodyGyro then
+            bodyGyro:Destroy()
+        end
+    end)
+end
+
+function SellHand()
+    local currentPosition = HumanoidRootPart.CFrame
+    local sellPosition = CFrame.new(464, 151, 232)
+    local wasAutoFreezeActive = false
+    if AutoFreeze then
+        wasAutoFreezeActive = true
+        AutoFreeze = false
+    end
+    HumanoidRootPart.CFrame = sellPosition
+    task.wait(0.5)
+    workspace:WaitForChild("world"):WaitForChild("npcs"):WaitForChild("Marc Merchant"):WaitForChild("merchant"):WaitForChild("sell"):InvokeServer()
+    task.wait(1)
+    HumanoidRootPart.CFrame = currentPosition
+    if wasAutoFreezeActive then
+        AutoFreeze = true
+        rememberPosition()
+    end
+end
