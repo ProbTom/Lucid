@@ -11,6 +11,7 @@ end
 -- Ensure HttpService is correctly used
 local HttpService = game:GetService("HttpService")
 
+-- Function to safely load scripts from URLs
 local function safeLoadString(url)
     local response = HttpService:GetAsync(url, true)
     return loadstring(response)()
@@ -309,8 +310,8 @@ PlayerGui.DescendantRemoving:Connect(function(descendant)
     end
 end)
 
-if autoReelEnabled and PlayerGui:FindFirstChild("reel") and 
-    PlayerGui.reel:FindFirstChild("bar") and 
+if autoReelEnabled and PlayerGui:FindFirstChild("reel") and
+    PlayerGui.reel:FindFirstChild("bar") and
     PlayerGui.reel.bar:FindFirstChild("playerbar") then
     startAutoReel()
 end
@@ -355,9 +356,9 @@ end
 function GetPosition()
     if not game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         return {
-            Vector3.new(0,0,0),
-            Vector3.new(0,0,0),
-            Vector3.new(0,0,0)
+            Vector3.new(0, 0, 0),
+            Vector3.new(0, 0, 0),
+            Vector3.new(0, 0, 0)
         }
     end
     return {
