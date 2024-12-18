@@ -1,77 +1,102 @@
--- GUI
-if getgenv().cuppink and game.CoreGui:FindFirstChild("ClickButton") then
+-- Safe service getter
+local function getService(serviceName)
+    local success, service = pcall(function()
+        return game:GetService(serviceName)
+    end)
+    if success then
+        return service
+    else
+        warn("Failed to get service: " .. serviceName)
+        return nil
+    end
+end
+
+-- Check for multiple executions
+if getgenv().cuppink and getService("CoreGui"):FindFirstChild("ClickButton") then
     warn("Lucid Hub: Already executed!")
     return
 end
 
 getgenv().cuppink = true
 
+-- Wait for game load
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Ensure HttpService is correctly used
-local HttpService = game:GetService("HttpService")
+-- Get required services
+local HttpService = getService("HttpService")
+local UserInputService = getService("UserInputService")
+local CoreGui = getService("CoreGui")
+local Config = getgenv().Config or require(script.Parent.config)
 
-local Fluent = loadstring(HttpService:GetAsync("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(HttpService:GetAsync("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+-- Safe loading function
+local function safeLoadString(url)
+    local success, result = pcall(function()
+        return loadstring(HttpService:GetAsync(url))()
+    end)
+    if success then
+        return result
+    else
+        warn("Failed to load: " .. url)
+        return nil
+    end
+end
 
-local DeviceType = game:GetService("UserInputService").TouchEnabled and "Mobile" or "PC"
+-- Load UI libraries
+local Fluent = safeLoadString(Config.URLs.Fluent)
+local SaveManager = safeLoadString(Config.URLs.SaveManager)
+local InterfaceManager = safeLoadString(Config.URLs.InterfaceManager)
+
+if not (Fluent and SaveManager and InterfaceManager) then
+    warn("Failed to load required libraries")
+    return
+end
+
+-- Create mobile interface if needed
+local DeviceType = UserInputService.TouchEnabled and "Mobile" or "PC"
 if DeviceType == "Mobile" then
     local ClickButton = Instance.new("ScreenGui")
-    local MainFrame = Instance.new("Frame")
-    local ImageLabel = Instance.new("ImageLabel")
-    local TextButton = Instance.new("TextButton")
-    local UICorner = Instance.new("UICorner")
-    local UICorner_2 = Instance.new("UICorner")
-
     ClickButton.Name = "ClickButton"
-    ClickButton.Parent = game.CoreGui
+    ClickButton.Parent = CoreGui
     ClickButton.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
+    local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
     MainFrame.Parent = ClickButton
     MainFrame.AnchorPoint = Vector2.new(1, 0)
     MainFrame.BackgroundTransparency = 0.8
-    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
+    MainFrame.BackgroundColor3 = Config.UI.MainColor
     MainFrame.BorderSizePixel = 0
     MainFrame.Position = UDim2.new(1, -60, 0, 10)
     MainFrame.Size = UDim2.new(0, 45, 0, 45)
 
+    local UICorner = Instance.new("UICorner")
     UICorner.CornerRadius = UDim.new(1, 0)
     UICorner.Parent = MainFrame
 
-    UICorner_2.CornerRadius = UDim.new(0, 10)
-    UICorner_2.Parent = ImageLabel
-
-    ImageLabel.Parent = MainFrame
-    ImageLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-    ImageLabel.BackgroundColor3 = Color3.new(0, 0, 0)
-    ImageLabel.BorderSizePixel = 0
-    ImageLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
-    ImageLabel.Size = UDim2.new(0, 45, 0, 45)
-    ImageLabel.Image = "rbxassetid://"
-
+    local TextButton = Instance.new("TextButton")
     TextButton.Parent = MainFrame
-    TextButton.BackgroundColor3 = Color3.new(1, 1, 1)
     TextButton.BackgroundTransparency = 1
-    TextButton.BorderSizePixel = 0
-    TextButton.Position = UDim2.new(0, 0, 0, 0)
-    TextButton.Size = UDim2.new(0, 45, 0, 45)
-    TextButton.AutoButtonColor = false
+    TextButton.Size = UDim2.new(1, 0, 1, 0)
     TextButton.Font = Enum.Font.SourceSans
     TextButton.Text = "Open"
-    TextButton.TextColor3 = Color3.new(220, 125, 255)
+    TextButton.TextColor3 = Config.UI.ButtonColor
     TextButton.TextSize = 20
 
+    -- Safe click handler
     TextButton.MouseButton1Click:Connect(function()
-        game:GetService("VirtualInputManager"):SendKeyEvent(true, "RightControl", false, game)
-        game:GetService("VirtualInputManager"):SendKeyEvent(false, "RightControl", false, game)
+        local VirtualInputManager = getService("VirtualInputManager")
+        if VirtualInputManager then
+            VirtualInputManager:SendKeyEvent(true, Config.UI.MinimizeKey, false, game)
+            VirtualInputManager:SendKeyEvent(false, Config.UI.MinimizeKey, false, game)
+        end
     end)
 end
 
--- Export Fluent and other managers for further use
+-- Export UI components
 getgenv().Fluent = Fluent
 getgenv().SaveManager = SaveManager
 getgenv().InterfaceManager = InterfaceManager
+
+return true
