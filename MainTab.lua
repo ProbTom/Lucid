@@ -22,12 +22,25 @@ else
     print("playerstats found in ReplicatedStorage")
 end
 
+-- Debugging to check if Options table is accessible
+if not Options then
+    warn("Options table not found")
+else
+    print("Options table found")
+end
+
 -- // Main Tab // --
 local section = Tabs.Main:AddSection("Auto Fishing")
 local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
-autoCast:OnChanged(function()
-    local playerStats = ReplicatedStorage:FindFirstChild("playerstats")
 
+autoCast:OnChanged(function()
+    -- Ensure Options.autoCast is defined
+    if not Options.autoCast then
+        warn("Options.autoCast not found")
+        return
+    end
+
+    local playerStats = ReplicatedStorage:FindFirstChild("playerstats")
     if playerStats and playerStats:FindFirstChild(LocalPlayer.Name) and playerStats[LocalPlayer.Name]:FindFirstChild("Stats") and playerStats[LocalPlayer.Name].Stats:FindFirstChild("rod") then
         local RodName = playerStats[LocalPlayer.Name].Stats.rod.Value
         print("RodName:", RodName)
@@ -76,6 +89,11 @@ end)
 
 local autoShake = Tabs.Main:AddToggle("autoShake", {Title = "Auto Shake", Default = false })
 autoShake:OnChanged(function()
+    if not Options.autoShake then
+        warn("Options.autoShake not found")
+        return
+    end
+
     if Options.autoShake.Value == true then
         autoShakeEnabled = true
         startAutoShake()
@@ -87,6 +105,11 @@ end)
 
 local autoReel = Tabs.Main:AddToggle("autoReel", {Title = "Auto Reel", Default = false })
 autoReel:OnChanged(function()
+    if not Options.autoReel then
+        warn("Options.autoReel not found")
+        return
+    end
+
     if Options.autoReel.Value == true then
         autoReelEnabled = true
         startAutoReel()
@@ -98,6 +121,11 @@ end)
 
 local FreezeCharacter = Tabs.Main:AddToggle("FreezeCharacter", {Title = "Freeze Character", Default = false })
 FreezeCharacter:OnChanged(function()
+    if not Options.FreezeCharacter then
+        warn("Options.FreezeCharacter not found")
+        return
+    end
+
     local oldpos = LocalPlayer.Character.HumanoidRootPart.CFrame
     FreezeChar = Options.FreezeCharacter.Value
     task.wait()
