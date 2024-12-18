@@ -1,4 +1,4 @@
--- ui.lua
+-- GUI
 if getgenv().cuppink and game.CoreGui:FindFirstChild("ClickButton") then 
     warn("Lucid Hub : Already executed!") 
     return 
@@ -63,8 +63,8 @@ if DeviceType == "Mobile" then
     TextButton.TextSize = 20
 
     TextButton.MouseButton1Click:Connect(function()
-        game:GetService("VirtualInputManager"):SendKeyEvent(true, "LeftControl", false, game)
-        game:GetService("VirtualInputManager"):SendKeyEvent(false, "LeftControl", false, game)
+        game:GetService("VirtualInputManager"):SendKeyEvent(true, "RightControl", false, game)
+        game:GetService("VirtualInputManager"):SendKeyEvent(false, "RightControl", false, game)
     end)
 end
 
