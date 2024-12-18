@@ -1,7 +1,7 @@
 -- GUI
-if getgenv().cuppink and game.CoreGui:FindFirstChild("ClickButton") then 
-    warn("Lucid Hub : Already executed!") 
-    return 
+if getgenv().cuppink and game.CoreGui:FindFirstChild("ClickButton") then
+    warn("Lucid Hub: Already executed!")
+    return
 end
 
 getgenv().cuppink = true
@@ -10,6 +10,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+-- Ensure HttpService is correctly used
 local HttpService = game:GetService("HttpService")
 
 local Fluent = loadstring(HttpService:GetAsync("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -33,7 +34,7 @@ if DeviceType == "Mobile" then
     MainFrame.Parent = ClickButton
     MainFrame.AnchorPoint = Vector2.new(1, 0)
     MainFrame.BackgroundTransparency = 0.8
-    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38) 
+    MainFrame.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
     MainFrame.BorderSizePixel = 0
     MainFrame.Position = UDim2.new(1, -60, 0, 10)
     MainFrame.Size = UDim2.new(0, 45, 0, 45)
