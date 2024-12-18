@@ -27,8 +27,10 @@ local section = Tabs.Main:AddSection("Auto Fishing")
 local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
 autoCast:OnChanged(function()
     local playerStats = ReplicatedStorage:FindFirstChild("playerstats")
-    if playerStats and playerStats:FindFirstChild(LocalPlayer.Name) then
+
+    if playerStats and playerStats:FindFirstChild(LocalPlayer.Name) and playerStats[LocalPlayer.Name]:FindFirstChild("Stats") and playerStats[LocalPlayer.Name].Stats:FindFirstChild("rod") then
         local RodName = playerStats[LocalPlayer.Name].Stats.rod.Value
+        print("RodName:", RodName)
         if Options.autoCast.Value == true then
             autoCastEnabled = true
             if LocalPlayer.Backpack:FindFirstChild(RodName) then
