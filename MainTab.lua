@@ -1,38 +1,6 @@
--- Ensure required services and variables are correctly initialized
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
--- Debugging to check if variables are correctly initialized
-print("ReplicatedStorage:", ReplicatedStorage)
-print("Players:", Players)
-print("LocalPlayer:", LocalPlayer)
-
--- Check if LocalPlayer is loaded
-if not LocalPlayer then
-    Players.PlayerAdded:Wait()
-    LocalPlayer = Players.LocalPlayer
-end
-
--- Debugging to check if playerstats is accessible
-local playerStats = ReplicatedStorage:FindFirstChild("playerstats")
-if not playerStats then
-    warn("playerstats not found in ReplicatedStorage")
-else
-    print("playerstats found in ReplicatedStorage")
-end
-
--- Debugging to check if Options table is accessible
-if not Options then
-    warn("Options table not found")
-else
-    print("Options table found")
-end
-
 -- // Main Tab // --
 local section = Tabs.Main:AddSection("Auto Fishing")
 local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false })
-
 autoCast:OnChanged(function()
     -- Ensure Options.autoCast is defined
     if not Options.autoCast then
@@ -40,7 +8,6 @@ autoCast:OnChanged(function()
         return
     end
 
-    local playerStats = ReplicatedStorage:FindFirstChild("playerstats")
     if playerStats and playerStats:FindFirstChild(LocalPlayer.Name) and playerStats[LocalPlayer.Name]:FindFirstChild("Stats") and playerStats[LocalPlayer.Name].Stats:FindFirstChild("rod") then
         local RodName = playerStats[LocalPlayer.Name].Stats.rod.Value
         print("RodName:", RodName)
