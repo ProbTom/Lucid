@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = LocalCharacter:WaitForChild("HumanoidRootPart")
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local GuiService = game:GetService("GuiService")
 
 -- Define the Options table if not already defined
 if not Options then
