@@ -7,14 +7,10 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Load config first
-local configSource = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua")
-local config = loadstring(configSource)()
-
--- Load UI Libraries using the same method as your working script
-local Fluent = loadstring(game:HttpGet(config.URLs.Fluent))()
-local SaveManager = loadstring(game:HttpGet(config.URLs.SaveManager))()
-local InterfaceManager = loadstring(game:HttpGet(config.URLs.InterfaceManager))()
+-- Load UI Libraries directly
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 -- Store in global
 getgenv().Fluent = Fluent
