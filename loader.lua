@@ -1,6 +1,6 @@
 local function loadModule(url)
     local success, content = pcall(function()
-        return game:GetService("HttpService"):GetAsync(url)
+        return game:HttpGet(url) -- Use HttpGet instead of HttpService:GetAsync
     end)
     
     if success then
@@ -16,6 +16,11 @@ local function loadModule(url)
     return false
 end
 
+-- Set up global environment
+if not getgenv().Config then
+    getgenv().Config = {}
+end
+
 -- Load modules in correct order
 local baseUrl = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
 local modules = {
@@ -27,7 +32,8 @@ local modules = {
 }
 
 for _, module in ipairs(modules) do
-    if not loadModule(module.url) then
+    local success = loadModule(module.url)
+    if not success then
         warn("Failed to load " .. module.name)
         return
     end
