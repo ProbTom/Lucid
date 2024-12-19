@@ -20,6 +20,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 -- Cache MainTab reference
 local MainTab = getgenv().Tabs.Main
@@ -121,53 +122,42 @@ autoShake:OnChanged(function()
     end)
 end)
 
--- Auto Cast Toggle (Last) with optimizations
+-- Auto Cast Toggle (Last)
 local autoCast = MainTab:AddToggle("autoCast", {
     Title = "Auto Cast",
     Default = false
 })
 
 local lastCastTime = 0
-local CAST_COOLDOWN = 1.5 -- Adjustable cooldown for casting
-local castEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("castingfinished")
+local CAST_COOLDOWN = 1.5
+local castEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("cast")
 
-local function canCast()
-    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-    if not rodName or rodName == "" then return false end
-    
-    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
-    if not rod then return false end
-    
-    -- Check if player is not in casting animation or other states
-    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-    if not humanoid or humanoid:GetState() == Enum.HumanoidStateType.Swimming then
-        return false
-    end
-    
-    return true
+local function performCast()
+    pcall(function()
+        -- Send cast event
+        castEvent:FireServer()
+        
+        -- Simulate key press as backup
+        task.spawn(function()
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        end)
+    end)
 end
 
 autoCast:OnChanged(function()
     pcall(function()
         if autoCast.Value then
             RunService:BindToRenderStep("AutoCast", Enum.RenderPriority.First.Value, function()
-                if tick() - lastCastTime > CAST_COOLDOWN and canCast() then
-                    -- Original auto cast function
-                    if LocalPlayer.Character then
-                        Functions.autoCast(
-                            LocalPlayer.Character, 
-                            LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        )
+                if tick() - lastCastTime > CAST_COOLDOWN then
+                    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
+                    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
+                    
+                    if rod then
+                        performCast()
+                        lastCastTime = tick()
                     end
-                    
-                    -- Additional casting event
-                    task.spawn(function()
-                        pcall(function()
-                            castEvent:FireServer()
-                        end)
-                    end)
-                    
-                    lastCastTime = tick()
                 end
             end)
         else
