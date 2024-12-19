@@ -1,16 +1,23 @@
 -- loader.lua
+-- Core loader module for Lucid Hub
 if getgenv().LucidHubLoaded then
     warn("Lucid Hub: Already executed!")
     return
 end
 
--- Core initialization with improved error handling
+local Loader = {
+    _version = "1.0.1",
+    _modules = {},
+    _initialized = false
+}
+
+-- Core initialization
 local function initializeCore()
     if not game:IsLoaded() then
         game.Loaded:Wait()
     end
 
-    -- Initialize global state first
+    -- Initialize global state
     getgenv().State = {
         AutoFishing = false,
         AutoSelling = false,
@@ -23,20 +30,36 @@ local function initializeCore()
         Initialized = false
     }
 
-    -- Load Fluent UI with error handling
-    local success, Fluent = pcall(function()
-        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-    end)
+    -- Load Fluent UI with retry mechanism
+    local function loadFluentUI(retries)
+        for i = 1, retries do
+            local success, result = pcall(function()
+                -- Use Config.URLs.FluentUI once config is loaded
+                return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+            end)
 
-    if not success or not Fluent then
-        warn("Failed to load Fluent UI:", Fluent)
+            if success and result then
+                return result
+            end
+
+            if i < retries then
+                warn(string.format("Retry %d/%d loading Fluent UI", i, retries))
+                task.wait(1)
+            end
+        end
+        return nil
+    end
+
+    -- Initialize Fluent UI
+    local Fluent = loadFluentUI(3)
+    if not Fluent then
+        warn("Failed to load Fluent UI")
         return false
     end
 
     -- Store UI references globally
     getgenv().Fluent = Fluent
-    getgenv().Window = nil -- Will be set by UI module
-    
+
     -- Load UI addons
     pcall(function()
         getgenv().SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -46,7 +69,7 @@ local function initializeCore()
     return true
 end
 
--- Enhanced module loading with retry mechanism
+-- Module loading with retry mechanism
 local function loadModule(moduleName, retries)
     retries = retries or 3
     
@@ -59,7 +82,8 @@ local function loadModule(moduleName, retries)
         end)
 
         if success and result then
-            print("✓ Successfully loaded module:", moduleName)
+            Loader._modules[moduleName] = result
+            print(string.format("✓ Successfully loaded module: %s", moduleName))
             return result
         end
 
@@ -67,34 +91,47 @@ local function loadModule(moduleName, retries)
             warn(string.format("Retry %d/%d loading module: %s", attempt, retries, moduleName))
             task.wait(1)
         else
-            warn("Failed to load module:", moduleName, result)
-            return false
+            warn(string.format("Failed to load module: %s", moduleName))
         end
     end
     
     return false
 end
 
--- Initialize core first
-local coreSuccess = initializeCore()
-if not coreSuccess then
-    warn("Failed to initialize core systems")
-    return
-end
-
--- Load modules in correct order
-local moduleOrder = {
-    "functions",
-    "compatibility",
-    "events",
-    "ui"
-}
-
-for _, moduleName in ipairs(moduleOrder) do
-    if not loadModule(moduleName) then
-        warn("Failed to load required module:", moduleName)
-        return
+-- Initialize loader
+local function initialize()
+    if not initializeCore() then
+        warn("Failed to initialize core systems")
+        return false
     end
+
+    -- Load modules in correct order
+    local moduleOrder = {
+        "config",
+        "compatibility",
+        "functions",
+        "events",
+        "ui"
+    }
+
+    for _, moduleName in ipairs(moduleOrder) do
+        if not loadModule(moduleName) then
+            warn("Failed to load required module:", moduleName)
+            return false
+        end
+    end
+
+    Loader._initialized = true
+    getgenv().LucidHubLoaded = true
+    return true
 end
 
-getgenv().LucidHubLoaded = true
+-- Run initialization
+local success = initialize()
+
+if not success then
+    warn("⚠️ Lucid Hub failed to initialize completely")
+    return false
+end
+
+return Loader
