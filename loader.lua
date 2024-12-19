@@ -21,8 +21,7 @@ getgenv().Config = {
     Debug = true,
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/main.lua",
-        FluentBackup = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/src/main.lua" -- Backup Fluent source
+        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua" -- Corrected URL
     },
     MaxRetries = 3,
     RetryDelay = 1
@@ -64,50 +63,33 @@ if not loadScript("compatibility.lua") then
     return
 end
 
--- Initialize Fluent UI with retries
+-- Initialize Fluent UI
 local function initializeFluentUI()
-    local function tryLoadFluent(url)
-        local success, content = pcall(function()
-            return game:HttpGet(url)
-        end)
-        
-        if not success then
-            debugPrint("Failed to fetch Fluent UI from:", url)
-            return false
-        end
-        
-        local loaded = loadstring(content)
-        if not loaded then
-            debugPrint("Failed to compile Fluent UI source")
-            return false
-        end
-        
-        local success, lib = pcall(loaded)
-        if not success or type(lib) ~= "table" then
-            debugPrint("Failed to execute Fluent UI:", lib)
-            return false
-        end
-        
-        return lib
+    local success, content = pcall(function()
+        return game:HttpGet(getgenv().Config.URLs.Fluent)
+    end)
+    
+    if not success then
+        debugPrint("Failed to fetch Fluent UI:", content)
+        return false
     end
     
-    -- Try main URL first
-    local fluentLib = tryLoadFluent(getgenv().Config.URLs.Fluent)
-    
-    -- If main fails, try backup
-    if not fluentLib then
-        debugPrint("Trying backup Fluent URL...")
-        fluentLib = tryLoadFluent(getgenv().Config.URLs.FluentBackup)
+    local loaded = loadstring(content)
+    if not loaded then
+        debugPrint("Failed to compile Fluent UI source")
+        return false
     end
     
-    if not fluentLib then
+    local success, lib = pcall(loaded)
+    if not success or type(lib) ~= "table" then
+        debugPrint("Failed to execute Fluent UI:", lib)
         return false
     end
     
     -- Verify essential methods exist
     local requiredMethods = {"CreateWindow", "Notify"}
     for _, method in ipairs(requiredMethods) do
-        if type(fluentLib[method]) ~= "function" then
+        if type(lib[method]) ~= "function" then
             debugPrint("Missing required Fluent UI method:", method)
             return false
         end
@@ -116,7 +98,7 @@ local function initializeFluentUI()
     -- Apply compatibility wrapper
     if type(getgenv().CompatibilityLayer) == "table" and 
        type(getgenv().CompatibilityLayer.wrapFluentUI) == "function" then
-        local wrapped = getgenv().CompatibilityLayer.wrapFluentUI(fluentLib)
+        local wrapped = getgenv().CompatibilityLayer.wrapFluentUI(lib)
         if type(wrapped) == "table" then
             getgenv().Fluent = wrapped
             return true
