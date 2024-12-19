@@ -1,20 +1,20 @@
 -- events.lua
--- Core events module for Lucid Hub
 local Events = {
     _version = "1.0.1",
     _initialized = false,
-    _eventStatus = {}  -- Track event status centrally
+    _eventStatus = {},
+    REQUIRED_EVENTS = {
+        "castrod",
+        "reelfinished",
+        "character"
+    }
 }
 
 -- Core services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Required events definition
-Events.REQUIRED_EVENTS = {
-    "castrod",
-    "reelfinished", 
-    "character"
-}
+-- Set global reference immediately
+getgenv().Events = Events
 
 -- Check events availability
 function Events.CheckEvent(eventName)
@@ -31,6 +31,7 @@ function Events.CheckEvent(eventName)
     local exists = events:FindFirstChild(eventName) ~= nil
     Events._eventStatus[eventName] = exists
     
+    -- Only warn once per event
     if not exists and getgenv().Config and getgenv().Config.Debug then
         warn("⚠️ Event not found:", eventName)
     end
@@ -39,7 +40,7 @@ function Events.CheckEvent(eventName)
 end
 
 -- Initialize events system
-local function initialize()
+function Events.Initialize()
     if Events._initialized then
         return true
     end
@@ -79,7 +80,7 @@ function Events.GetEvent(eventName)
 end
 
 -- Run initialization
-local success = initialize()
+local success = Events.Initialize()
 
 if success then
     if getgenv().Config and getgenv().Config.Debug then
