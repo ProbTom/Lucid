@@ -4,51 +4,27 @@ local LocalPlayer = Players.LocalPlayer
 
 getgenv().Functions = {
     autoShake = function(gui)
-        if not gui or not gui:FindFirstChild("shakeui") or not gui.shakeui.Enabled then
-            return
-        end
-
-        -- Safely find the button by recursively searching through the shakeui
-        local function findButton(parent)
-            for _, child in ipairs(parent:GetChildren()) do
-                if child:IsA("TextButton") or child:IsA("ImageButton") then
-                    return child
-                end
-                local found = findButton(child)
-                if found then
-                    return found
-                end
-            end
-            return nil
-        end
-        
-        local button = findButton(gui.shakeui)
-        if button then
-            button.Size = UDim2.new(1001, 0, 1001, 0)
-            pcall(function()
-                VirtualUser:Button1Down(Vector2.new(1, 1))
-                task.wait(0.1)
-                VirtualUser:Button1Up(Vector2.new(1, 1))
-            end)
+        if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
+            gui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
+            VirtualUser:Button1Down(Vector2.new(1, 1))
+            task.wait(0.1)
+            VirtualUser:Button1Up(Vector2.new(1, 1))
         end
     end,
     
     autoCast = function(mode, character, hrp)
         if not character or not hrp then return end
         
-        local function performCast()
-            pcall(function()
-                VirtualUser:Button1Down(Vector2.new(1, 1))
-                if mode == "Legit" then
-                    task.wait(0.1)
-                end
-                VirtualUser:Button1Up(Vector2.new(1, 1))
-            end)
-        end
-
         local rod = character:FindFirstChild("Rod")
         if rod then
-            performCast()
+            if mode == "Legit" then
+                VirtualUser:Button1Down(Vector2.new(1, 1))
+                task.wait(0.1)
+                VirtualUser:Button1Up(Vector2.new(1, 1))
+            elseif mode == "Blatant" then
+                VirtualUser:Button1Down(Vector2.new(1, 1))
+                VirtualUser:Button1Up(Vector2.new(1, 1))
+            end
         end
     end,
     
@@ -70,17 +46,13 @@ getgenv().Functions = {
             local safeEnd = safeStart + safe.Size.X.Scale
             
             if arrowPos >= safeStart and arrowPos <= safeEnd then
-                pcall(function()
-                    VirtualUser:Button1Down(Vector2.new(1, 1))
-                    task.wait(0.1)
-                    VirtualUser:Button1Up(Vector2.new(1, 1))
-                end)
+                VirtualUser:Button1Down(Vector2.new(1, 1))
+                task.wait(0.1)
+                VirtualUser:Button1Up(Vector2.new(1, 1))
             end
         elseif mode == "Blatant" then
-            pcall(function()
-                VirtualUser:Button1Down(Vector2.new(1, 1))
-                VirtualUser:Button1Up(Vector2.new(1, 1))
-            end)
+            VirtualUser:Button1Down(Vector2.new(1, 1))
+            VirtualUser:Button1Up(Vector2.new(1, 1))
         end
     end
 }
