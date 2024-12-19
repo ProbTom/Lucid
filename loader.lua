@@ -1,191 +1,163 @@
 -- loader.lua
-if getgenv().LucidHubLoaded then
-    warn("Lucid Hub: Already executed!")
-    return
-end
-
 local Loader = {
     _version = "1.0.1",
-    _modules = {},
-    _loaded = {},
     _initialized = false,
-    _baseUrl = "https://raw.githubusercontent.com/ProbTom/Lucid/main/%s.lua",
-    _dependencies = {
-        Fluent = {
-            url = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
-            required = true
-        },
-        SaveManager = {
-            url = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
-            required = false
-        },
-        InterfaceManager = {
-            url = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua",
-            required = false
+    _modules = {},
+    _config = {
+        Debug = true,
+        LoadOrder = {
+            "events",
+            "functions",
+            "ui"
         }
     }
 }
 
--- Initialize core systems
-local function initializeCore()
-    if not game:IsLoaded() then
-        game.Loaded:Wait()
-    end
+-- Core services
+local Services = {
+    Players = game:GetService("Players"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    HttpService = game:GetService("HttpService")
+}
 
-    -- Initialize global state
+-- Initialize global state
+if not getgenv().Config then
+    getgenv().Config = {
+        Debug = true,
+        Version = "1.0.1"
+    }
+end
+
+if not getgenv().State then
     getgenv().State = {
-        AutoFishing = false,
-        AutoSelling = false,
-        SelectedRarities = {},
+        AutoCasting = false,
+        AutoReeling = false,
+        AutoShaking = false,
         LastReelTime = 0,
         LastShakeTime = 0,
         Events = {
             Available = {}
-        },
-        Initialized = false
+        }
     }
+end
 
-    -- Initialize global config
-    getgenv().Config = {
-        Debug = true,
-        Version = Loader._version
-    }
+-- Module loading system with error handling
+function Loader.LoadModule(moduleName)
+    if Loader._modules[moduleName] then
+        return Loader._modules[moduleName]
+    end
 
-    -- Load UI dependencies
-    for name, dep in pairs(Loader._dependencies) do
-        if not getgenv()[name] then
-            local success, result = pcall(function()
-                return loadstring(game:HttpGet(dep.url))()
-            end)
-            
-            if success and result then
-                getgenv()[name] = result
-            elseif dep.required then
-                warn(string.format("Failed to load required dependency: %s", name))
+    local success, module = pcall(function()
+        local moduleScript = loadstring(game:HttpGet(string.format(
+            "https://raw.githubusercontent.com/ProbTom/Lucid/main/%s.lua",
+            moduleName
+        )))()
+        
+        if moduleScript then
+            Loader._modules[moduleName] = moduleScript
+            if getgenv().Config.Debug then
+                print(string.format("✓ Successfully loaded module: %s", moduleName))
+            end
+        end
+        
+        return moduleScript
+    end)
+
+    if not success or not module then
+        warn(string.format("⚠️ Failed to load module: %s", moduleName))
+        return nil
+    end
+
+    return module
+end
+
+-- System initialization
+function Loader.Initialize()
+    if Loader._initialized then return true end
+
+    -- Load UI library first
+    if not getgenv().Fluent then
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(
+                "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
+            ))()
+        end)
+        
+        if not success or not result then
+            warn("⚠️ Failed to load UI library")
+            return false
+        end
+        
+        getgenv().Fluent = result
+    end
+
+    -- Load all required modules in order
+    for _, moduleName in ipairs(Loader._config.LoadOrder) do
+        local module = Loader.LoadModule(moduleName)
+        if not module then
+            warn(string.format("⚠️ Critical module failed to load: %s", moduleName))
+            return false
+        end
+        
+        -- Initialize module if it has an initialize function
+        if type(module.Initialize) == "function" then
+            local success = module.Initialize()
+            if not success then
+                warn(string.format("⚠️ Failed to initialize module: %s", moduleName))
                 return false
             end
         end
     end
 
-    return true
-end
-
--- Enhanced module loading with retry mechanism
-local function loadModule(moduleName, retries)
-    if Loader._loaded[moduleName] then
-        return Loader._modules[moduleName]
-    end
-
-    retries = retries or 3
-    
-    for attempt = 1, retries do
-        local success, result = pcall(function()
-            return loadstring(game:HttpGet(string.format(Loader._baseUrl, moduleName)))()
-        end)
-
-        if success and result then
-            Loader._modules[moduleName] = result
-            Loader._loaded[moduleName] = true
-            
-            -- Store in global state for cross-module access
-            getgenv()[moduleName:gsub("^%l", string.upper)] = result
-            
-            if getgenv().Config and getgenv().Config.Debug then
-                print(string.format("✓ Successfully loaded module: %s", moduleName))
-            end
-            
-            -- Wait for module initialization if needed
-            local initAttempts = 0
-            while result._initialized ~= nil and not result._initialized and initAttempts < 10 do
-                task.wait(0.1)
-                initAttempts = initAttempts + 1
-            end
-            
-            return result
-        end
-
-        if attempt < retries then
-            task.wait(1)
-            if getgenv().Config and getgenv().Config.Debug then
-                warn(string.format("Retrying module load: %s (Attempt %d/%d)", moduleName, attempt, retries))
-            end
-        end
-    end
-    
-    warn(string.format("Failed to load module: %s after %d attempts", moduleName, retries))
-    return false
-end
-
--- Module dependency order
-local moduleOrder = {
-    {name = "events", required = true},
-    {name = "compatibility", required = true},
-    {name = "functions", required = true},
-    {name = "ui", required = true}
-}
-
--- Main initialization
-local function initialize()
-    if not initializeCore() then
-        warn("Failed to initialize core systems")
-        return false
-    end
-
-    -- Load modules in order
-    for _, module in ipairs(moduleOrder) do
-        if not loadModule(module.name) and module.required then
-            warn(string.format("Failed to load required module: %s", module.name))
-            return false
-        end
-        task.wait(0.2)
+    -- Create window reference
+    if not getgenv().Window then
+        getgenv().Window = getgenv().Fluent:CreateWindow({
+            Title = "Lucid Hub",
+            SubTitle = "v1.0.1",
+            TabWidth = 160,
+            Size = UDim2.fromOffset(600, 400),
+            Theme = "Dark",
+            MinimizeKeybind = Enum.KeyCode.LeftControl
+        })
     end
 
     Loader._initialized = true
-    getgenv().LucidHubLoaded = true
     
-    if getgenv().Config and getgenv().Config.Debug then
-        print(string.format("✓ Lucid Hub initialized successfully (v%s)", Loader._version))
+    if getgenv().Config.Debug then
+        print("✓ Lucid Hub initialized successfully (v1.0.1)")
     end
     
     return true
 end
 
--- Cleanup function
-local function cleanup()
-    -- Clean up modules
-    for name, module in pairs(Loader._modules) do
+-- Cleanup system
+function Loader.Cleanup()
+    -- Cleanup all modules
+    for moduleName, module in pairs(Loader._modules) do
         if type(module.Cleanup) == "function" then
-            pcall(module.Cleanup)
+            pcall(function()
+                module.Cleanup()
+            end)
         end
     end
-
-    -- Clear global states
-    getgenv().LucidHubLoaded = nil
     
     -- Clear module cache
     Loader._modules = {}
-    Loader._loaded = {}
     Loader._initialized = false
 end
 
--- Error handler
-local function errorHandler(err)
-    warn("⚠️ Lucid Hub encountered an error:")
-    warn(debug.traceback(err))
-    cleanup()
-    return false
-end
-
--- Run initialization with error handling
-local success = xpcall(initialize, errorHandler)
+-- Error handling for script execution
+local success = pcall(function()
+    Loader.Initialize()
+end)
 
 if not success then
-    warn("⚠️ Lucid Hub failed to initialize completely")
-    cleanup()
-    return false
+    warn("⚠️ Failed to initialize Lucid Hub")
 end
 
 -- Setup cleanup on teleport
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(cleanup)
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+    Loader.Cleanup()
+end)
 
 return Loader
