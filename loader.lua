@@ -105,14 +105,6 @@ local loadOrder = {
     {name = "MainTab.lua", required = true}
 }
 
--- Version check
-pcall(function()
-    local versionInfo = game:HttpGet(getgenv().Config.URLs.Main .. "version.txt")
-    if versionInfo ~= getgenv().Config.Version then
-        warn("New version available: " .. versionInfo)
-    end
-end)
-
 for _, script in ipairs(loadOrder) do
     if not loadScript(script.name) and script.required then
         return
