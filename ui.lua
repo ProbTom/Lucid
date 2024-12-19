@@ -34,44 +34,11 @@ end
 local HttpService = getService("HttpService")
 local UserInputService = getService("UserInputService")
 local CoreGui = getService("CoreGui")
-local Config = getgenv().Config or require(script.Parent.config)
+local Config = getgenv().Config
+local Fluent = getgenv().Fluent
 
--- Safe loading function
-local function safeLoadString(url)
-    print("Attempting to load: " .. url) -- Debug print
-    local success, content = pcall(function()
-        return game:HttpGet(url)
-    end)
-    
-    if not success then
-        warn("Failed to get content from URL: " .. url)
-        return nil
-    end
-    
-    local func, err = loadstring(content)
-    if not func then
-        warn("Failed to parse content from: " .. url)
-        warn("Error: " .. tostring(err))
-        return nil
-    end
-    
-    success, result = pcall(func)
-    if not success then
-        warn("Failed to execute content from: " .. url)
-        warn("Error: " .. tostring(result))
-        return nil
-    end
-    
-    return result
-end
-
--- Load UI libraries
-local Fluent = safeLoadString(Config.URLs.Fluent)
-local SaveManager = safeLoadString(Config.URLs.SaveManager)
-local InterfaceManager = safeLoadString(Config.URLs.InterfaceManager)
-
-if not (Fluent and SaveManager and InterfaceManager) then
-    warn("Failed to load required libraries")
+if not Fluent then
+    warn("Fluent UI library not found")
     return
 end
 
@@ -115,11 +82,6 @@ if DeviceType == "Mobile" then
         end
     end)
 end
-
--- Export UI components
-getgenv().Fluent = Fluent
-getgenv().SaveManager = SaveManager
-getgenv().InterfaceManager = InterfaceManager
 
 -- Set the flag at the end of successful loading
 getgenv().LucidHubLoaded = true
