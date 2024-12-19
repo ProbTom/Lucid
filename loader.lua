@@ -52,64 +52,141 @@ getgenv().Config = {
         Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
         SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
         InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
-    }
+    },
+    Version = "1.0.0"
 }
 
--- Load Fluent UI directly
-local success, result = pcall(function()
-    return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
-end)
-
-if success then
-    getgenv().Fluent = result
-else
-    warn("Failed to load Fluent UI library")
-    return
-end
-
--- Load managers after Fluent is loaded
-pcall(function()
-    getgenv().SaveManager = loadstring(game:HttpGet(getgenv().Config.URLs.SaveManager))()
-    getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
-end)
-
--- Function to load scripts
-local function loadScript(name)
+-- Load Fluent UI with error handling
+local function loadFluent()
     local success, result = pcall(function()
-        local source = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. name)
-        return loadstring(source)()
+        return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
     end)
     
-    if not success then
-        warn("Failed to load " .. name .. ": " .. tostring(result))
+    if success then
+        getgenv().Fluent = result
+    else
+        warn("Failed to load Fluent UI library")
         return false
     end
+    
+    -- Load additional managers
+    pcall(function()
+        getgenv().SaveManager = loadstring(game:HttpGet(getgenv().Config.URLs.SaveManager))()
+        getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
+    end)
     
     return true
 end
 
--- Load scripts in order
+-- Function to load scripts with retry mechanism
+local function loadScript(name, maxRetries)
+    maxRetries = maxRetries or 3
+    local retryCount = 0
+    
+    while retryCount < maxRetries do
+        local success, result = pcall(function()
+            local source = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. name)
+            return loadstring(source)()
+        end)
+        
+        if success then
+            return true
+        else
+            retryCount = retryCount + 1
+            warn(string.format("Failed to load %s (Attempt %d/%d): %s", name, retryCount, maxRetries, tostring(result)))
+            task.wait(1)
+        end
+    end
+    
+    return false
+end
+
+-- Initialize Fluent UI
+if not loadFluent() then
+    warn("Failed to initialize Fluent UI")
+    return
+end
+
+-- Load scripts in order with dependencies
 local loadOrder = {
-    "init.lua",      -- First to initialize variables
-    "Tab.lua",       -- Second to create the window and tabs
-    "functions.lua", -- Third to load functions
-    "MainTab.lua"    -- Last to use everything
+    {name = "init.lua", required = true},      -- First to initialize variables
+    {name = "Tab.lua", required = true},       -- Second to create the window and tabs
+    {name = "functions.lua", required = true}, -- Third to load functions
+    {name = "MainTab.lua", required = true}    -- Last to use everything
 }
 
-for _, scriptName in ipairs(loadOrder) do
-    if not loadScript(scriptName) then
+-- Load all scripts
+for _, script in ipairs(loadOrder) do
+    if not loadScript(script.name) and script.required then
+        warn(string.format("Failed to load required script: %s", script.name))
         return
     end
     task.wait(0.1)
 end
 
+-- Set up auto-save functionality
+if getgenv().SaveManager then
+    getgenv().SaveManager:SetFolder("LucidHub")
+    getgenv().SaveManager:SetGame(tostring(game.GameId))
+    
+    -- Load saved settings
+    getgenv().SaveManager:Load("AutoSave")
+    
+    -- Auto-save settings periodically
+    spawn(function()
+        while true do
+            task.wait(30)
+            pcall(function()
+                getgenv().SaveManager:Save("AutoSave")
+            end)
+        end
+    end)
+end
+
 -- Mark as loaded
 getgenv().LucidHubLoaded = true
 
+-- Show success notification
 if getgenv().Fluent then
     getgenv().Fluent:Notify({
         Title = "Lucid Hub",
-        Content = "Successfully loaded!",
+        Content = string.format("Successfully loaded v%s!", getgenv().Config.Version),
         Duration = 5
     })
 end
+
+-- Add error handling for runtime errors
+game:GetService("ScriptContext").Error:Connect(function(message, stack, script)
+    if script and script:IsDescendantOf(game:GetService("CoreGui")) then
+        warn("Lucid Hub Runtime Error:", message, "\nStack:", stack)
+    end
+end)
+
+-- Setup clean disconnect
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+    if player == game:GetService("Players").LocalPlayer then
+        if getgenv().SaveManager then
+            getgenv().SaveManager:Save("AutoSave")
+        end
+        if getgenv().cleanup then
+            getgenv().cleanup()
+        end
+        cleanupExisting()
+    end
+end)
+
+-- Create debug command (only works in Studio)
+if game:GetService("RunService"):IsStudio() then
+    local function reloadScript()
+        cleanupExisting()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
+    end
+    
+    game:GetService("Players").LocalPlayer.Chatted:Connect(function(msg)
+        if msg == "/reloadlucid" then
+            reloadScript()
+        end
+    end)
+end
+
+return true
