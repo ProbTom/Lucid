@@ -5,21 +5,42 @@ local Functions = {}
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualUser = game:GetService("VirtualUser")
+local RunService = game:GetService("RunService")
 
 -- Constants
-local MINIMUM_WAIT = 0.05
-local DEFAULT_STRENGTH = 100
+local INTERACTION_COOLDOWN = 0.1
+local MAX_RETRIES = 3
+local REMOTE_TIMEOUT = 5
 
 -- Utility Functions
-Functions.ShowNotification = function(title, message)
-    if getgenv().Fluent then
-        getgenv().Fluent:Notify({
-            Title = title or "Notification",
-            Content = message or "",
-            Duration = 3
-        })
+local function waitForChild(parent, childName, timeout)
+    timeout = timeout or 5
+    local child = parent:FindFirstChild(childName)
+    local startTime = tick()
+    
+    while not child and tick() - startTime < timeout do
+        child = parent:FindFirstChild(childName)
+        RunService.Heartbeat:Wait()
     end
+    
+    return child
+end
+
+local function invokeWithRetry(remote, ...)
+    local success, result
+    local attempts = 0
+    
+    repeat
+        attempts = attempts + 1
+        success, result = pcall(function()
+            return remote:FireServer(...)
+        end)
+        if not success and attempts < MAX_RETRIES then
+            task.wait(INTERACTION_COOLDOWN)
+        end
+    until success or attempts >= MAX_RETRIES
+    
+    return success, result
 end
 
 -- Core Fishing Functions
@@ -27,20 +48,13 @@ Functions.autoFish = function(gui)
     pcall(function()
         if not gui then return end
         
-        local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-        local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
+        local fishing = gui:FindFirstChild("Fishing")
+        if not fishing then return end
         
-        if not rod then return end
+        local cast = ReplicatedStorage.events:FindFirstChild("castrod")
+        if not cast then return end
         
-        -- Only cast if we're not in a minigame
-        if not gui:FindFirstChild("minigame") then
-            local castEvent = ReplicatedStorage.events:WaitForChild("castrod")
-            castEvent:FireServer()
-            
-            if getgenv().Config.Debug then
-                Functions.ShowNotification("Auto Fish", "Casting rod...")
-            end
-        end
+        invokeWithRetry(cast)
     end)
 end
 
@@ -48,20 +62,13 @@ Functions.autoReel = function(gui)
     pcall(function()
         if not gui then return end
         
-        local minigame = gui:FindFirstChild("minigame")
-        if not minigame then return end
+        local fishing = gui:FindFirstChild("Fishing")
+        if not fishing or not fishing.Visible then return end
         
-        local reelEvent = ReplicatedStorage.events:WaitForChild("reelfinished")
+        local reel = ReplicatedStorage.events:FindFirstChild("reelfinished")
+        if not reel then return end
         
-        -- Ensure we don't spam the server
-        if tick() - (getgenv().State.LastReelTime or 0) >= MINIMUM_WAIT then
-            reelEvent:FireServer(DEFAULT_STRENGTH, true)
-            getgenv().State.LastReelTime = tick()
-            
-            if getgenv().Config.Debug then
-                Functions.ShowNotification("Auto Reel", "Reeling fish...")
-            end
-        end
+        invokeWithRetry(reel)
     end)
 end
 
@@ -69,61 +76,39 @@ Functions.autoShake = function(gui)
     pcall(function()
         if not gui then return end
         
-        local minigame = gui:FindFirstChild("minigame")
-        if not minigame then return end
+        local fishing = gui:FindFirstChild("Fishing")
+        if not fishing or not fishing.Visible then return end
         
-        if tick() - (getgenv().State.LastShakeTime or 0) >= MINIMUM_WAIT then
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton1(Vector2.new())
-            getgenv().State.LastShakeTime = tick()
-            
-            if getgenv().Config.Debug then
-                Functions.ShowNotification("Auto Shake", "Shaking...")
-            end
+        if not LocalPlayer.Character then return end
+        
+        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if not humanoid then return end
+        
+        -- Simulate shaking movement
+        for i = 1, 3 do
+            humanoid:MoveTo(humanoid.RootPart.Position + Vector3.new(math.random(-1, 1), 0, math.random(-1, 1)))
+            task.wait(0.1)
         end
     end)
 end
 
--- Inventory Management Functions
+-- Enhanced Item Management Functions
 Functions.sellFish = function(rarity)
     pcall(function()
-        if not getgenv().State.AutoSelling then return end
-        
         local backpack = LocalPlayer:WaitForChild("Backpack")
+        if not backpack then return end
+        
         for _, item in pairs(backpack:GetChildren()) do
             if item:FindFirstChild("values") and 
                item.values:FindFirstChild("rarity") and 
                item.values.rarity.Value == rarity then
                 
-                local sellEvent = ReplicatedStorage.events:WaitForChild("character")
-                sellEvent:FireServer("sell", item.Name)
-                task.wait(0.1) -- Prevent server overload
-                
-                if getgenv().Config.Debug then
-                    Functions.ShowNotification("Auto Sell", "Selling " .. item.Name)
+                local sellRemote = ReplicatedStorage.events:FindFirstChild("sellfish")
+                if sellRemote then
+                    invokeWithRetry(sellRemote, item)
                 end
-            end
-        end
-    end)
-end
-
-Functions.collectChest = function(chest, range)
-    pcall(function()
-        local character = LocalPlayer.Character
-        if not character or not chest then return end
-        
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        local chestPart = chest:FindFirstChild("Hitbox") or chest:FindFirstChild("HumanoidRootPart")
-        
-        if humanoidRootPart and chestPart then
-            local distance = (humanoidRootPart.Position - chestPart.Position).Magnitude
-            if distance <= (range or getgenv().Options.ChestRange) then
-                local collectEvent = ReplicatedStorage.events:WaitForChild("character")
-                collectEvent:FireServer("collect", chest)
                 
-                if getgenv().Config.Debug then
-                    Functions.ShowNotification("Auto Collect", "Collecting chest...")
-                end
+                task.wait(INTERACTION_COOLDOWN)
             end
         end
     end)
@@ -131,50 +116,80 @@ end
 
 Functions.equipBestRod = function()
     pcall(function()
-        local character = LocalPlayer.Character
-        if not character then return end
+        local backpack = LocalPlayer:WaitForChild("Backpack")
+        if not backpack then return end
         
-        -- Iterate through rod ranking to find the best available rod
-        for _, rodName in ipairs(getgenv().Config.Items.RodRanking) do
-            if character:FindFirstChild(rodName) then
-                local equipEvent = ReplicatedStorage.events:WaitForChild("character")
-                equipEvent:FireServer("equip", rodName)
-                
-                if getgenv().Config.Debug then
-                    Functions.ShowNotification("Auto Equip", "Equipped " .. rodName)
+        local bestRod = nil
+        local bestValue = 0
+        
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:FindFirstChild("values") and 
+               item.values:FindFirstChild("power") then
+                local power = item.values.power.Value
+                if power > bestValue then
+                    bestValue = power
+                    bestRod = item
                 end
-                break
+            end
+        end
+        
+        if bestRod then
+            bestRod.Parent = LocalPlayer.Character
+        end
+    end)
+end
+
+-- Enhanced Chest Collection
+Functions.collectChest = function(chest, range)
+    pcall(function()
+        if not LocalPlayer.Character then return end
+        
+        local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return end
+        
+        local chestPart = chest:FindFirstChild("Part")
+        if not chestPart then return end
+        
+        local distance = (humanoidRootPart.Position - chestPart.Position).Magnitude
+        if distance <= (range or 50) then
+            local collectRemote = ReplicatedStorage.events:FindFirstChild("collectchest")
+            if collectRemote then
+                invokeWithRetry(collectRemote, chest)
             end
         end
     end)
 end
 
--- Error Handling Functions
-Functions.HandleError = function(context, error)
-    if getgenv().Config.Debug then
-        warn(string.format("[%s] Error: %s", context, error))
-        Functions.ShowNotification("Error", context .. ": " .. error)
-    end
+-- Notification System
+Functions.ShowNotification = function(title, content, duration)
+    pcall(function()
+        if getgenv().Window then
+            getgenv().Window:Notify({
+                Title = title or "Notification",
+                Content = content or "",
+                Duration = duration or 3
+            })
+        end
+    end)
 end
 
--- Initialize function module
+-- Initialize Functions with error handling
 local function InitializeFunctions()
-    if not getgenv().Config then
-        error("Functions: Config not initialized")
-        return false
-    end
+    local requirements = {
+        {name = "Config", value = getgenv().Config},
+        {name = "State", value = getgenv().State}
+    }
     
-    if not getgenv().State then
-        error("Functions: State not initialized")
-        return false
+    for _, req in ipairs(requirements) do
+        if not req.value then
+            warn("Functions: Missing requirement -", req.name)
+            return false
+        end
     end
     
     return true
 end
 
--- Run initialization
+-- Run initialization with error handling
 if not InitializeFunctions() then
-    return false
-end
-
-return Functions
+    warn("⚠️ Failed to initialize Functions")
