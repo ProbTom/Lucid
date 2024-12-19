@@ -48,28 +48,27 @@ autoCast:OnChanged(function()
     end)
 end)
 
--- Auto Shake Toggle with improved detection
+-- Auto Shake Toggle with fix
 local autoShake = MainTab:AddToggle("autoShake", {
     Title = "Auto Shake",
     Default = false
 })
 
-local lastShakeTime = 0
-local SHAKE_COOLDOWN = 0.1 -- 100ms cooldown between shakes
-
+local lastShakeClick = 0
 autoShake:OnChanged(function()
     pcall(function()
         if autoShake.Value then
             RunService:BindToRenderStep("AutoShake", 1, function()
-                if LocalPlayer.PlayerGui then
-                    local currentTime = tick()
-                    -- Only shake if enough time has passed and we're actually fishing
-                    if currentTime - lastShakeTime >= SHAKE_COOLDOWN then
-                        -- Check if we're actually in a fishing state before shaking
-                        local fishingGui = LocalPlayer.PlayerGui:FindFirstChild("FishingGui")
-                        if fishingGui and fishingGui.Enabled then
-                            Functions.autoShake(LocalPlayer.PlayerGui)
-                            lastShakeTime = currentTime
+                if LocalPlayer.PlayerGui and tick() - lastShakeClick > 0.1 then
+                    local shakeui = LocalPlayer.PlayerGui:FindFirstChild("shakeui")
+                    if shakeui and shakeui.Enabled then
+                        local button = shakeui.safezone:FindFirstChild("button")
+                        if button and button.Visible then
+                            button.Size = UDim2.new(1001, 0, 1001, 0)
+                            lastShakeClick = tick()
+                            game:GetService("VirtualUser"):Button1Down(Vector2.new(1, 1))
+                            task.wait()
+                            game:GetService("VirtualUser"):Button1Up(Vector2.new(1, 1))
                         end
                     end
                 end
