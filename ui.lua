@@ -1,60 +1,44 @@
 -- ui.lua
 local UI = {}
 
--- Core Services with error handling
-local function getService(serviceName)
+-- Safe service getter
+local function getSafe(name)
     local success, service = pcall(function()
-        return game:GetService(serviceName)
+        return game:GetService(name)
     end)
-    
-    if not success then
-        warn("Failed to get service:", serviceName)
-        return nil
-    end
-    
-    return service
+    return success and service
 end
 
-local Players = getService("Players")
-local CoreGui = getService("CoreGui")
-local TweenService = getService("TweenService")
-local LocalPlayer = Players and Players.LocalPlayer
+-- Core Services
+local Players = getSafe("Players")
+local CoreGui = getSafe("CoreGui")
+local UserInputService = getSafe("UserInputService")
 
 -- UI Constants
 local UI_CONFIG = {
     Title = "Lucid Hub",
-    SubTitle = "by ProbTom",
-    TabWidth = 160,
-    MinimumWidth = 500,
-    MinimumHeight = 300,
-    Theme = "Dark",
-    KeySystem = false
+    SubTitle = "v1.0.1",
+    Size = {
+        Width = 500,
+        Height = 300
+    },
+    Theme = "Dark"
 }
 
--- Theme Configuration
-local THEME_COLORS = {
-    Dark = {
-        Background = Color3.fromRGB(25, 25, 25),
-        Foreground = Color3.fromRGB(35, 35, 35),
-        Accent = Color3.fromRGB(0, 125, 255),
-        Text = Color3.fromRGB(255, 255, 255),
-        SubText = Color3.fromRGB(180, 180, 180)
-    }
-}
+-- Validate environment
+if not getgenv or not getgenv().Fluent then
+    warn("Required UI dependencies not available")
+    return false
+end
 
--- Enhanced error handling for UI creation
+-- Create window with error handling
 local function createWindow()
-    if not getgenv().Fluent then
-        warn("Fluent UI library not loaded")
-        return nil
-    end
-    
     local success, window = pcall(function()
         return getgenv().Fluent:CreateWindow({
             Title = UI_CONFIG.Title,
             SubTitle = UI_CONFIG.SubTitle,
-            TabWidth = UI_CONFIG.TabWidth,
-            Size = Vector2.new(UI_CONFIG.MinimumWidth, UI_CONFIG.MinimumHeight),
+            TabWidth = 160,
+            Size = Vector2.new(UI_CONFIG.Size.Width, UI_CONFIG.Size.Height),
             Acrylic = true,
             Theme = UI_CONFIG.Theme,
             MinimizeKey = Enum.KeyCode.LeftControl
@@ -69,81 +53,89 @@ local function createWindow()
     return window
 end
 
--- Initialize SaveManager with error handling
-local function initializeSaveManager(window)
-    if not window or not getgenv().SaveManager then return end
-    
-    pcall(function()
-        getgenv().SaveManager:SetLibrary(getgenv().Fluent)
-        getgenv().SaveManager:SetWindow(window)
-        getgenv().SaveManager:SetFolder("LucidHub/Configs")
-        getgenv().SaveManager:BuildConfigSection(window.Tabs.Settings)
-        getgenv().SaveManager:LoadAutoloadConfig()
-    end)
-end
-
--- Initialize InterfaceManager with error handling
-local function initializeInterfaceManager(window)
-    if not window or not getgenv().InterfaceManager then return end
-    
-    pcall(function()
-        getgenv().InterfaceManager:SetLibrary(getgenv().Fluent)
-        getgenv().InterfaceManager:SetWindow(window)
-        getgenv().InterfaceManager:BuildInterfaceSection(window.Tabs.Settings)
-    end)
-end
-
--- Enhanced notification system
-UI.ShowNotification = function(title, content, duration)
-    if not getgenv().Fluent then return end
-    
-    pcall(function()
-        getgenv().Fluent:Notify({
-            Title = title or "Notification",
-            Content = content or "",
-            Duration = duration or 3,
-            Theme = UI_CONFIG.Theme
-        })
-    end)
-end
-
--- Window management functions
-UI.MinimizeWindow = function()
-    if not getgenv().Window then return end
-    
-    pcall(function()
-        getgenv().Window:Minimize()
-    end)
-end
-
-UI.MaximizeWindow = function()
-    if not getgenv().Window then return end
-    
-    pcall(function()
-        getgenv().Window:Maximize()
-    end)
-end
-
--- Tab management with error handling
-UI.CreateTab = function(name, icon)
-    if not getgenv().Window then return nil end
-    
-    local success, tab = pcall(function()
-        return getgenv().Window:AddTab({
-            Title = name,
-            Icon = icon or "home"
-        })
-    end)
-    
-    if not success then
-        warn("Failed to create tab:", name)
-        return nil
+-- Initialize UI system
+local function InitializeUI()
+    -- Create main window
+    local window = createWindow()
+    if not window then
+        return false
     end
     
-    return tab
+    -- Store window reference
+    getgenv().Window = window
+    
+    -- Initialize tabs container
+    getgenv().Tabs = {}
+    
+    -- Create default tabs
+    local mainTab = window:AddTab({
+        Title = "Main",
+        Icon = "home"
+    })
+    
+    local itemsTab = window:AddTab({
+        Title = "Items",
+        Icon = "package"
+    })
+    
+    local settingsTab = window:AddTab({
+        Title = "Settings",
+        Icon = "settings"
+    })
+    
+    -- Store tab references
+    getgenv().Tabs.Main = mainTab
+    getgenv().Tabs.Items = itemsTab
+    getgenv().Tabs.Settings = settingsTab
+    
+    -- Initialize SaveManager if available
+    if getgenv().SaveManager then
+        pcall(function()
+            getgenv().SaveManager:SetLibrary(getgenv().Fluent)
+            getgenv().SaveManager:SetWindow(window)
+            getgenv().SaveManager:SetFolder("LucidHub")
+            getgenv().SaveManager:BuildConfigSection(settingsTab)
+            getgenv().SaveManager:Load("LucidHub")
+        end)
+    end
+    
+    -- Initialize InterfaceManager if available
+    if getgenv().InterfaceManager then
+        pcall(function()
+            getgenv().InterfaceManager:SetLibrary(getgenv().Fluent)
+            getgenv().InterfaceManager:SetWindow(window)
+            getgenv().InterfaceManager:BuildInterfaceSection(settingsTab)
+        end)
+    end
+    
+    -- Set up cleanup
+    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+        pcall(function()
+            if getgenv().SaveManager then
+                getgenv().SaveManager:Save("LucidHub")
+            end
+            if window then
+                window:Destroy()
+            end
+        end)
+    end)
+    
+    return true
 end
 
--- Section management with error handling
+-- UI Helper Functions
+UI.ShowNotification = function(title, content, duration)
+    pcall(function()
+        if getgenv().Fluent then
+            getgenv().Fluent:Notify({
+                Title = title or "Notification",
+                Content = content or "",
+                Duration = duration or 3
+            })
+        end
+    end)
+end
+
 UI.CreateSection = function(tab, name)
     if not tab then return nil end
     
@@ -159,63 +151,27 @@ UI.CreateSection = function(tab, name)
     return section
 end
 
--- Enhanced cleanup system
-UI.Cleanup = function()
+UI.Minimize = function()
     pcall(function()
-        if getgenv().SaveManager then
-            getgenv().SaveManager:SaveAutoloadConfig()
-        end
-        
         if getgenv().Window then
-            getgenv().Window:Destroy()
+            getgenv().Window:Minimize()
         end
     end)
 end
 
--- Initialize UI with comprehensive error handling
-local function InitializeUI()
-    -- Validate environment
-    if not getgenv then
-        warn("Missing getgenv environment")
-        return false
-    end
-    
-    -- Create window
-    local window = createWindow()
-    if not window then
-        warn("Failed to create main window")
-        return false
-    end
-    
-    -- Store window reference globally
-    getgenv().Window = window
-    
-    -- Initialize managers
-    initializeSaveManager(window)
-    initializeInterfaceManager(window)
-    
-    -- Set up cleanup handler
-    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-        UI.Cleanup()
+UI.Maximize = function()
+    pcall(function()
+        if getgenv().Window then
+            getgenv().Window:Maximize()
+        end
     end)
-    
-    -- Create default tabs
-    if not getgenv().Tabs then
-        getgenv().Tabs = {}
-    end
-    
-    -- Initialize successful
-    if getgenv().Config and getgenv().Config.Debug then
-        UI.ShowNotification("Initialization", "UI system loaded successfully")
-    end
-    
-    return true
 end
 
--- Run initialization with error handling
-if not InitializeUI() then
+-- Run initialization
+local success = pcall(InitializeUI)
+if success then
+    return UI
+else
     warn("⚠️ Failed to initialize UI system")
     return false
 end
-
-return UI
