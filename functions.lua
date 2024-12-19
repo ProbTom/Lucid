@@ -1,26 +1,10 @@
 local Functions = {}
 
--- Safe service getter
-local function getService(serviceName)
-    local success, service = pcall(function()
-        return game:GetService(serviceName)
-    end)
-    if success then
-        return service
-    else
-        warn("Failed to get service: " .. serviceName)
-        return nil
-    end
-end
-
 -- Get required services
-local VirtualInputManager = getService("VirtualInputManager")
-local ReplicatedStorage = getService("ReplicatedStorage")
-local VirtualUser = getService("VirtualUser")
-local GuiService = getService("GuiService")
-local RunService = getService("RunService")
-local Players = getService("Players")
+local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local GuiService = game:GetService("GuiService")
 
 Functions.ShowNotification = function(String)
     if getgenv().Fluent then
@@ -44,18 +28,19 @@ Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
                         
                         local powerBarConnection
                         powerBarConnection = HumanoidRootPart.ChildAdded:Connect(function()
-                            if HumanoidRootPart:FindFirstChild("power") and 
-                               HumanoidRootPart.power:FindFirstChild("powerbar") and 
-                               HumanoidRootPart.power.powerbar:FindFirstChild("bar") then
-                                HumanoidRootPart.power.powerbar.bar.Changed:Connect(function(property)
-                                    if property == "Size" and 
-                                       HumanoidRootPart.power.powerbar.bar.Size == UDim2.new(1, 0, 1, 0) then
-                                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, LocalPlayer, 0)
-                                        if powerBarConnection then
-                                            powerBarConnection:Disconnect()
+                            if HumanoidRootPart:FindFirstChild("power") then
+                                local powerBar = HumanoidRootPart.power:FindFirstChild("powerbar")
+                                if powerBar and powerBar:FindFirstChild("bar") then
+                                    powerBar.bar.Changed:Connect(function(property)
+                                        if property == "Size" and 
+                                           powerBar.bar.Size == UDim2.new(1, 0, 1, 0) then
+                                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, LocalPlayer, 0)
+                                            if powerBarConnection then
+                                                powerBarConnection:Disconnect()
+                                            end
                                         end
-                                    end
-                                end)
+                                    end)
+                                end
                             end
                         end)
                     elseif CastMode == "Blatant" then
@@ -72,7 +57,6 @@ Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
             end
         end
     end)
-    task.wait(0.5)
 end
 
 Functions.autoShake = function(ShakeMode, PlayerGui)
@@ -119,15 +103,21 @@ Functions.autoShake = function(ShakeMode, PlayerGui)
     end
 end
 
-Functions.autoReel = function(PlayerGui)
+Functions.autoReel = function(PlayerGui, ReelMode)
     pcall(function()
         local reel = PlayerGui:FindFirstChild("reel")
         if reel then
             local bar = reel:FindFirstChild("bar")
-            local playerbar = bar and bar:FindFirstChild("playerbar")
-            local fish = bar and bar:FindFirstChild("fish")
-            if playerbar and fish then
-                playerbar.Position = fish.Position
+            if bar then
+                local playerbar = bar:FindFirstChild("playerbar")
+                local fish = bar:FindFirstChild("fish")
+                if playerbar and fish then
+                    if ReelMode == "Legit" then
+                        playerbar.Position = fish.Position
+                    elseif ReelMode == "Blatant" then
+                        game:GetService("ReplicatedStorage").events.reelfinished:FireServer(100, false)
+                    end
+                end
             end
         end
     end)
