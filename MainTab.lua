@@ -34,7 +34,7 @@ local autoReel = MainTab:AddToggle("autoReel", {
 })
 
 local lastReelTime = 0
-local REEL_COOLDOWN = 0.05  -- Reduced cooldown for faster response
+local REEL_COOLDOWN = 0.05
 local reelEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("reelfinished")
 
 autoReel:OnChanged(function()
@@ -42,15 +42,12 @@ autoReel:OnChanged(function()
         if autoReel.Value then
             RunService:BindToRenderStep("AutoReel", Enum.RenderPriority.First.Value, function()
                 if LocalPlayer.PlayerGui and tick() - lastReelTime > REEL_COOLDOWN then
-                    -- Check if we have a rod equipped
                     local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
                     local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
                     
                     if rod then
-                        -- Original auto reel function
                         Functions.autoReel(LocalPlayer.PlayerGui)
                         
-                        -- Fire reel finish event
                         task.spawn(function()
                             pcall(function()
                                 reelEvent:FireServer(100, true)
@@ -84,7 +81,6 @@ end
 autoShake:OnChanged(function()
     pcall(function()
         if autoShake.Value then
-            -- Create lure percentage GUI
             if not lureGui then
                 lureGui = ReplicatedStorage.resources.items.items.GPS.GPS.gpsMain.xyz:Clone()
                 lureGui.Parent = LocalPlayer.PlayerGui:WaitForChild("hud"):WaitForChild("safezone"):WaitForChild("backpack")
@@ -94,7 +90,6 @@ autoShake:OnChanged(function()
 
             RunService:BindToRenderStep("AutoShake", Enum.RenderPriority.First.Value, function()
                 if LocalPlayer.PlayerGui and tick() - lastShakeClick > SHAKE_COOLDOWN then
-                    -- Update lure percentage
                     local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
                     local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
                     if rod and rod:FindFirstChild("values") and rod.values:FindFirstChild("lure") then
@@ -126,21 +121,53 @@ autoShake:OnChanged(function()
     end)
 end)
 
--- Auto Cast Toggle (Last)
+-- Auto Cast Toggle (Last) with optimizations
 local autoCast = MainTab:AddToggle("autoCast", {
     Title = "Auto Cast",
     Default = false
 })
 
+local lastCastTime = 0
+local CAST_COOLDOWN = 1.5 -- Adjustable cooldown for casting
+local castEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("castingfinished")
+
+local function canCast()
+    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
+    if not rodName or rodName == "" then return false end
+    
+    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
+    if not rod then return false end
+    
+    -- Check if player is not in casting animation or other states
+    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid:GetState() == Enum.HumanoidStateType.Swimming then
+        return false
+    end
+    
+    return true
+end
+
 autoCast:OnChanged(function()
     pcall(function()
         if autoCast.Value then
-            RunService:BindToRenderStep("AutoCast", 1, function()
-                if LocalPlayer.Character then
-                    Functions.autoCast(
-                        LocalPlayer.Character, 
-                        LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    )
+            RunService:BindToRenderStep("AutoCast", Enum.RenderPriority.First.Value, function()
+                if tick() - lastCastTime > CAST_COOLDOWN and canCast() then
+                    -- Original auto cast function
+                    if LocalPlayer.Character then
+                        Functions.autoCast(
+                            LocalPlayer.Character, 
+                            LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        )
+                    end
+                    
+                    -- Additional casting event
+                    task.spawn(function()
+                        pcall(function()
+                            castEvent:FireServer()
+                        end)
+                    end)
+                    
+                    lastCastTime = tick()
                 end
             end)
         else
