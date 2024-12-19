@@ -5,6 +5,29 @@ if getgenv().cuppink then
 end
 getgenv().cuppink = true
 
+-- Initialize Options table first
+if not getgenv().Options then
+    getgenv().Options = {
+        autoCast = { Value = false },
+        autoShake = { Value = false },
+        autoReel = { Value = false },
+        FreezeCharacter = { Value = false },
+        ZoneCast = { Value = false },
+        CountShadows = { Value = false },
+        RodDupe = { Value = false },
+        WalkOnWater = { Value = false },
+        ToggleNoclip = { Value = false },
+        BypassRadar = { Value = false },
+        BypassGPS = { Value = false },
+        RemoveFog = { Value = false },
+        DayOnly = { Value = false },
+        HoldDuration = { Value = false },
+        DisableOxygen = { Value = true },
+        JustUI = { Value = true },
+        IdentityHiderUI = { Value = false }
+    }
+end
+
 -- Load functions
 local Functions = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/functions.lua"))()
 
@@ -37,11 +60,14 @@ local Zone = nil
 local autoShakeConnection
 local autoReelConnection
 
--- Main Tab Section
-local Options = getgenv().Options
+-- Get existing Tabs from getgenv()
 local Tabs = getgenv().Tabs
+if not Tabs then
+    warn("Tabs not found in global environment")
+    return
+end
 
--- Add Sections
+-- Main Section
 local mainSection = Tabs.Main:AddSection("Auto Fishing")
 
 -- Auto Cast Toggle
@@ -49,11 +75,13 @@ local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default =
 autoCast:OnChanged(function()
     if Options.autoCast.Value then
         autoCastEnabled = true
-        local RodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-        if LocalPlayer.Backpack:FindFirstChild(RodName) then
-            LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(RodName))
-        end
-        Functions.autoCast(CastMode, LocalCharacter, HumanoidRootPart)
+        pcall(function()
+            local RodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
+            if LocalPlayer.Backpack:FindFirstChild(RodName) then
+                LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(RodName))
+            end
+            Functions.autoCast(CastMode, LocalCharacter, HumanoidRootPart)
+        end)
     else
         autoCastEnabled = false
     end
@@ -100,16 +128,18 @@ end)
 -- Freeze Character Toggle
 local FreezeCharacter = Tabs.Main:AddToggle("FreezeCharacter", {Title = "Freeze Character", Default = false})
 FreezeCharacter:OnChanged(function()
-    local oldpos = HumanoidRootPart.CFrame
-    FreezeChar = Options.FreezeCharacter.Value
-    
-    if FreezeChar then
-        spawn(function()
-            while FreezeChar and HumanoidRootPart do
-                HumanoidRootPart.CFrame = oldpos
-                RunService.RenderStepped:Wait()
-            end
-        end)
+    if HumanoidRootPart then
+        local oldpos = HumanoidRootPart.CFrame
+        FreezeChar = Options.FreezeCharacter.Value
+        
+        if FreezeChar then
+            spawn(function()
+                while FreezeChar and HumanoidRootPart do
+                    HumanoidRootPart.CFrame = oldpos
+                    RunService.RenderStepped:Wait()
+                end
+            end)
+        end
     end
 end)
 
@@ -156,7 +186,7 @@ local zoneSection = Tabs.Main:AddSection("Zone Settings")
 local zoneToggle = Tabs.Main:AddToggle("ZoneCast", {Title = "Zone Cast", Default = false})
 zoneToggle:OnChanged(function()
     ZoneCast = Options.ZoneCast.Value
-    if ZoneCast then
+    if ZoneCast and Zone then
         Functions.handleZoneCast(ZoneCast, Zone, FishingZonesFolder, HumanoidRootPart)
     end
 end)
@@ -197,6 +227,18 @@ end)
 LocalPlayer.Idled:Connect(function()
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+end)
+
+-- Keep-alive loop for auto features
+spawn(function()
+    while true do
+        if autoCastEnabled then
+            pcall(function()
+                Functions.autoCast(CastMode, LocalCharacter, HumanoidRootPart)
+            end)
+        end
+        task.wait(0.1)
+    end
 end)
 
 return true
