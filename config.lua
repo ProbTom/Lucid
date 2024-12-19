@@ -6,9 +6,9 @@ local Config = {
         MainColor = Color3.fromRGB(38, 38, 38),
         ButtonColor = Color3.fromRGB(220, 125, 255),
         MinimizeKey = Enum.KeyCode.RightControl,
-        Theme = "Rose"
+        Theme = "Dark"
     },
-    GameID = 16732694052,
+    GameID = game.GameId,
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
         Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
@@ -82,8 +82,9 @@ local Config = {
     }
 }
 
+-- Set up global environment
 if not getgenv then
-    error("Environment not supported")
+    error("Unsupported environment")
     return false
 end
 
