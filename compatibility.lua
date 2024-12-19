@@ -3,7 +3,15 @@ local HttpService = game:GetService("HttpService")
 
 local function createCompatibilityWrapper()
     local config = {
-        settings = {},
+        settings = {
+            itemsTab = {
+                autoCollectChests = false,
+                chestRange = 50,
+                autoSellFish = false,
+                selectedRarities = {"Common"},
+                autoEquipBestRod = false
+            }
+        },
         windowState = {
             theme = "Dark",
             transparency = 0,
@@ -79,12 +87,25 @@ local function createCompatibilityWrapper()
                 saveSettings()
             end
 
+            -- Add Items tab specific methods
+            wrapped.SaveItemsSettings = wrapped.SaveItemsSettings or function(self, settings)
+                config.settings.itemsTab = settings
+                return saveSettings()
+            end
+
+            wrapped.LoadItemsSettings = wrapped.LoadItemsSettings or function(self)
+                return config.settings.itemsTab
+            end
+
             return wrapped
         end,
         
         getConfig = function()
             return config
-        end
+        end,
+
+        saveConfig = saveSettings,
+        loadConfig = loadSettings
     }
 end
 
