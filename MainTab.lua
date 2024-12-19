@@ -2,9 +2,20 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Initialize state variables
-local CastMode = getgenv().Options.CastMode.Value or "Legit"
-local ReelMode = getgenv().Options.ReelMode.Value or "Blatant"
+-- Initialize Options table if it doesn't exist
+if not getgenv().Options then
+    getgenv().Options = {
+        CastMode = { Value = "Legit" },
+        ReelMode = { Value = "Blatant" },
+        autoCast = { Value = false },
+        autoShake = { Value = false },
+        autoReel = { Value = false }
+    }
+end
+
+-- Initialize state variables from Options
+local CastMode = getgenv().Options.CastMode.Value
+local ReelMode = getgenv().Options.ReelMode.Value
 
 -- Ensure Functions table exists
 if not getgenv().Functions then
