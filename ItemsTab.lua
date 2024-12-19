@@ -1,3 +1,4 @@
+-- ItemsTab.lua
 local function waitForDependency(name, path)
     local startTime = tick()
     while not (getgenv()[name] and (not path or path(getgenv()[name]))) do
@@ -36,9 +37,9 @@ local autoCollectChest = ChestSection:AddToggle("autoCollectChest", {
 
 local chestRange = ChestSection:AddSlider("chestRange", {
     Title = "Chest Collection Range",
-    Default = 50,
-    Min = 10,
-    Max = 100,
+    Default = getgenv().Config.Items.ChestRange.Default,
+    Min = getgenv().Config.Items.ChestRange.Min,
+    Max = getgenv().Config.Items.ChestRange.Max,
     Rounding = 0,
 })
 
@@ -50,7 +51,7 @@ local autoSellFish = FishSection:AddToggle("autoSellFish", {
 
 local selectedRarities = FishSection:AddDropdown("fishRarities", {
     Title = "Fish Rarities to Sell",
-    Values = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical"},
+    Values = getgenv().Config.Items.FishRarities,
     Default = {"Common"},
     Multi = true,
 })
