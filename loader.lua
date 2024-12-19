@@ -1,10 +1,24 @@
--- Clear any existing states first
-if getgenv().LucidHubLoaded then
+-- Function to clean up existing instances
+local function cleanupExisting()
+    local CoreGui = game:GetService("CoreGui")
+    
+    -- Clear existing states
     getgenv().LucidHubLoaded = false
-end
-if getgenv().cuppink then
     getgenv().cuppink = false
+    getgenv().Fluent = nil
+    getgenv().SaveManager = nil
+    getgenv().InterfaceManager = nil
+    getgenv().Config = nil
+    getgenv().Tabs = nil
+    
+    -- Remove existing GUI elements
+    if CoreGui:FindFirstChild("ClickButton") then
+        CoreGui:FindFirstChild("ClickButton"):Destroy()
+    end
 end
+
+-- Clean up before starting
+cleanupExisting()
 
 -- Wait for game load
 if not game:IsLoaded() then
@@ -28,15 +42,22 @@ getgenv().Config = {
 }
 
 -- Load Fluent UI directly
-getgenv().Fluent = loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
-if not getgenv().Fluent then
+local success, result = pcall(function()
+    return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
+end)
+
+if success then
+    getgenv().Fluent = result
+else
     warn("Failed to load Fluent UI library")
     return
 end
 
 -- Load managers after Fluent is loaded
-getgenv().SaveManager = loadstring(game:HttpGet(getgenv().Config.URLs.SaveManager))()
-getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
+pcall(function()
+    getgenv().SaveManager = loadstring(game:HttpGet(getgenv().Config.URLs.SaveManager))()
+    getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
+end)
 
 -- Load the rest of your scripts
 local files = {
