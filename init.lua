@@ -16,13 +16,28 @@ local ReplicatedStorage = getService("ReplicatedStorage")
 local Players = getService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Initialize Options table and other global variables
-getgenv().Options = {
-    autoCast = { Value = false },
-    autoShake = { Value = false },
-    autoReel = { Value = false },
-    FreezeCharacter = { Value = false },
-}
+-- Initialize Options table
+if not getgenv().Options then
+    getgenv().Options = {
+        autoCast = { Value = false },
+        autoShake = { Value = false },
+        autoReel = { Value = false },
+        FreezeCharacter = { Value = false },
+        ZoneCast = { Value = false },
+        CountShadows = { Value = false },
+        RodDupe = { Value = false },
+        WalkOnWater = { Value = false },
+        ToggleNoclip = { Value = false },
+        BypassRadar = { Value = false },
+        BypassGPS = { Value = false },
+        RemoveFog = { Value = false },
+        DayOnly = { Value = false },
+        HoldDuration = { Value = false },
+        DisableOxygen = { Value = true },
+        JustUI = { Value = true },
+        IdentityHiderUI = { Value = false }
+    }
+end
 
 -- Wait for LocalPlayer if not loaded
 if not LocalPlayer then
@@ -41,5 +56,4 @@ getgenv().ReplicatedStorage = ReplicatedStorage
 getgenv().LocalPlayer = LocalPlayer
 getgenv().playerStats = playerStats
 
--- Return success
 return true
