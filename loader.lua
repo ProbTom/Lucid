@@ -16,15 +16,91 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+-- Initialize Config first, before any HTTP requests
 getgenv().Config = {
     Version = "1.0.0",
     Debug = true,
+    UI = {
+        MainColor = Color3.fromRGB(38, 38, 38),
+        ButtonColor = Color3.new(220, 125, 255),
+        MinimizeKey = Enum.KeyCode.RightControl,
+        Theme = "Rose"
+    },
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Fluent = "https://github.com/dawid-scripts/Fluent/releases/download/1.1.0/main.lua"
+        Fluent = "https://github.com/dawid-scripts/Fluent/releases/download/1.1.0/main.lua",
+        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
+        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
+    },
+    GameID = 16732694052,
+    Items = {
+        ChestRange = {
+            Default = 50,
+            Min = 10,
+            Max = 100
+        },
+        RodRanking = {
+            "Rod Of The Forgotten Fang",
+            "Rod Of The Eternal King",
+            "Rod Of The Depth",
+            "No-Life Rod",
+            "Krampus's Rod",
+            "Trident Rod",
+            "Kings Rod",
+            "Aurora Rod",
+            "Mythical Rod",
+            "Destiny Rod",
+            "Celestial Rod",
+            "Voyager Rod",
+            "Riptide Rod",
+            "Seasons Rod",
+            "Resourceful Rod",
+            "Precision Rod",
+            "Steady Rod",
+            "Nocturnal Rod",
+            "Reinforced Rod",
+            "Magnet Rod",
+            "Rapid Rod",
+            "Fortune Rod",
+            "Phoenix Rod",
+            "Scurvy Rod",
+            "Midas Rod",
+            "Buddy Bond Rod",
+            "Haunted Rod",
+            "Relic Rod",
+            "Antler Rod",
+            "North-Star Rod",
+            "Astral Rod",
+            "Event Horizon Rod",
+            "Candy Cane Rod",
+            "Fungal Rod",
+            "Magma Rod",
+            "Long Rod",
+            "Lucky Rod",
+            "Fast Rod",
+            "Stone Rod",
+            "Carbon Rod",
+            "Plastic Rod",
+            "Training Rod",
+            "Fischer's Rod",
+            "Flimsy Rod"
+        },
+        FishRarities = {
+            "Common",
+            "Uncommon",
+            "Rare",
+            "Epic",
+            "Legendary",
+            "Mythical",
+            "Enchant Relics",
+            "Exotic",
+            "Limited",
+            "Gemstones"
+        }
     },
     MaxRetries = 3,
-    RetryDelay = 1
+    RetryDelay = 1,
+    Debug = true
 }
 
 local function debugPrint(...)
@@ -95,7 +171,6 @@ end
 
 -- Load scripts in correct order with dependencies
 local loadOrder = {
-    {name = "config.lua", required = true},
     {name = "compatibility.lua", required = true},
     {name = "options.lua", required = true},
     {name = "events.lua", required = true},
