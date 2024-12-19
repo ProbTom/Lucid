@@ -4,6 +4,94 @@ if getgenv().LucidHubLoaded then
     return
 end
 
+-- Initialize Config first
+getgenv().Config = {
+    Version = "1.0.0",
+    Debug = false,
+    URLs = {
+        Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
+        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
+    },
+    
+    Items = {
+        FishRarities = {
+            "Common",
+            "Uncommon",
+            "Rare",
+            "Epic",
+            "Legendary",
+            "Mythical",
+            "Enchant Relics",
+            "Exotic",
+            "Limited",
+            "Gemstones"
+        },
+        
+        RodRanking = {
+            "Rod Of The Forgotten Fang",
+            "Rod Of The Eternal King",
+            "Rod Of The Depth",
+            "No-Life Rod",
+            "Krampus's Rod",
+            "Trident Rod",
+            "Kings Rod",
+            "Aurora Rod",
+            "Mythical Rod",
+            "Destiny Rod",
+            "Celestial Rod",
+            "Voyager Rod",
+            "Riptide Rod",
+            "Seasons Rod",
+            "Resourceful Rod",
+            "Precision Rod",
+            "Steady Rod",
+            "Nocturnal Rod",
+            "Reinforced Rod",
+            "Magnet Rod",
+            "Rapid Rod",
+            "Fortune Rod",
+            "Phoenix Rod",
+            "Scurvy Rod",
+            "Midas Rod",
+            "Buddy Bond Rod",
+            "Haunted Rod",
+            "Relic Rod",
+            "Antler Rod",
+            "North-Star Rod",
+            "Astral Rod",
+            "Event Horizon Rod",
+            "Candy Cane Rod",
+            "Fungal Rod",
+            "Magma Rod",
+            "Long Rod",
+            "Lucky Rod",
+            "Fast Rod",
+            "Stone Rod",
+            "Carbon Rod",
+            "Plastic Rod",
+            "Training Rod",
+            "Fischer's Rod",
+            "Flimsy Rod"
+        },
+        
+        ChestSettings = {
+            MinRange = 10,
+            MaxRange = 100,
+            DefaultRange = 50
+        }
+    },
+    
+    Options = {
+        AutoFish = false,
+        AutoReel = false,
+        AutoShake = false,
+        AutoSell = false,
+        AutoEquipBestRod = false,
+        AutoCollectChests = false,
+        ChestRange = 50
+    }
+}
+
 -- Core Services
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -27,15 +115,13 @@ local function initializeEnvironment()
 end
 
 -- Initialize global state
-if not getgenv().State then
-    getgenv().State = {
-        AutoFishing = false,
-        AutoSelling = false,
-        SelectedRarities = {},
-        LastReelTime = 0,
-        LastShakeTime = 0
-    }
-end
+getgenv().State = {
+    AutoFishing = false,
+    AutoSelling = false,
+    SelectedRarities = {},
+    LastReelTime = 0,
+    LastShakeTime = 0
+}
 
 -- Initialize Fluent UI
 local function initializeFluentUI()
@@ -68,13 +154,7 @@ end
 -- Initialize options
 local function initializeOptions()
     if not getgenv().Options then
-        getgenv().Options = {
-            AutoFish = false,
-            AutoReel = false,
-            AutoShake = false,
-            AutoSell = false,
-            ChestRange = 50
-        }
+        getgenv().Options = Config.Options
     end
 end
 
@@ -101,7 +181,7 @@ local function initialize()
     
     for _, module in ipairs(modules) do
         local success, result = pcall(function()
-            return loadstring(game:HttpGet(getgenv().Config.URLs.Main .. module .. ".lua"))()
+            return loadstring(game:HttpGet(Config.URLs.Main .. module .. ".lua"))()
         end)
         
         if not success then
@@ -118,7 +198,7 @@ end
 -- Execute initialization
 if initialize() then
     getgenv().LucidHubLoaded = true
-    if getgenv().Config.Debug then
+    if Config.Debug then
         print("Lucid Hub loaded successfully!")
     end
 else
