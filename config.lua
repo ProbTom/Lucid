@@ -6,7 +6,7 @@ getgenv().Config = {
     
     Game = {
         SupportedGames = {
-            [14264772720] = "Winter Fishing Simulator"
+            [16732694052] = "Fisch"
         },
         MinimumDelay = 0.1,
         MaximumDelay = 2.0
@@ -14,8 +14,8 @@ getgenv().Config = {
     
     UI = {
         Title = "Lucid Hub",
-        Subtitle = "Winter Fishing Simulator",
-        Theme = "Dark",
+        Subtitle = "by ProbTom",
+        Theme = "Rose",
         MainColor = Color3.fromRGB(46, 148, 255),
         MinimizeKey = Enum.KeyCode.RightShift
     },
