@@ -6,17 +6,71 @@ local Events = {
     LastTick = {}
 }
 
--- Core Services
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
+-- Core Services with error handling
+local function getService(serviceName)
+    local success, service = pcall(function()
+        return game:GetService(serviceName)
+    end)
+    
+    if not success then
+        warn("Failed to get service:", serviceName)
+        return nil
+    end
+    
+    return service
+end
+
+-- Initialize required services
+local Players = getService("Players")
+local ReplicatedStorage = getService("ReplicatedStorage")
+local RunService = getService("RunService")
+
+-- Wait for LocalPlayer to be available
+local LocalPlayer = Players and Players.LocalPlayer
+if not LocalPlayer then
+    local success, player = pcall(function()
+        return Players:WaitForChild("LocalPlayer", 10)
+    end)
+    if success then
+        LocalPlayer = player
+    end
+end
+
+-- Early validation
+if not Players or not ReplicatedStorage or not RunService or not LocalPlayer then
+    warn("Essential services or LocalPlayer not available")
+    return false
+end
 
 -- Constants
 local MINIMUM_INTERVAL = 0.1
 local CHEST_CHECK_INTERVAL = 0.5
 local SELL_CHECK_INTERVAL = 1.0
 local CHARACTER_LOAD_DELAY = 1.0
+
+-- Verify and initialize global states
+if not getgenv or not getgenv() then
+    warn("getgenv not available")
+    return false
+end
+
+if not getgenv().State then
+    getgenv().State = {
+        AutoFishing = false,
+        AutoSelling = false,
+        SelectedRarities = {},
+        LastReelTime = 0,
+        LastShakeTime = 0,
+        Events = {
+            Available = {}
+        }
+    }
+end
+
+if not getgenv().Functions then
+    warn("Functions module not loaded")
+    return false
+end
 
 -- Utility Functions
 local function isOnCooldown(action)
@@ -34,8 +88,8 @@ end
 -- Enhanced error handling for events
 local function safeFireEvent(eventName, ...)
     if not getgenv().State.Events.Available[eventName] then
-        if getgenv().Config.Debug then
-            warn("⚠️ Attempted to fire unavailable event:", eventName)
+        if getgenv().Config and getgenv().Config.Debug then
+            warn("⚠️ Event not found:", eventName)
         end
         return false
     end
@@ -46,41 +100,37 @@ local function safeFireEvent(eventName, ...)
     local event = events:FindFirstChild(eventName)
     if not event then return false end
 
-    pcall(function()
+    local success = pcall(function()
         event:FireServer(...)
     end)
 
-    return true
+    return success
 end
 
 -- Event Handling Functions with improved error checking
 Events.StartAutoFishing = function()
     if Events.Active.Fishing then return end
-    if not getgenv().State.Events.Available.castrod then
-        warn("⚠️ Auto fishing unavailable - required events missing")
-        return
-    end
-
+    
     Events.Active.Fishing = true
     
     Events.Connections.Fishing = RunService.RenderStepped:Connect(function()
         if not Events.Active.Fishing then return end
         
-        local gui = LocalPlayer:WaitForChild("PlayerGui")
+        local gui = LocalPlayer:FindFirstChild("PlayerGui")
         if not gui then return end
         
         pcall(function()
-            if getgenv().Options.AutoFish and not isOnCooldown("fishing") then
+            if getgenv().Options and getgenv().Options.AutoFish and not isOnCooldown("fishing") then
                 getgenv().Functions.autoFish(gui)
                 updateCooldown("fishing")
             end
             
-            if getgenv().Options.AutoReel and not isOnCooldown("reeling") then
+            if getgenv().Options and getgenv().Options.AutoReel and not isOnCooldown("reeling") then
                 getgenv().Functions.autoReel(gui)
                 updateCooldown("reeling")
             end
             
-            if getgenv().Options.AutoShake and not isOnCooldown("shaking") then
+            if getgenv().Options and getgenv().Options.AutoShake and not isOnCooldown("shaking") then
                 getgenv().Functions.autoShake(gui)
                 updateCooldown("shaking")
             end
@@ -131,9 +181,11 @@ Events.StartAutoSell = function()
         if not Events.Active.Selling or isOnCooldown("selling") then return end
         
         pcall(function()
-            for rarity, enabled in pairs(getgenv().State.SelectedRarities) do
-                if enabled then
-                    getgenv().Functions.sellFish(rarity)
+            if getgenv().State.SelectedRarities then
+                for rarity, enabled in pairs(getgenv().State.SelectedRarities) do
+                    if enabled then
+                        getgenv().Functions.sellFish(rarity)
+                    end
                 end
             end
         end)
@@ -150,82 +202,52 @@ Events.StopAutoSell = function()
     Events.Active.Selling = false
 end
 
--- Enhanced Character Handling
-Events.SetupCharacterHandler = function()
-    local function onCharacterAdded(character)
-        if not character then return end
-        
-        task.wait(CHARACTER_LOAD_DELAY)
-        
-        pcall(function()
-            if getgenv().Options.AutoEquipBestRod then
-                getgenv().Functions.equipBestRod()
+-- Initialize events system with improved error handling
+local function InitializeEvents()
+    -- Verify required modules and states
+    local requirements = {
+        {name = "Config", value = getgenv().Config},
+        {name = "Functions", value = getgenv().Functions},
+        {name = "State", value = getgenv().State}
+    }
+    
+    for _, req in ipairs(requirements) do
+        if not req.value then
+            warn("Events: Missing requirement -", req.name)
+            return false
+        end
+    end
+    
+    -- Check for available events in ReplicatedStorage
+    local events = ReplicatedStorage:FindFirstChild("events")
+    if events then
+        for _, event in pairs(events:GetChildren()) do
+            getgenv().State.Events.Available[event.Name] = true
+        end
+    end
+    
+    -- Set up cleanup on script end
+    if game:GetService("Players").LocalPlayer then
+        game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+            for _, connection in pairs(Events.Connections) do
+                if typeof(connection) == "RBXScriptConnection" and connection.Connected then
+                    connection:Disconnect()
+                end
             end
         end)
     end
     
-    if LocalPlayer.Character then
-        onCharacterAdded(LocalPlayer.Character)
-    end
-    
-    Events.Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-end
-
--- Improved Cleanup System
-Events.CleanupConnections = function()
-    for _, connection in pairs(Events.Connections) do
-        if typeof(connection) == "RBXScriptConnection" and connection.Connected then
-            connection:Disconnect()
-        end
-    end
-    
-    Events.Connections = {}
-    Events.Active = {}
-    Events.LastTick = {}
-end
-
--- Error Handler
-Events.HandleError = function(context, error)
     if getgenv().Config.Debug then
-        warn(string.format("[Events] %s Error: %s", context, error))
-        if getgenv().Functions and getgenv().Functions.ShowNotification then
-            getgenv().Functions.ShowNotification("Event Error", context .. ": " .. error)
-        end
+        print("✓ Events system initialized successfully")
     end
-end
-
--- Initialize events system with improved error handling
-local function InitializeEvents()
-    if not getgenv().Config then
-        error("Events: Config not initialized")
-        return false
-    end
-    
-    if not getgenv().State then
-        error("Events: State not initialized")
-        return false
-    end
-    
-    if not getgenv().Functions then
-        error("Events: Functions not initialized")
-        return false
-    end
-    
-    -- Setup cleanup on script end
-    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-        Events.CleanupConnections()
-    end)
-    
-    -- Setup character handler
-    Events.SetupCharacterHandler()
     
     return true
 end
 
--- Run initialization with error handling
-if not InitializeEvents() then
+-- Run initialization
+if InitializeEvents() then
+    return Events
+else
     warn("⚠️ Failed to initialize Events system")
     return false
 end
-
-return Events
