@@ -1,3 +1,26 @@
+-- Check if we already have a window
+if getgenv().LucidWindow then
+    return true
+end
+
+-- Wait for Fluent to be available
+local function waitForFluent()
+    local startTime = tick()
+    while not getgenv().Fluent do
+        if tick() - startTime > 10 then
+            error("Failed to load Fluent UI library after 10 seconds")
+            return false
+        end
+        task.wait(0.1)
+    end
+    return true
+end
+
+if not waitForFluent() then
+    return false
+end
+
+-- Create Window
 local Window = getgenv().Fluent:CreateWindow({
     Title = "Lucid Hub",
     SubTitle = "by ProbTom",
@@ -13,6 +36,9 @@ local Window = getgenv().Fluent:CreateWindow({
         ImageColor3 = Color3.fromRGB(255, 255, 255),
     }
 })
+
+-- Store window reference globally
+getgenv().LucidWindow = Window
 
 -- Create Tabs object to store all tabs
 local Tabs = {
