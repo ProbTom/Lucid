@@ -9,7 +9,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Event registration
+-- Event registration with single parameter
 function Events:Register(eventName, handler)
     if not self.Handlers[eventName] then
         self.Handlers[eventName] = {}
@@ -17,14 +17,15 @@ function Events:Register(eventName, handler)
     table.insert(self.Handlers[eventName], handler)
 end
 
--- Event triggering
-function Events:Trigger(eventName, data)
+-- Event triggering with single parameter
+function Events:Fire(eventName, data)
     if self.Handlers[eventName] then
         for _, handler in ipairs(self.Handlers[eventName]) do
             task.spawn(function()
-                pcall(function()
-                    handler(data)
-                end)
+                local success, err = pcall(handler, data)
+                if not success then
+                    warn("Event handler error:", err)
+                end
             end)
         end
     end
@@ -32,62 +33,65 @@ end
 
 -- Register core events
 Events:Register("RodEquipped", function(rodName)
-    if not getgenv().Options or not getgenv().Options.AutoEquipBestRod then return end
+    local Options = getgenv().Options
+    local Config = getgenv().Config
+    local Functions = getgenv().Functions
     
-    if getgenv().Config and getgenv().Config.Items then
-        local bestRod = nil
-        for _, rod in ipairs(getgenv().Config.Items.RodRanking) do
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rod) then
-                bestRod = rod
-                break
-            end
+    if not Options or not Options.AutoEquipBestRod then return end
+    if not Config or not Config.Items then return end
+    if not Functions or type(Functions.equipBestRod) ~= "function" then return end
+    
+    local bestRod = nil
+    for _, rod in ipairs(Config.Items.RodRanking) do
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rod) then
+            bestRod = rod
+            break
         end
-        
-        if bestRod and bestRod ~= rodName then
-            if getgenv().Functions and type(getgenv().Functions.equipBestRod) == "function" then
-                getgenv().Functions.equipBestRod()
-            end
-        end
+    end
+    
+    if bestRod and bestRod ~= rodName then
+        Functions.equipBestRod()
     end
 end)
 
 Events:Register("ItemAdded", function(item)
-    if not getgenv().Options or not getgenv().Options.AutoSellEnabled then return end
+    local Options = getgenv().Options
+    local Functions = getgenv().Functions
+    
+    if not Options or not Options.AutoSellEnabled then return end
+    if not Functions or type(Functions.sellFish) ~= "function" then return end
     
     if item and item:FindFirstChild("values") and item.values:FindFirstChild("rarity") then
         local itemRarity = item.values.rarity.Value
-        if getgenv().Options.SelectedRarities and 
-           getgenv().Options.SelectedRarities[itemRarity] and
-           getgenv().Functions and 
-           type(getgenv().Functions.sellFish) == "function" then
-            getgenv().Functions.sellFish(itemRarity)
+        if Options.SelectedRarities and Options.SelectedRarities[itemRarity] then
+            Functions.sellFish(itemRarity)
         end
     end
 end)
 
--- Connect to game events
+-- Setup character connections
 local function setupCharacterConnections(character)
     if not character then return end
     
     character.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
-            Events:Trigger("RodEquipped", child.Name)
+            Events:Fire("RodEquipped", child.Name)
         end
     end)
 end
 
--- Initial character setup
+-- Initial setup
 if LocalPlayer.Character then
     setupCharacterConnections(LocalPlayer.Character)
 end
 
--- Future character connections
+-- Setup future character connections
 LocalPlayer.CharacterAdded:Connect(setupCharacterConnections)
 
--- Backpack connections
+-- Setup backpack connections
 if LocalPlayer:FindFirstChild("Backpack") then
     LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-        Events:Trigger("ItemAdded", child)
+        Events:Fire("ItemAdded", child)
     end)
 end
 
