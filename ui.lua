@@ -12,50 +12,83 @@ end
 -- Core Services
 local Players = getSafe("Players")
 local CoreGui = getSafe("CoreGui")
-local UserInputService = getSafe("UserInputService")
 
--- UI Constants
-local UI_CONFIG = {
-    Title = "Lucid Hub",
-    SubTitle = "v1.0.1",
-    Size = {
-        Width = 500,
-        Height = 300
-    },
-    Theme = "Dark"
-}
-
--- Validate environment
+-- Basic validation
 if not getgenv or not getgenv().Fluent then
-    warn("Required UI dependencies not available")
+    warn("Missing required UI dependencies")
     return false
 end
 
--- Create window with error handling
+-- Simple window configuration
+local WindowConfig = {
+    Title = "Lucid Hub",
+    SubTitle = "v1.0.1",
+    TabWidth = 160,
+    Width = 500,
+    Height = 300,
+    Theme = "Dark"
+}
+
+-- Create window with simplified configuration
 local function createWindow()
+    if not getgenv().Fluent then return nil end
+    
     local success, window = pcall(function()
         return getgenv().Fluent:CreateWindow({
-            Title = UI_CONFIG.Title,
-            SubTitle = UI_CONFIG.SubTitle,
-            TabWidth = 160,
-            Size = Vector2.new(UI_CONFIG.Size.Width, UI_CONFIG.Size.Height),
-            Acrylic = true,
-            Theme = UI_CONFIG.Theme,
-            MinimizeKey = Enum.KeyCode.LeftControl
+            Name = WindowConfig.Title, -- Use Name instead of Title
+            LoadingTitle = WindowConfig.Title,
+            LoadingSubtitle = WindowConfig.SubTitle,
+            ConfigurationSaving = {
+                Enabled = true,
+                FolderName = "LucidHub",
+                FileName = "LucidHub_Config"
+            }
         })
     end)
     
-    if not success then
-        warn("Failed to create window:", window)
+    if not success or not window then
+        warn("Window creation failed:", window)
         return nil
     end
     
     return window
 end
 
+-- Initialize tabs with error handling
+local function createTabs(window)
+    if not window then return false end
+    
+    local tabs = {
+        Main = {
+            name = "Main",
+            icon = "home"
+        },
+        Items = {
+            name = "Items",
+            icon = "package"
+        },
+        Settings = {
+            name = "Settings",
+            icon = "settings"
+        }
+    }
+    
+    getgenv().Tabs = {}
+    
+    for id, info in pairs(tabs) do
+        pcall(function()
+            getgenv().Tabs[id] = window:AddTab(info.name, {
+                Icon = info.icon
+            })
+        end)
+    end
+    
+    return true
+end
+
 -- Initialize UI system
 local function InitializeUI()
-    -- Create main window
+    -- Create window
     local window = createWindow()
     if not window then
         return false
@@ -64,61 +97,34 @@ local function InitializeUI()
     -- Store window reference
     getgenv().Window = window
     
-    -- Initialize tabs container
-    getgenv().Tabs = {}
+    -- Create tabs
+    if not createTabs(window) then
+        warn("Failed to create tabs")
+        return false
+    end
     
-    -- Create default tabs
-    local mainTab = window:AddTab({
-        Title = "Main",
-        Icon = "home"
-    })
-    
-    local itemsTab = window:AddTab({
-        Title = "Items",
-        Icon = "package"
-    })
-    
-    local settingsTab = window:AddTab({
-        Title = "Settings",
-        Icon = "settings"
-    })
-    
-    -- Store tab references
-    getgenv().Tabs.Main = mainTab
-    getgenv().Tabs.Items = itemsTab
-    getgenv().Tabs.Settings = settingsTab
-    
-    -- Initialize SaveManager if available
+    -- Set up SaveManager
     if getgenv().SaveManager then
         pcall(function()
             getgenv().SaveManager:SetLibrary(getgenv().Fluent)
             getgenv().SaveManager:SetWindow(window)
-            getgenv().SaveManager:SetFolder("LucidHub")
-            getgenv().SaveManager:BuildConfigSection(settingsTab)
             getgenv().SaveManager:Load("LucidHub")
         end)
     end
     
-    -- Initialize InterfaceManager if available
-    if getgenv().InterfaceManager then
+    -- Set up cleanup
+    if Players.LocalPlayer then
         pcall(function()
-            getgenv().InterfaceManager:SetLibrary(getgenv().Fluent)
-            getgenv().InterfaceManager:SetWindow(window)
-            getgenv().InterfaceManager:BuildInterfaceSection(settingsTab)
+            Players.LocalPlayer.OnTeleport:Connect(function()
+                if getgenv().SaveManager then
+                    getgenv().SaveManager:Save("LucidHub")
+                end
+                if window then
+                    window:Destroy()
+                end
+            end)
         end)
     end
-    
-    -- Set up cleanup
-    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-        pcall(function()
-            if getgenv().SaveManager then
-                getgenv().SaveManager:Save("LucidHub")
-            end
-            if window then
-                window:Destroy()
-            end
-        end)
-    end)
     
     return true
 end
@@ -140,38 +146,18 @@ UI.CreateSection = function(tab, name)
     if not tab then return nil end
     
     local success, section = pcall(function()
-        return tab:AddSection(name)
+        return tab:CreateSection(name)
     end)
     
-    if not success then
-        warn("Failed to create section:", name)
-        return nil
-    end
-    
-    return section
-end
-
-UI.Minimize = function()
-    pcall(function()
-        if getgenv().Window then
-            getgenv().Window:Minimize()
-        end
-    end)
-end
-
-UI.Maximize = function()
-    pcall(function()
-        if getgenv().Window then
-            getgenv().Window:Maximize()
-        end
-    end)
+    return success and section or nil
 end
 
 -- Run initialization
-local success = pcall(InitializeUI)
-if success then
+local success, result = pcall(InitializeUI)
+
+if success and result then
     return UI
 else
-    warn("⚠️ Failed to initialize UI system")
+    warn("⚠️ Failed to initialize UI system:", result)
     return false
 end
