@@ -15,7 +15,12 @@ getgenv().Config = {
         MinimizeKey = Enum.KeyCode.RightControl,
         Theme = "Rose"
     },
-    GameID = 16732694052
+    GameID = 16732694052,
+    URLs = {
+        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
+        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
+        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
+    }
 }
 
 -- Load UI Libraries directly
