@@ -21,7 +21,6 @@ getgenv().Config = {
     Debug = true,
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        -- Updated to use the latest release URL
         Fluent = "https://github.com/dawid-scripts/Fluent/releases/download/1.1.0/main.lua"
     },
     MaxRetries = 3,
@@ -63,13 +62,6 @@ local function loadScript(name)
     end
 end
 
--- Load compatibility layer first
-debugPrint("Loading compatibility layer...")
-if not loadScript("compatibility.lua") then
-    error("Failed to load compatibility layer")
-    return
-end
-
 -- Initialize Fluent UI with enhanced error handling
 local function initializeFluentUI()
     debugPrint("Fetching Fluent UI source...")
@@ -81,8 +73,6 @@ local function initializeFluentUI()
         debugPrint("Failed to fetch Fluent UI source:", tostring(content))
         return false
     end
-    
-    debugPrint("Content length:", #content)
     
     debugPrint("Compiling Fluent UI...")
     local loaded, compileError = loadstring(content)
@@ -98,50 +88,48 @@ local function initializeFluentUI()
         return false
     end
     
-    if type(lib) ~= "table" then
-        debugPrint("Invalid return type:", type(lib))
-        return false
-    end
-    
-    debugPrint("Wrapping with compatibility layer...")
-    if type(getgenv().CompatibilityLayer) ~= "table" or 
-       type(getgenv().CompatibilityLayer.wrapFluentUI) ~= "function" then
-        debugPrint("Invalid compatibility layer")
-        return false
-    end
-    
-    local wrapped = getgenv().CompatibilityLayer.wrapFluentUI(lib)
-    if type(wrapped) ~= "table" then
-        debugPrint("Invalid wrapper result")
-        return false
-    end
-    
-    getgenv().Fluent = wrapped
+    getgenv().Fluent = lib
     debugPrint("Fluent UI initialized successfully")
     return true
 end
 
+-- Load scripts in correct order with dependencies
+local loadOrder = {
+    {name = "config.lua", required = true},
+    {name = "compatibility.lua", required = true},
+    {name = "options.lua", required = true},
+    {name = "events.lua", required = true},
+    {name = "functions.lua", required = true},
+    {name = "Tab.lua", required = true},
+    {name = "MainTab.lua", required = true},
+    {name = "ItemsTab.lua", required = true},
+    {name = "ui.lua", required = false}
+}
+
+-- Initialize Fluent UI first
 debugPrint("Initializing Fluent UI...")
 if not initializeFluentUI() then
     error("Failed to initialize Fluent UI")
     return
 end
 
--- Load remaining scripts in order
-local loadOrder = {
-    {name = "init.lua", required = true},
-    {name = "functions.lua", required = true},
-    {name = "Tab.lua", required = true},
-    {name = "MainTab.lua", required = true}
-    {name = "ItemsTab.lua", required= true}
-}
-
+-- Load all scripts in order
 for _, script in ipairs(loadOrder) do
     if not loadScript(script.name) and script.required then
         error(string.format("Failed to load required script: %s", script.name))
         return
     end
     task.wait(0.1)
+end
+
+-- Initialize SaveManager after all scripts are loaded
+if getgenv().Fluent then
+    getgenv().SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+    if getgenv().SaveManager then
+        getgenv().SaveManager:SetLibrary(getgenv().Fluent)
+        getgenv().SaveManager:SetFolder("LucidHub")
+        getgenv().SaveManager:Load("LucidHub")
+    end
 end
 
 getgenv().LucidHubLoaded = true
