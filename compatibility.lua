@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Initialize Config if not exists
 if not getgenv().Config then
     getgenv().Config = {
-        Version = "1.0.0",
+        Version = "1.0.1",
         Debug = true,
         URLs = {
             Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
@@ -43,7 +43,10 @@ if not getgenv().State then
         AutoSelling = false,
         SelectedRarities = {},
         LastReelTime = 0,
-        LastShakeTime = 0
+        LastShakeTime = 0,
+        Events = {
+            Available = {}
+        }
     }
 end
 
@@ -51,7 +54,7 @@ end
 Compatibility.CheckVersion = function()
     return {
         current = getgenv().Config.Version,
-        latest = "1.0.0",
+        latest = "1.0.1",
         needsUpdate = false
     }
 end
@@ -76,28 +79,36 @@ Compatibility.ValidateServices = function()
     return #missing == 0, missing
 end
 
--- Game Events Setup
+-- Game Events Setup with improved error handling
 Compatibility.SetupGameEvents = function()
-    -- Create events folder if it doesn't exist
     local events = ReplicatedStorage:FindFirstChild("events")
     if not events then
-        events = Instance.new("Folder")
-        events.Name = "events"
-        events.Parent = ReplicatedStorage
+        if getgenv().Config.Debug then
+            warn("⚠️ Events folder not found in ReplicatedStorage, creating fallback handlers")
+        end
+        -- Create a fallback events table
+        getgenv().State.Events.Available = {
+            castrod = false,
+            reelfinished = false,
+            character = false
+        }
+        return true
     end
 
-    -- Create required events
+    -- Check required events
     local requiredEvents = {
         "castrod",
         "reelfinished",
         "character"
     }
 
+    -- Check each event and store availability
     for _, eventName in ipairs(requiredEvents) do
-        if not events:FindFirstChild(eventName) then
-            local newEvent = Instance.new("RemoteEvent")
-            newEvent.Name = eventName
-            newEvent.Parent = events
+        local eventExists = events:FindFirstChild(eventName) ~= nil
+        getgenv().State.Events.Available[eventName] = eventExists
+        
+        if not eventExists and getgenv().Config.Debug then
+            warn("⚠️ Event not found:", eventName)
         end
     end
 
@@ -124,7 +135,7 @@ Compatibility.ValidateEnvironment = function()
     return #missing == 0, missing
 end
 
--- Anti-cheat bypass setup
+-- Enhanced Anti-cheat bypass
 Compatibility.SetupAntiCheatBypass = function()
     pcall(function()
         local mt = getrawmetatable(game)
@@ -153,38 +164,56 @@ Compatibility.SetupAntiCheatBypass = function()
     return true
 end
 
+-- Feature availability check
+Compatibility.IsFeatureAvailable = function(featureName)
+    if featureName:match("auto") and getgenv().State.Events.Available then
+        local requiredEvents = {
+            autofish = {"castrod"},
+            autoreel = {"reelfinished"},
+            autoshake = {"character"}
+        }
+        
+        local events = requiredEvents[featureName:lower()]
+        if events then
+            for _, event in ipairs(events) do
+                if not getgenv().State.Events.Available[event] then
+                    return false
+                end
+            end
+        end
+    end
+    return true
+end
+
 -- Initialize compatibility checks
 local function InitializeCompatibility()
-    -- Set up game events first
-    Compatibility.SetupGameEvents()
-    
-    -- Run other checks
-    local checks = {
-        {name = "Environment", func = Compatibility.ValidateEnvironment},
-        {name = "Services", func = Compatibility.ValidateServices}
+    local status = {
+        events = Compatibility.SetupGameEvents(),
+        environment = Compatibility.ValidateEnvironment(),
+        services = Compatibility.ValidateServices(),
+        anticheat = Compatibility.SetupAntiCheatBypass()
     }
     
-    local allPassed = true
-    for _, check in ipairs(checks) do
-        local success, missing = check.func()
-        if not success then
-            if getgenv().Config.Debug then
-                warn(string.format("⚠️ %s check failed: %s", 
-                    check.name, 
-                    table.concat(missing, ", ")
-                ))
+    -- Log initialization results if debug is enabled
+    if getgenv().Config.Debug then
+        for check, result in pairs(status) do
+            if not result then
+                warn(string.format("⚠️ Compatibility initialization failed for: %s", check))
             end
-            allPassed = false
         end
     end
     
-    -- Setup anti-cheat bypass
-    Compatibility.SetupAntiCheatBypass()
-    
-    -- Return true even if some checks fail - we'll run in degraded mode
+    -- Return true to allow script to continue with reduced functionality
     return true
 end
 
 -- Run initialization and return module
-InitializeCompatibility()
+if InitializeCompatibility() then
+    if getgenv().Config.Debug then
+        print("✓ Compatibility layer initialized successfully")
+    end
+else
+    warn("⚠️ Compatibility layer initialization failed")
+end
+
 return Compatibility
