@@ -1,26 +1,39 @@
--- config.lua
-local Config = {
-    Version = "1.0.0",
-    Debug = true,
-    UI = {
-        MainColor = Color3.fromRGB(38, 38, 38),
-        ButtonColor = Color3.fromRGB(220, 125, 255),
-        MinimizeKey = Enum.KeyCode.RightControl,
-        Theme = "Dark"
-    },
-    GameID = game.GameId,
+getgenv().Config = {
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
-        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
-        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
+        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
     },
-    Items = {
-        ChestRange = {
-            Default = 50,
-            Min = 10,
-            Max = 100
+    
+    Game = {
+        SupportedGames = {
+            [14264772720] = "Winter Fishing Simulator"
         },
+        MinimumDelay = 0.1,
+        MaximumDelay = 2.0
+    },
+    
+    UI = {
+        Title = "Lucid Hub",
+        Subtitle = "Winter Fishing Simulator",
+        Theme = "Dark",
+        MainColor = Color3.fromRGB(46, 148, 255),
+        MinimizeKey = Enum.KeyCode.RightShift
+    },
+    
+    Items = {
+        FishRarities = {
+            "Common",
+            "Uncommon",
+            "Rare",
+            "Epic",
+            "Legendary",
+            "Mythical",
+            "Enchant Relics",
+            "Exotic",
+            "Limited",
+            "Gemstones"
+        },
+        
         RodRanking = {
             "Rod Of The Forgotten Fang",
             "Rod Of The Eternal King",
@@ -67,26 +80,21 @@ local Config = {
             "Fischer's Rod",
             "Flimsy Rod"
         },
-        FishRarities = {
-            "Common",
-            "Uncommon",
-            "Rare",
-            "Epic",
-            "Legendary",
-            "Mythical",
-            "Enchant Relics",
-            "Exotic",
-            "Limited",
-            "Gemstones"
+        
+        ChestSettings = {
+            MinRange = 10,
+            MaxRange = 100,
+            DefaultRange = 50
         }
+    },
+    
+    Options = {
+        AutoFish = false,
+        AutoReel = false,
+        AutoShake = false,
+        AutoSell = false,
+        AutoEquipBestRod = false,
+        AutoCollectChests = false,
+        ChestRange = 50
     }
 }
-
--- Set up global environment
-if not getgenv then
-    error("Unsupported environment")
-    return false
-end
-
-getgenv().Config = Config
-return Config
