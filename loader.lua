@@ -1,4 +1,4 @@
--- Check if already executed first
+-- Check if already executed
 if getgenv().LucidHubLoaded then
     warn("Lucid Hub: Already executed!")
     return
@@ -41,6 +41,7 @@ end
 
 -- Define config globally
 getgenv().Config = {
+    Version = "1.0.0",
     UI = {
         MainColor = Color3.fromRGB(38, 38, 38),
         ButtonColor = Color3.new(220, 125, 255),
@@ -52,31 +53,8 @@ getgenv().Config = {
         Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
         SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
         InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
-    },
-    Version = "1.0.0"
+    }
 }
-
--- Load Fluent UI with error handling
-local function loadFluent()
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
-    end)
-    
-    if success then
-        getgenv().Fluent = result
-    else
-        warn("Failed to load Fluent UI library")
-        return false
-    end
-    
-    -- Load additional managers
-    pcall(function()
-        getgenv().SaveManager = loadstring(game:HttpGet(getgenv().Config.URLs.SaveManager))()
-        getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
-    end)
-    
-    return true
-end
 
 -- Function to load scripts with retry mechanism
 local function loadScript(name, maxRetries)
@@ -101,6 +79,28 @@ local function loadScript(name, maxRetries)
     return false
 end
 
+-- Load Fluent UI with retry
+local function loadFluent()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
+    end)
+    
+    if success then
+        getgenv().Fluent = result
+        
+        -- Load additional managers
+        pcall(function()
+            getgenv().SaveManager = loadstring(game:HttpGet(getgenv().Config.URLs.SaveManager))()
+            getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
+        end)
+        
+        return true
+    else
+        warn("Failed to load Fluent UI library:", result)
+        return false
+    end
+end
+
 -- Initialize Fluent UI
 if not loadFluent() then
     warn("Failed to initialize Fluent UI")
@@ -109,16 +109,20 @@ end
 
 -- Load scripts in order with dependencies
 local loadOrder = {
-    {name = "init.lua", required = true},      -- First to initialize variables
-    {name = "Tab.lua", required = true},       -- Second to create the window and tabs
-    {name = "functions.lua", required = true}, -- Third to load functions
-    {name = "MainTab.lua", required = true}    -- Last to use everything
+    {name = "init.lua", required = true},
+    {name = "Tab.lua", required = true},
+    {name = "functions.lua", required = true},
+    {name = "MainTab.lua", required = true}
 }
 
 -- Load all scripts
 for _, script in ipairs(loadOrder) do
     if not loadScript(script.name) and script.required then
-        warn(string.format("Failed to load required script: %s", script.name))
+        getgenv().Fluent:Notify({
+            Title = "Lucid Hub Error",
+            Content = "Failed to load " .. script.name,
+            Duration = 5
+        })
         return
     end
     task.wait(0.1)
@@ -174,19 +178,5 @@ game:GetService("Players").PlayerRemoving:Connect(function(player)
         cleanupExisting()
     end
 end)
-
--- Create debug command (only works in Studio)
-if game:GetService("RunService"):IsStudio() then
-    local function reloadScript()
-        cleanupExisting()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
-    end
-    
-    game:GetService("Players").LocalPlayer.Chatted:Connect(function(msg)
-        if msg == "/reloadlucid" then
-            reloadScript()
-        end
-    end)
-end
 
 return true
