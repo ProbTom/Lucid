@@ -1,165 +1,185 @@
 -- ui.lua
+local UI = {}
+
+-- Core Services
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 
--- Ensure required globals
-if not getgenv().Fluent then
-    error("Fluent UI library not initialized")
-    return false
-end
-
-if not getgenv().Config then
-    error("Configuration not initialized")
-    return false
-end
-
--- Clean up existing window
-if getgenv().Window then
-    pcall(function()
-        getgenv().Window:Destroy()
-    end)
-    getgenv().Window = nil
-end
-
--- Create new window
-local Window = getgenv().Fluent:CreateWindow({
-    Title = "Lucid Hub v" .. getgenv().Config.Version,
-    SubTitle = "by ProbTom",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = true,
-    Theme = getgenv().Config.UI.Theme
-})
-
--- Initialize tabs
-local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "fish" }),
-    Items = Window:AddTab({ Title = "Items", Icon = "package" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+-- UI Constants
+local UI_CONFIG = {
+    Title = "Lucid Hub",
+    SubTitle = "v" .. (getgenv().Config and getgenv().Config.Version or "1.0.1"),
+    Theme = "Dark",
+    KeySystem = false
 }
 
--- Settings Tab Configuration
-do
-    local SettingsTab = Tabs.Settings
-    local ThemeSection = SettingsTab:AddSection("Theme")
-    
-    -- Theme Color Picker
-    ThemeSection:AddColorPicker("UIColor", {
-        Title = "Main Color",
-        Default = getgenv().Config.UI.MainColor,
-        Callback = function(color)
-            getgenv().Config.UI.MainColor = color
-            Window:SetAccent(color)
+-- Theme Configuration
+local THEMES = {
+    Dark = {
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        SecondaryColor3 = Color3.fromRGB(35, 35, 35),
+        AccentColor3 = Color3.fromRGB(0, 150, 255),
+        TextColor3 = Color3.fromRGB(240, 240, 240),
+        Font = Enum.Font.GothamMedium
+    },
+    Light = {
+        BackgroundColor3 = Color3.fromRGB(240, 240, 240),
+        SecondaryColor3 = Color3.fromRGB(230, 230, 230),
+        AccentColor3 = Color3.fromRGB(0, 120, 215),
+        TextColor3 = Color3.fromRGB(25, 25, 25),
+        Font = Enum.Font.GothamMedium
+    }
+}
+
+-- Error Handler
+local function handleError(context, error)
+    if getgenv().Config and getgenv().Config.Debug then
+        warn(string.format("[UI] %s Error: %s", context, error))
+        if getgenv().Functions and getgenv().Functions.ShowNotification then
+            getgenv().Functions.ShowNotification("UI Error", context .. ": " .. error)
         end
-    })
-    
-    -- Theme Dropdown
-    ThemeSection:AddDropdown("Theme", {
-        Title = "Theme",
-        Values = {"Light", "Dark", "Discord", "Rose"},
-        Default = getgenv().Config.UI.Theme,
-        Callback = function(theme)
-            Window:ChangeTheme(theme)
-            getgenv().Config.UI.Theme = theme
-        end
-    })
-    
-    -- Info Section
-    local InfoSection = SettingsTab:AddSection("Information")
-    InfoSection:AddLabel("Version: " .. getgenv().Config.Version)
-    InfoSection:AddLabel("Created by: ProbTom")
+    end
 end
 
--- Mobile Support
-if UserInputService.TouchEnabled then
-    local function createMobileButton()
-        local ClickButton = Instance.new("ScreenGui")
-        ClickButton.Name = "ClickButton"
-        ClickButton.ResetOnSpawn = false
-        
-        -- Parent to CoreGui safely
+-- UI Creation with error handling
+local function createWindow()
+    if getgenv().Window then
         pcall(function()
-            ClickButton.Parent = CoreGui
-        end)
-        
-        local MainFrame = Instance.new("Frame")
-        MainFrame.Name = "MainFrame"
-        MainFrame.Parent = ClickButton
-        MainFrame.AnchorPoint = Vector2.new(1, 0)
-        MainFrame.BackgroundColor3 = getgenv().Config.UI.MainColor
-        MainFrame.BackgroundTransparency = 0.8
-        MainFrame.BorderSizePixel = 0
-        MainFrame.Position = UDim2.new(1, -60, 0, 10)
-        MainFrame.Size = UDim2.new(0, 45, 0, 45)
-        
-        local UICorner = Instance.new("UICorner")
-        UICorner.CornerRadius = UDim.new(1, 0)
-        UICorner.Parent = MainFrame
-        
-        -- Make draggable
-        local dragging = false
-        local dragStart = nil
-        local startPos = nil
-        
-        MainFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                startPos = MainFrame.Position
-            end
-        end)
-        
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.Touch then
-                local delta = input.Position - dragStart
-                MainFrame.Position = UDim2.new(
-                    startPos.X.Scale,
-                    startPos.X.Offset + delta.X,
-                    startPos.Y.Scale,
-                    startPos.Y.Offset + delta.Y
-                )
-            end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch then
-                dragging = false
-            end
-        end)
-        
-        -- Toggle button
-        local ToggleButton = Instance.new("TextButton")
-        ToggleButton.Parent = MainFrame
-        ToggleButton.BackgroundTransparency = 1
-        ToggleButton.Size = UDim2.fromScale(1, 1)
-        ToggleButton.Text = ""
-        ToggleButton.MouseButton1Click:Connect(function()
-            if Window.Minimized then
-                Window:Restore()
-            else
-                Window:Minimize()
-            end
+            getgenv().Window:Destroy()
         end)
     end
-    
-    createMobileButton()
+
+    local success, window = pcall(function()
+        return getgenv().Fluent:CreateWindow({
+            Title = UI_CONFIG.Title,
+            SubTitle = UI_CONFIG.SubTitle,
+            TabWidth = 160,
+            Size = UDim2.fromOffset(580, 460),
+            Acrylic = true,
+            Theme = UI_CONFIG.Theme,
+            MinimizeKey = Enum.KeyCode.LeftControl
+        })
+    end)
+
+    if not success then
+        handleError("Window Creation", window)
+        return nil
+    end
+
+    return window
 end
 
--- Store references globally
-getgenv().Window = Window
-getgenv().Tabs = Tabs
+-- Enhanced Theme Management
+UI.SetTheme = function(themeName)
+    if not THEMES[themeName] then
+        handleError("Theme Setting", "Invalid theme: " .. themeName)
+        return false
+    end
 
--- Initialize keybinds
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == getgenv().Config.UI.MinimizeKey then
-        if Window.Minimized then
-            Window:Restore()
-        else
-            Window:Minimize()
+    pcall(function()
+        local theme = THEMES[themeName]
+        if getgenv().Window then
+            getgenv().Window:SetBackgroundColor3(theme.BackgroundColor3)
+            getgenv().Window:SetAccentColor3(theme.AccentColor3)
+            -- Apply theme to all elements
+            for _, element in pairs(getgenv().Window:GetDescendants()) do
+                if element:IsA("TextLabel") or element:IsA("TextButton") then
+                    element.TextColor3 = theme.TextColor3
+                    element.Font = theme.Font
+                end
+                if element:IsA("Frame") then
+                    element.BackgroundColor3 = theme.SecondaryColor3
+                end
+            end
+        end
+    end)
+
+    UI_CONFIG.Theme = themeName
+    return true
+end
+
+-- Notification System with improved error handling
+UI.ShowNotification = function(title, content, duration)
+    pcall(function()
+        if getgenv().Window then
+            getgenv().Window:Notify({
+                Title = title or "Notification",
+                Content = content or "",
+                Duration = duration or 3
+            })
+        end
+    end)
+end
+
+-- Enhanced Save/Load System
+UI.SaveWindowState = function()
+    pcall(function()
+        if getgenv().SaveManager then
+            getgenv().SaveManager:Save("LucidHub")
+        end
+    end)
+end
+
+UI.LoadWindowState = function()
+    pcall(function()
+        if getgenv().SaveManager then
+            getgenv().SaveManager:Load("LucidHub")
+        end
+    end)
+end
+
+-- UI Cleanup System
+UI.Cleanup = function()
+    pcall(function()
+        if getgenv().Window then
+            UI.SaveWindowState()
+            getgenv().Window:Destroy()
+        end
+    end)
+end
+
+-- Initialize UI System with comprehensive error handling
+local function InitializeUI()
+    local requirements = {
+        {name = "Fluent", value = getgenv().Fluent},
+        {name = "SaveManager", value = getgenv().SaveManager},
+        {name = "Config", value = getgenv().Config}
+    }
+    
+    for _, req in ipairs(requirements) do
+        if not req.value then
+            handleError("Initialization", "Missing requirement: " .. req.name)
+            return false
         end
     end
-end)
 
-return true
+    -- Create main window
+    getgenv().Window = createWindow()
+    if not getgenv().Window then
+        handleError("Initialization", "Failed to create window")
+        return false
+    end
+
+    -- Apply default theme
+    UI.SetTheme(UI_CONFIG.Theme)
+
+    -- Setup auto-save
+    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+        UI.SaveWindowState()
+    end)
+
+    -- Load previous state if available
+    UI.LoadWindowState()
+
+    return true
+end
+
+-- Run initialization with error handling
+if not InitializeUI() then
+    warn("⚠️ Failed to initialize UI system")
+    return false
+end
+
+return UI
