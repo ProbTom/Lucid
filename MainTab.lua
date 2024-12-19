@@ -20,7 +20,6 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 -- Cache MainTab reference
 local MainTab = getgenv().Tabs.Main
@@ -129,21 +128,40 @@ local autoCast = MainTab:AddToggle("autoCast", {
 })
 
 local lastCastTime = 0
-local CAST_COOLDOWN = 1.5
-local castEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("cast")
+local CAST_COOLDOWN = 2 -- Increased cooldown for reliability
 
-local function performCast()
-    pcall(function()
-        -- Send cast event
-        castEvent:FireServer()
-        
-        -- Simulate key press as backup
-        task.spawn(function()
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-            task.wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-        end)
-    end)
+local function autoCastFunction()
+    -- Check if player is already fishing
+    local fishingUI = LocalPlayer.PlayerGui:FindFirstChild("FishingUI")
+    if fishingUI and fishingUI:FindFirstChild("CastButton") and not fishingUI.CastButton.Visible then
+        return
+    end
+
+    local rodNames = {
+        "Rod Of The Depths", "Flimsy Rod", "Training Rod", "Relic Rod", "Astral Rod",
+        "Destiny Rod", "Steady Rod", "Aurora Rod", "Rod Of The Forgotten Fang",
+        "Lucky Rod", "Nocturnal Rod", "Kings Rod", "Carbon Rod", "Fungal Rod",
+        "Mythical Rod", "Sunken Rod", "Candy Cane Rod", "Reinforced Rod",
+        "Fast Rod", "No-Life Rod", "Fortune Rod", "Antler Rod", "Precision Rod",
+        "Magma Rod", "Frost Warden Rod", "Rod Of The Eternal King", "Magnet Rod",
+        "Celestial Rod", "Long Rod", "Krampus's Rod", "Scurvy Rod", "Plastic Rod",
+        "The Lost Rod", "Rapid Rod", "Trident Rod", "Voyager Rod", "North-Star Rod",
+        "Phoenix Rod", "Stone Rod"
+    }
+
+    local args = {97.4, 1}
+    local character = LocalPlayer.Character
+    if not character then return end
+
+    local currentRod = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
+    if not currentRod or currentRod == "" then return end
+
+    local rod = character:FindFirstChild(currentRod)
+    if not rod then return end
+
+    if rod:FindFirstChild("events") and rod.events:FindFirstChild("cast") then
+        rod.events.cast:FireServer(unpack(args))
+    end
 end
 
 autoCast:OnChanged(function()
@@ -151,13 +169,8 @@ autoCast:OnChanged(function()
         if autoCast.Value then
             RunService:BindToRenderStep("AutoCast", Enum.RenderPriority.First.Value, function()
                 if tick() - lastCastTime > CAST_COOLDOWN then
-                    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-                    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
-                    
-                    if rod then
-                        performCast()
-                        lastCastTime = tick()
-                    end
+                    autoCastFunction()
+                    lastCastTime = tick()
                 end
             end)
         else
