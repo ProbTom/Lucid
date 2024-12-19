@@ -1,7 +1,6 @@
--- At the start of ui.lua
-if getgenv().LucidHubLoaded then
-    warn("Lucid Hub: Already executed!")
-    return
+-- Wait for game load
+if not game:IsLoaded() then
+    game.Loaded:Wait()
 end
 
 -- Safe service getter
@@ -17,23 +16,17 @@ local function getService(serviceName)
     end
 end
 
--- Check for multiple executions
-if getgenv().cuppink and getService("CoreGui"):FindFirstChild("ClickButton") then
-    warn("Lucid Hub: Already executed!")
-    return
-end
-
-getgenv().cuppink = true
-
--- Wait for game load
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
-
 -- Get required services
 local HttpService = getService("HttpService")
 local UserInputService = getService("UserInputService")
 local CoreGui = getService("CoreGui")
+
+-- Clean up existing UI
+if CoreGui:FindFirstChild("ClickButton") then
+    CoreGui:FindFirstChild("ClickButton"):Destroy()
+end
+
+-- Initialize globals
 local Config = getgenv().Config
 local Fluent = getgenv().Fluent
 
@@ -83,7 +76,7 @@ if DeviceType == "Mobile" then
     end)
 end
 
--- Set the flag at the end of successful loading
-getgenv().LucidHubLoaded = true
+-- Mark as loaded
+getgenv().cuppink = true
 
 return true
