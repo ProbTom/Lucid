@@ -13,7 +13,7 @@ end
 
 -- Get required services and configurations
 local MarketplaceService = getService("MarketplaceService")
-local Config = getgenv().Config  -- Changed line here
+local Config = getgenv().Config
 local Fluent = getgenv().Fluent
 
 if not Fluent then
