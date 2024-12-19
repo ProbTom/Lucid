@@ -128,40 +128,40 @@ local autoCast = MainTab:AddToggle("autoCast", {
 })
 
 local lastCastTime = 0
-local CAST_COOLDOWN = 2 -- Increased cooldown for reliability
+local CAST_COOLDOWN = 2
 
-local function autoCastFunction()
-    -- Check if player is already fishing
-    local fishingUI = LocalPlayer.PlayerGui:FindFirstChild("FishingUI")
-    if fishingUI and fishingUI:FindFirstChild("CastButton") and not fishingUI.CastButton.Visible then
-        return
-    end
+-- Remote event for casting
+local castRemote = Instance.new("RemoteEvent")
+castRemote.Name = "cast"
 
-    local rodNames = {
-        "Rod Of The Depths", "Flimsy Rod", "Training Rod", "Relic Rod", "Astral Rod",
-        "Destiny Rod", "Steady Rod", "Aurora Rod", "Rod Of The Forgotten Fang",
-        "Lucky Rod", "Nocturnal Rod", "Kings Rod", "Carbon Rod", "Fungal Rod",
-        "Mythical Rod", "Sunken Rod", "Candy Cane Rod", "Reinforced Rod",
-        "Fast Rod", "No-Life Rod", "Fortune Rod", "Antler Rod", "Precision Rod",
-        "Magma Rod", "Frost Warden Rod", "Rod Of The Eternal King", "Magnet Rod",
-        "Celestial Rod", "Long Rod", "Krampus's Rod", "Scurvy Rod", "Plastic Rod",
-        "The Lost Rod", "Rapid Rod", "Trident Rod", "Voyager Rod", "North-Star Rod",
-        "Phoenix Rod", "Stone Rod"
-    }
-
-    local args = {97.4, 1}
+local function performCast()
     local character = LocalPlayer.Character
     if not character then return end
 
-    local currentRod = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-    if not currentRod or currentRod == "" then return end
+    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
+    if not rodName or rodName == "" then return end
 
-    local rod = character:FindFirstChild(currentRod)
+    local rod = character:FindFirstChild(rodName)
     if not rod then return end
 
+    -- Try direct cast method first
     if rod:FindFirstChild("events") and rod.events:FindFirstChild("cast") then
-        rod.events.cast:FireServer(unpack(args))
+        task.spawn(function()
+            pcall(function()
+                rod.events.cast:FireServer(97.4, 1)
+            end)
+        end)
     end
+
+    -- Backup method using key simulation
+    task.spawn(function()
+        pcall(function()
+            local vim = game:GetService("VirtualInputManager")
+            vim:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+            task.wait(0.1)
+            vim:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        end)
+    end)
 end
 
 autoCast:OnChanged(function()
@@ -169,8 +169,13 @@ autoCast:OnChanged(function()
         if autoCast.Value then
             RunService:BindToRenderStep("AutoCast", Enum.RenderPriority.First.Value, function()
                 if tick() - lastCastTime > CAST_COOLDOWN then
-                    autoCastFunction()
-                    lastCastTime = tick()
+                    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
+                    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
+                    
+                    if rod then
+                        performCast()
+                        lastCastTime = tick()
+                    end
                 end
             end)
         else
