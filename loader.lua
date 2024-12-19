@@ -100,8 +100,8 @@ end
 
 local loadOrder = {
     {name = "init.lua", required = true},
-    {name = "Tab.lua", required = true},
     {name = "functions.lua", required = true},
+    {name = "Tab.lua", required = true},
     {name = "MainTab.lua", required = true}
 }
 
