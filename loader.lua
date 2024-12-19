@@ -16,57 +16,66 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-getgenv().Config = {
-    Version = "1.0.0",
-    URLs = {
-        Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/",
-        Fluent = {
-            Primary = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
-            Fallback = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/src/main.lua"
-        }
-    },
-    MaxRetries = 3,
-    RetryDelay = 1
-}
-
-local function loadFluent()
-    local success, result
-    
-    -- Try primary URL
-    success, result = pcall(function()
-        return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent.Primary))()
+-- Load configuration first
+local function loadConfig()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua"))()
     end)
     
-    -- If primary fails, try fallback
     if not success then
-        warn("Primary Fluent URL failed, trying fallback...")
-        success, result = pcall(function()
-            return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent.Fallback))()
-        end)
-    end
-    
-    if success then
-        getgenv().Fluent = result
-        return true
-    else
-        warn("Failed to load Fluent UI library:", result)
+        warn("Failed to load config:", result)
         return false
     end
+    return true
 end
 
-if not loadFluent() then
-    warn("Failed to initialize Fluent UI")
+if not loadConfig() then
+    error("Failed to load configuration")
+    return
+end
+
+-- Initialize Fluent UI with error handling
+local function initializeFluentUI()
+    local success, FluentLib = pcall(function()
+        return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
+    end)
+
+    if not success then
+        warn("Failed to initialize Fluent UI:", FluentLib)
+        return false
+    end
+
+    -- Verify required methods exist
+    local requiredMethods = {
+        "CreateWindow",
+        "Notify",
+        "SetTheme",
+        "SaveConfig",
+        "SetBackgroundTransparency",
+        "ToggleAcrylic"
+    }
+
+    for _, method in ipairs(requiredMethods) do
+        if not FluentLib[method] then
+            warn("Missing required Fluent UI method:", method)
+            return false
+        end
+    end
+
+    getgenv().Fluent = FluentLib
+    return true
+end
+
+if not initializeFluentUI() then
+    error("Failed to initialize Fluent UI")
     return
 end
 
 local function loadScript(name, maxRetries)
-    maxRetries = maxRetries or getgenv().Config.MaxRetries
+    maxRetries = maxRetries or 3
     local retryCount = 0
-    local lastError
     
     while retryCount < maxRetries do
-        -- Try main URL first
         local success, result = pcall(function()
             local source = game:HttpGet(getgenv().Config.URLs.Main .. name)
             return loadstring(source)()
@@ -76,28 +85,16 @@ local function loadScript(name, maxRetries)
             return true
         end
         
-        -- If main fails, try backup URL
-        success, result = pcall(function()
-            local source = game:HttpGet(getgenv().Config.URLs.Backup .. name)
-            return loadstring(source)()
-        end)
-        
-        if success then
-            return true
-        else
-            lastError = result
-            warn(string.format("Failed to load %s (Attempt %d/%d): %s", 
-                name, retryCount + 1, maxRetries, tostring(result)))
-            task.wait(getgenv().Config.RetryDelay)
-        end
+        warn(string.format("Failed to load %s (Attempt %d/%d): %s", 
+            name, retryCount + 1, maxRetries, tostring(result)))
+        task.wait(1)
         retryCount = retryCount + 1
     end
     
-    error(string.format("Failed to load %s after %d attempts. Last error: %s", 
-        name, maxRetries, tostring(lastError)))
     return false
 end
 
+-- Updated load order with dependencies
 local loadOrder = {
     {name = "init.lua", required = true},
     {name = "functions.lua", required = true},
@@ -107,6 +104,7 @@ local loadOrder = {
 
 for _, script in ipairs(loadOrder) do
     if not loadScript(script.name) and script.required then
+        error(string.format("Failed to load required script: %s", script.name))
         return
     end
     task.wait(0.1)
