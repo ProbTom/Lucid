@@ -17,14 +17,13 @@ function Events:Register(eventName, handler)
     table.insert(self.Handlers[eventName], handler)
 end
 
--- Event triggering with proper argument handling
-function Events:Trigger(eventName, ...)
-    local args = {...}
+-- Event triggering
+function Events:Trigger(eventName, data)
     if self.Handlers[eventName] then
         for _, handler in ipairs(self.Handlers[eventName]) do
             task.spawn(function()
                 pcall(function()
-                    handler(unpack(args))
+                    handler(data)
                 end)
             end)
         end
@@ -33,14 +32,14 @@ end
 
 -- Register core events
 Events:Register("RodEquipped", function(rodName)
-    if getgenv().Options and getgenv().Options.AutoEquipBestRod then
+    if not getgenv().Options or not getgenv().Options.AutoEquipBestRod then return end
+    
+    if getgenv().Config and getgenv().Config.Items then
         local bestRod = nil
-        if getgenv().Config and getgenv().Config.Items then
-            for _, rod in ipairs(getgenv().Config.Items.RodRanking) do
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rod) then
-                    bestRod = rod
-                    break
-                end
+        for _, rod in ipairs(getgenv().Config.Items.RodRanking) do
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rod) then
+                bestRod = rod
+                break
             end
         end
         
@@ -53,36 +52,39 @@ Events:Register("RodEquipped", function(rodName)
 end)
 
 Events:Register("ItemAdded", function(item)
-    if getgenv().Options and getgenv().Options.AutoSellEnabled then
-        if item and item:FindFirstChild("values") and item.values:FindFirstChild("rarity") then
-            local itemRarity = item.values.rarity.Value
-            if getgenv().Options.SelectedRarities and 
-               getgenv().Options.SelectedRarities[itemRarity] and
-               getgenv().Functions and 
-               type(getgenv().Functions.sellFish) == "function" then
-                getgenv().Functions.sellFish(itemRarity)
-            end
+    if not getgenv().Options or not getgenv().Options.AutoSellEnabled then return end
+    
+    if item and item:FindFirstChild("values") and item.values:FindFirstChild("rarity") then
+        local itemRarity = item.values.rarity.Value
+        if getgenv().Options.SelectedRarities and 
+           getgenv().Options.SelectedRarities[itemRarity] and
+           getgenv().Functions and 
+           type(getgenv().Functions.sellFish) == "function" then
+            getgenv().Functions.sellFish(itemRarity)
         end
     end
 end)
 
 -- Connect to game events
-if LocalPlayer.Character then
-    LocalPlayer.Character.ChildAdded:Connect(function(child)
+local function setupCharacterConnections(character)
+    if not character then return end
+    
+    character.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
             Events:Trigger("RodEquipped", child.Name)
         end
     end)
 end
 
-LocalPlayer.CharacterAdded:Connect(function(character)
-    character.ChildAdded:Connect(function(child)
-        if child:IsA("Tool") then
-            Events:Trigger("RodEquipped", child.Name)
-        end
-    end)
-end)
+-- Initial character setup
+if LocalPlayer.Character then
+    setupCharacterConnections(LocalPlayer.Character)
+end
 
+-- Future character connections
+LocalPlayer.CharacterAdded:Connect(setupCharacterConnections)
+
+-- Backpack connections
 if LocalPlayer:FindFirstChild("Backpack") then
     LocalPlayer.Backpack.ChildAdded:Connect(function(child)
         Events:Trigger("ItemAdded", child)
