@@ -72,9 +72,9 @@ local function initialize()
         {name = "functions", required = true},
         {name = "events", required = true},
         {name = "Tab", required = true},
-        {name = "MainTab", required = false},
-        {name = "ItemsTab", required = false},
-        {name = "ui", required = false}
+        {name = "MainTab", required = true},
+        {name = "ItemsTab", required = true},
+        {name = "ui", required = true}
     }
 
     for _, module in ipairs(modules) do
