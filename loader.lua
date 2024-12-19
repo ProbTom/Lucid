@@ -8,7 +8,8 @@ local Loader = {
     _version = "1.0.1",
     _modules = {},
     _loaded = {},
-    _initialized = false
+    _initialized = false,
+    _baseUrl = "https://raw.githubusercontent.com/ProbTom/Lucid/main/%s.lua"
 }
 
 -- Core initialization
@@ -28,6 +29,12 @@ local function initializeCore()
             Available = {}
         },
         Initialized = false
+    }
+
+    -- Initialize config first
+    getgenv().Config = {
+        Debug = true,
+        Version = "1.0.1"
     }
 
     -- Load Fluent UI with retry mechanism
@@ -64,7 +71,7 @@ local function initializeCore()
     return true
 end
 
--- Module loading with retry mechanism
+-- Module loading with retry mechanism and dependency management
 local function loadModule(moduleName, retries)
     if Loader._loaded[moduleName] then
         return Loader._modules[moduleName]
@@ -74,10 +81,7 @@ local function loadModule(moduleName, retries)
     
     for attempt = 1, retries do
         local success, result = pcall(function()
-            return loadstring(game:HttpGet(string.format(
-                "https://raw.githubusercontent.com/ProbTom/Lucid/main/%s.lua",
-                moduleName
-            )))()
+            return loadstring(game:HttpGet(string.format(Loader._baseUrl, moduleName)))()
         end)
 
         if success and result then
@@ -90,15 +94,26 @@ local function loadModule(moduleName, retries)
             if getgenv().Config and getgenv().Config.Debug then
                 print(string.format("✓ Successfully loaded module: %s", moduleName))
             end
+            
+            -- Wait for module initialization if it has _initialized property
+            local initAttempts = 0
+            while result._initialized ~= nil and not result._initialized and initAttempts < 10 do
+                task.wait(0.1)
+                initAttempts = initAttempts + 1
+            end
+            
             return result
         end
 
         if attempt < retries then
             task.wait(1)
+            if getgenv().Config and getgenv().Config.Debug then
+                warn(string.format("Retrying module load: %s (Attempt %d/%d)", moduleName, attempt, retries))
+            end
         end
     end
     
-    warn(string.format("Failed to load module: %s", moduleName))
+    warn(string.format("Failed to load module: %s after %d attempts", moduleName, retries))
     return false
 end
 
@@ -111,11 +126,10 @@ local function initialize()
 
     -- Define module loading order with dependencies
     local moduleOrder = {
-        {name = "config", required = true},      -- Load config first
-        {name = "events", required = true},      -- Load events before compatibility
-        {name = "compatibility", required = true}, -- Now compatibility can use events
-        {name = "functions", required = true},
-        {name = "ui", required = true}
+        {name = "events", required = true},       -- Load events first
+        {name = "compatibility", required = true}, -- Load compatibility after events
+        {name = "functions", required = true},     -- Load functions after compatibility
+        {name = "ui", required = true}            -- Load UI last
     }
 
     -- Load modules in order
@@ -124,15 +138,31 @@ local function initialize()
             warn(string.format("Failed to load required module: %s", module.name))
             return false
         end
+        -- Wait between module loads to ensure proper initialization
+        task.wait(0.2)
     end
 
     Loader._initialized = true
     getgenv().LucidHubLoaded = true
+    
+    -- Final initialization check
+    if getgenv().Config and getgenv().Config.Debug then
+        print("✓ Lucid Hub initialized successfully")
+        print(string.format("Version: %s", Loader._version))
+    end
+    
     return true
 end
 
--- Run initialization
-local success = initialize()
+-- Error handler for unexpected errors
+local function errorHandler(err)
+    warn("⚠️ Lucid Hub encountered an error:")
+    warn(debug.traceback(err))
+    return false
+end
+
+-- Run initialization with error handling
+local success = xpcall(initialize, errorHandler)
 
 if not success then
     warn("⚠️ Lucid Hub failed to initialize completely")
