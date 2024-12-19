@@ -1,171 +1,34 @@
-local Functions = {}
-
--- Get required services
+local VirtualUser = game:GetService("VirtualUser")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local GuiService = game:GetService("GuiService")
-local RunService = game:GetService("RunService")
 
--- Add cooldown tracking
-Functions._lastShake = 0
-Functions._lastCast = 0
-Functions._lastReel = 0
-
-Functions.ShowNotification = function(String)
-    if getgenv().Fluent then
-        getgenv().Fluent:Notify({
-            Title = "Lucid Hub",
-            Content = String,
-            Duration = 5
-        })
-    end
-end
-
-Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
-    -- Check cooldown
-    if tick() - Functions._lastCast < 0.5 then return end
-    Functions._lastCast = tick()
-
-    pcall(function()
-        if LocalCharacter then
-            local tool = LocalCharacter:FindFirstChildOfClass("Tool")
-            if tool then
-                local hasBobber = tool:FindFirstChild("bobber")
-                if not hasBobber then
-                    if CastMode == "Legit" then
-                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                        
-                        local powerBarConnection
-                        powerBarConnection = HumanoidRootPart.ChildAdded:Connect(function()
-                            if HumanoidRootPart:FindFirstChild("power") then
-                                local powerBar = HumanoidRootPart.power:FindFirstChild("powerbar")
-                                if powerBar and powerBar:FindFirstChild("bar") then
-                                    powerBar.bar.Changed:Connect(function(property)
-                                        if property == "Size" and 
-                                           powerBar.bar.Size == UDim2.new(1, 0, 1, 0) then
-                                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                                            if powerBarConnection then
-                                                powerBarConnection:Disconnect()
-                                            end
-                                        end
-                                    end)
-                                end
-                            end
-                        end)
-                    elseif CastMode == "Blatant" then
-                        local rod = LocalCharacter:FindFirstChildOfClass("Tool")
-                        if rod and rod:FindFirstChild("values") and string.find(rod.Name, "Rod") then
-                            task.wait(0.5)
-                            local Random = math.random(90, 99)
-                            pcall(function()
-                                rod.events.cast:FireServer(Random)
-                            end)
-                        end
-                    end
-                end
+getgenv().Functions = {
+    autoShake = function(gui)
+        if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
+            gui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
+            VirtualUser:Button1Down(Vector2.new(1, 1))
+            task.wait(0.1)
+            VirtualUser:Button1Up(Vector2.new(1, 1))
+        end
+    end,
+    
+    autoCast = function(mode, character, hrp)
+        if mode == "Legit" then
+            -- Legit casting logic
+        elseif mode == "Blatant" then
+            -- Blatant casting logic
+        end
+    end,
+    
+    autoReel = function(gui, mode)
+        if gui:FindFirstChild("ReelMeterUI") and gui.ReelMeterUI.Enabled then
+            if mode == "Legit" then
+                -- Legit reeling logic
+            elseif mode == "Blatant" then
+                -- Blatant reeling logic
             end
         end
-    end)
-end
-
-Functions.autoShake = function(ShakeMode, PlayerGui)
-    -- Check cooldown
-    if tick() - Functions._lastShake < 0.2 then return end
-    Functions._lastShake = tick()
-
-    if ShakeMode == "Navigation" then
-        pcall(function()
-            local shakeui = PlayerGui:FindFirstChild("shakeui")
-            if shakeui and shakeui.Enabled then
-                local safezone = shakeui:FindFirstChild("safezone")
-                local button = safezone and safezone:FindFirstChild("button")
-                if button and GuiService then
-                    button.Size = UDim2.new(1001, 0, 1001, 0)
-                    task.wait(0.2)
-                    GuiService.SelectedObject = button
-                    if GuiService.SelectedObject == button then
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                        task.wait(0.1)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                    end
-                    task.wait(0.1)
-                    GuiService.SelectedObject = nil
-                end
-            end
-        end)
-    elseif ShakeMode == "Mouse" then
-        pcall(function()
-            local shakeui = PlayerGui:FindFirstChild("shakeui")
-            if shakeui and shakeui.Enabled then
-                local safezone = shakeui:FindFirstChild("safezone")
-                local button = safezone and safezone:FindFirstChild("button")
-                if button then
-                    button.Size = UDim2.new(1001, 0, 1001, 0)
-                    local pos = button.AbsolutePosition
-                    local size = button.AbsoluteSize
-                    
-                    -- Send multiple click events for better reliability
-                    for i = 1, 2 do
-                        VirtualInputManager:SendMouseButtonEvent(
-                            pos.X + size.X / 2,
-                            pos.Y + size.Y / 2,
-                            0, true, game, 0
-                        )
-                        task.wait(0.1)
-                        VirtualInputManager:SendMouseButtonEvent(
-                            pos.X + size.X / 2,
-                            pos.Y + size.Y / 2,
-                            0, false, game, 0
-                        )
-                        task.wait(0.1)
-                    end
-                end
-            end
-        end)
     end
-end
+}
 
-Functions.autoReel = function(PlayerGui, ReelMode)
-    -- Check cooldown
-    if tick() - Functions._lastReel < 0.2 then return end
-    Functions._lastReel = tick()
-
-    pcall(function()
-        local reel = PlayerGui:FindFirstChild("reel")
-        if reel then
-            local bar = reel:FindFirstChild("bar")
-            if bar then
-                local playerbar = bar:FindFirstChild("playerbar")
-                local fish = bar:FindFirstChild("fish")
-                if playerbar and fish then
-                    if ReelMode == "Legit" then
-                        playerbar.Position = fish.Position
-                    elseif ReelMode == "Blatant" then
-                        game:GetService("ReplicatedStorage").events.reelfinished:FireServer(100, false)
-                    end
-                end
-            end
-        end
-    end)
-end
-
-Functions.handleZoneCast = function(ZoneCast, Zone, FishingZonesFolder, HumanoidRootPart)
-    if ZoneCast and Zone and HumanoidRootPart then
-        pcall(function()
-            local fishingSpot = FishingZonesFolder and FishingZonesFolder:FindFirstChild(Zone)
-            if fishingSpot then
-                local spotCFrame = fishingSpot.CFrame
-                local targetPosition = spotCFrame.Position + Vector3.new(0, 2, 0)
-                HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, targetPosition)
-            end
-        end)
-    end
-end
-
--- Add cleanup function
-Functions.cleanup = function()
-    GuiService.SelectedObject = nil
-end
-
-return Functions
+return true
