@@ -1,135 +1,141 @@
 -- events.lua
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
--- Initialize Events system with proper type checking
+-- Initialize Events table
 local Events = {
-    Handlers = setmetatable({}, {
-        __index = function(t, k)
-            t[k] = {}
-            return t[k]
-        end
-    }),
-    Connected = {}
+    Connections = {},
+    Active = {}
 }
 
--- Safe event registration with parameter validation
-function Events:Register(eventName, handler)
-    assert(type(eventName) == "string", "Event name must be a string")
-    assert(type(handler) == "function", "Handler must be a function")
+-- Event handling functions
+Events.StartAutoFishing = function()
+    if Events.Active.Fishing then return end
     
-    self.Handlers[eventName][#self.Handlers[eventName] + 1] = handler
-    return true
-end
-
--- Safe event firing with error handling
-function Events:Fire(eventName, data)
-    if not self.Handlers[eventName] then return false end
-    
-    for _, handler in ipairs(self.Handlers[eventName]) do
-        task.spawn(function()
-            local success, err = xpcall(
-                function() handler(data) end,
-                function(err)
-                    if getgenv().Config and getgenv().Config.Debug then
-                        warn("[Lucid Events Error]", eventName, err, debug.traceback())
-                    end
-                    return err
-                end
-            )
-        end)
-    end
-    return true
-end
-
--- Initialize core event handlers
-function Events:InitializeHandlers()
-    -- Rod equipment handler
-    self:Register("RodEquipped", function(rodName)
-        if not getgenv().Options or not getgenv().Options.AutoEquipBestRod then return end
-        if not getgenv().Config or not getgenv().Config.Items then return end
-        if not getgenv().Functions or type(getgenv().Functions.equipBestRod) ~= "function" then return end
+    Events.Active.Fishing = true
+    Events.Connections.Fishing = RunService.RenderStepped:Connect(function()
+        if not Events.Active.Fishing then return end
         
-        for _, rod in ipairs(getgenv().Config.Items.RodRanking) do
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rod) then
-                if rod ~= rodName then
-                    getgenv().Functions.equipBestRod()
-                end
-                break
+        local gui = LocalPlayer:WaitForChild("PlayerGui")
+        if not gui then return end
+        
+        -- Handle auto fishing sequence
+        if getgenv().Functions then
+            if getgenv().Options.AutoFish then
+                getgenv().Functions.autoFish(gui)
+            end
+            
+            if getgenv().Options.AutoReel then
+                getgenv().Functions.autoReel(gui)
+            end
+            
+            if getgenv().Options.AutoShake then
+                getgenv().Functions.autoShake(gui)
             end
         end
     end)
+end
 
-    -- Item addition handler
-    self:Register("ItemAdded", function(item)
-        if not getgenv().Options or not getgenv().Options.AutoSellEnabled then return end
-        if not getgenv().Functions or type(getgenv().Functions.sellFish) ~= "function" then return end
+Events.StopAutoFishing = function()
+    if Events.Connections.Fishing then
+        Events.Connections.Fishing:Disconnect()
+        Events.Connections.Fishing = nil
+    end
+    Events.Active.Fishing = false
+end
+
+Events.StartAutoCollectChests = function()
+    if Events.Active.ChestCollection then return end
+    
+    Events.Active.ChestCollection = true
+    Events.Connections.ChestCollection = RunService.Heartbeat:Connect(function()
+        if not Events.Active.ChestCollection then return end
         
-        if not item or not item:IsA("Tool") then return end
-        
-        local values = item:FindFirstChild("values")
-        if not values then return end
-        
-        local rarity = values:FindFirstChild("rarity")
-        if not rarity then return end
-        
-        if getgenv().Options.SelectedRarities and 
-           getgenv().Options.SelectedRarities[rarity.Value] then
-            getgenv().Functions.sellFish(rarity.Value)
+        for _, chest in pairs(workspace:GetChildren()) do
+            if chest:IsA("Model") and chest.Name:match("Chest") then
+                if getgenv().Functions then
+                    getgenv().Functions.collectChest(chest, getgenv().Options.ChestRange)
+                end
+            end
         end
     end)
 end
 
--- Initialize game connections with proper cleanup
-function Events:InitializeConnections()
-    local function setupCharacterConnections(character)
-        if not character then return end
+Events.StopAutoCollectChests = function()
+    if Events.Connections.ChestCollection then
+        Events.Connections.ChestCollection:Disconnect()
+        Events.Connections.ChestCollection = nil
+    end
+    Events.Active.ChestCollection = false
+end
+
+-- Auto-sell system
+Events.StartAutoSell = function()
+    if Events.Active.Selling then return end
+    
+    Events.Active.Selling = true
+    Events.Connections.Selling = RunService.Heartbeat:Connect(function()
+        if not Events.Active.Selling then return end
         
-        -- Clean up existing connections
-        if self.Connected[character] then
-            for _, connection in pairs(self.Connected[character]) do
-                connection:Disconnect()
+        for rarity, enabled in pairs(getgenv().State.SelectedRarities) do
+            if enabled and getgenv().Functions then
+                getgenv().Functions.sellFish(rarity)
             end
-            self.Connected[character] = nil
         end
-        
-        self.Connected[character] = {}
-        
-        -- Set up new connections
-        table.insert(self.Connected[character], 
-            character.ChildAdded:Connect(function(child)
-                if child:IsA("Tool") then
-                    self:Fire("RodEquipped", child.Name)
-                end
-            end)
-        )
+    end)
+end
+
+Events.StopAutoSell = function()
+    if Events.Connections.Selling then
+        Events.Connections.Selling:Disconnect()
+        Events.Connections.Selling = nil
+    end
+    Events.Active.Selling = false
+end
+
+-- Character respawn handling
+Events.SetupCharacterHandler = function()
+    local function onCharacterAdded(character)
+        if getgenv().Options.AutoEquipBestRod and getgenv().Functions then
+            task.wait(1) -- Wait for character to fully load
+            getgenv().Functions.equipBestRod()
+        end
     end
     
-    -- Set up character connections
     if LocalPlayer.Character then
-        setupCharacterConnections(LocalPlayer.Character)
+        onCharacterAdded(LocalPlayer.Character)
     end
     
-    -- Handle future characters
-    table.insert(self.Connected, 
-        LocalPlayer.CharacterAdded:Connect(setupCharacterConnections)
-    )
-    
-    -- Set up backpack connections
-    if LocalPlayer:FindFirstChild("Backpack") then
-        table.insert(self.Connected, 
-            LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-                self:Fire("ItemAdded", child)
-            end)
-        )
-    end
+    Events.Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
 end
 
--- Initialize the event system
-Events:InitializeHandlers()
-Events:InitializeConnections()
+-- Cleanup function
+Events.CleanupAllConnections = function()
+    for _, connection in pairs(Events.Connections) do
+        if typeof(connection) == "RBXScriptConnection" and connection.Connected then
+            connection:Disconnect()
+        end
+    end
+    
+    Events.Connections = {}
+    Events.Active = {}
+end
+
+-- Initialize events system
+local function InitializeEvents()
+    Events.SetupCharacterHandler()
+    
+    -- Clean up on script end
+    game:BindToClose(function()
+        Events.CleanupAllConnections()
+    end)
+    
+    return true
+end
 
 -- Set global reference
 getgenv().Events = Events
-return true
+
+return InitializeEvents()
