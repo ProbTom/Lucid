@@ -5,41 +5,56 @@ if getgenv().cuppink then
 end
 getgenv().cuppink = true
 
--- Initialize Options table first
-if not getgenv().Options then
-    getgenv().Options = {
-        autoCast = { Value = false },
-        autoShake = { Value = false },
-        autoReel = { Value = false },
-        FreezeCharacter = { Value = false },
-        ZoneCast = { Value = false },
-        CountShadows = { Value = false },
-        RodDupe = { Value = false },
-        WalkOnWater = { Value = false },
-        ToggleNoclip = { Value = false },
-        BypassRadar = { Value = false },
-        BypassGPS = { Value = false },
-        RemoveFog = { Value = false },
-        DayOnly = { Value = false },
-        HoldDuration = { Value = false },
-        DisableOxygen = { Value = true },
-        JustUI = { Value = true },
-        IdentityHiderUI = { Value = false }
-    }
+-- Check for required globals
+if not getgenv().Tabs then
+    warn("Tabs not found in global environment")
+    return
 end
 
--- Load functions
-local Functions = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/functions.lua"))()
+if not getgenv().Fluent then
+    warn("Fluent UI not found in global environment")
+    return
+end
 
--- Get required services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+-- Load functions with error handling
+local Functions
+local success, result = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/functions.lua"))()
+end)
 
--- Initialize local variables
+if success then
+    Functions = result
+else
+    warn("Failed to load functions: " .. tostring(result))
+    return
+end
+
+-- Get required services with error handling
+local function getService(serviceName)
+    local success, service = pcall(function()
+        return game:GetService(serviceName)
+    end)
+    if success then
+        return service
+    else
+        warn("Failed to get service: " .. serviceName)
+        return nil
+    end
+end
+
+local Players = getService("Players")
+local RunService = getService("RunService")
+local ReplicatedStorage = getService("ReplicatedStorage")
+local UserInputService = getService("UserInputService")
+local VirtualInputManager = getService("VirtualInputManager")
+
+-- Initialize local variables with error handling
 local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    warn("LocalPlayer not found")
+    return
+end
+
 local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = LocalCharacter:FindFirstChild("HumanoidRootPart")
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -60,15 +75,20 @@ local Zone = nil
 local autoShakeConnection
 local autoReelConnection
 
--- Get existing Tabs from getgenv()
-local Tabs = getgenv().Tabs
-if not Tabs then
-    warn("Tabs not found in global environment")
-    return
-end
-
 -- Main Section
 local mainSection = Tabs.Main:AddSection("Auto Fishing")
+
+-- Connection cleanup function
+local function cleanupConnections()
+    if autoShakeConnection then
+        autoShakeConnection:Disconnect()
+        autoShakeConnection = nil
+    end
+    if autoReelConnection then
+        autoReelConnection:Disconnect()
+        autoReelConnection = nil
+    end
+end
 
 -- Auto Cast Toggle
 local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false})
@@ -238,6 +258,13 @@ spawn(function()
             end)
         end
         task.wait(0.1)
+    end
+end)
+
+-- Cleanup on script end
+game:GetService("CoreGui").ChildRemoved:Connect(function(child)
+    if child.Name == "Fluent" then
+        cleanupConnections()
     end
 end)
 
