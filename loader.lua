@@ -4,129 +4,125 @@ if getgenv().LucidHubLoaded then
     return
 end
 
--- Initialize core environment
+-- Core Services
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Initialize environment
 local function initializeEnvironment()
     if not game:IsLoaded() then
         game.Loaded:Wait()
     end
     
-    local CoreGui = game:GetService("CoreGui")
-    if CoreGui:FindFirstChild("ClickButton") then
-        CoreGui:FindFirstChild("ClickButton"):Destroy()
-    end
-end
-
--- Initialize debug functionality
-local function debug(...)
-    if getgenv().Config and getgenv().Config.Debug then
-        print("[Lucid Debug]", table.concat({select(1, ...)}, " "))
-    end
-end
-
--- Create HTTP request handler
-local function httpGet(url)
-    local success, result = pcall(function()
-        return game:HttpGet(url)
+    -- Clean up existing UI elements
+    pcall(function()
+        if CoreGui:FindFirstChild("ClickButton") then
+            CoreGui:FindFirstChild("ClickButton"):Destroy()
+        end
     end)
-    
-    if not success then
-        return false, "HTTP Request failed: " .. tostring(result)
-    end
-    
-    return true, result
 end
 
--- Create script loader
-local function loadScript(scriptName)
-    if not getgenv().Config then
-        return false, "Config not initialized"
-    end
-    
-    debug("Loading script:", scriptName)
-    local url = getgenv().Config.URLs.Main .. scriptName
-    local success, content = httpGet(url)
-    
-    if not success then
-        return false, content
-    end
-    
-    local func, err = loadstring(content)
-    if not func then
-        return false, "Compilation failed: " .. tostring(err)
-    end
-    
-    local success, result = pcall(func)
-    if not success then
-        return false, "Execution failed: " .. tostring(result)
-    end
-    
-    debug("Successfully loaded:", scriptName)
-    return true, result
+-- Initialize global state
+if not getgenv().State then
+    getgenv().State = {
+        AutoFishing = false,
+        AutoSelling = false,
+        SelectedRarities = {},
+        LastReelTime = 0,
+        LastShakeTime = 0
+    }
 end
-
--- Main execution
-initializeEnvironment()
-
--- Load configuration
-debug("Loading configuration...")
-local configSuccess, configContent = httpGet(getgenv().Config.URLs.Main .. "config.lua")
-if not configSuccess then
-    error("Failed to fetch configuration: " .. tostring(configContent))
-    return
-end
-
-local configFunc, compileErr = loadstring(configContent)
-if not configFunc then
-    error("Failed to compile configuration: " .. tostring(compileErr))
-    return
-end
-
-local success, config = pcall(configFunc)
-if not success or type(config) ~= "table" then
-    error("Failed to execute configuration: " .. tostring(config))
-    return
-end
-
-getgenv().Config = config
-debug("Configuration loaded successfully")
 
 -- Initialize Fluent UI
-debug("Initializing Fluent UI...")
-local fluentSuccess, fluentContent = httpGet(config.URLs.Fluent)
-if not fluentSuccess then
-    error("Failed to fetch Fluent UI: " .. tostring(fluentContent))
-    return
-end
-
-local fluentLib = loadstring(fluentContent)()
-if not fluentLib then
-    error("Failed to initialize Fluent UI")
-    return
-end
-
-getgenv().Fluent = fluentLib
-debug("Fluent UI initialized successfully")
-
--- Load core scripts
-local scriptLoadOrder = {
-    "compatibility.lua",
-    "options.lua",
-    "events.lua",
-    "functions.lua",
-    "Tab.lua",
-    "MainTab.lua",
-    "ItemsTab.lua",
-    "ui.lua"
-}
-
-for _, script in ipairs(scriptLoadOrder) do
-    local success, result = loadScript(script)
-    if not success then
-        error(string.format("Failed to load script %s: %s", script, tostring(result)))
-        return
+local function initializeFluentUI()
+    if not getgenv().Fluent then
+        local success, fluentLib = pcall(function()
+            return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+        end)
+        
+        if not success or not fluentLib then
+            error("Failed to initialize Fluent UI")
+            return false
+        end
+        
+        getgenv().Fluent = fluentLib
     end
-    task.wait(0.1)
+    return true
 end
 
-getgenv().LucidHubLoaded = true
-debug("Lucid Hub loaded successfully")
+-- Initialize tabs structure
+local function initializeTabs()
+    if not getgenv().Tabs then
+        getgenv().Tabs = {
+            Main = nil,
+            Items = nil,
+            Settings = nil
+        }
+    end
+end
+
+-- Initialize options
+local function initializeOptions()
+    if not getgenv().Options then
+        getgenv().Options = {
+            AutoFish = false,
+            AutoReel = false,
+            AutoShake = false,
+            AutoSell = false,
+            ChestRange = 50
+        }
+    end
+end
+
+-- Main initialization
+local function initialize()
+    initializeEnvironment()
+    
+    if not initializeFluentUI() then
+        return false
+    end
+    
+    initializeTabs()
+    initializeOptions()
+    
+    -- Load core modules
+    local modules = {
+        "compatibility",
+        "functions",
+        "events",
+        "ui",
+        "MainTab",
+        "ItemsTab"
+    }
+    
+    for _, module in ipairs(modules) do
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(getgenv().Config.URLs.Main .. module .. ".lua"))()
+        end)
+        
+        if not success then
+            warn("Failed to load module:", module, result)
+            return false
+        end
+        
+        task.wait(0.1) -- Small delay between module loads
+    end
+    
+    return true
+end
+
+-- Execute initialization
+if initialize() then
+    getgenv().LucidHubLoaded = true
+    if getgenv().Config.Debug then
+        print("Lucid Hub loaded successfully!")
+    end
+else
+    warn("Failed to initialize Lucid Hub")
+end
+
+return true
