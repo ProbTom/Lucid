@@ -1,100 +1,72 @@
-getgenv().Config = {
-    URLs = {
-        Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
-    },
+-- config.lua
+-- Core configuration module for Lucid Hub
+local Config = {
+    Version = "1.0.1",
+    Debug = true,
     
-    Game = {
-        SupportedGames = {
-            [16732694052] = "Fisch"
-        },
-        MinimumDelay = 0.1,
-        MaximumDelay = 2.0
-    },
-    
+    -- Core UI Configuration
     UI = {
-        Title = "Lucid Hub",
-        Subtitle = "by ProbTom",
-        Theme = "Rose",
-        MainColor = Color3.fromRGB(46, 148, 255),
-        MinimizeKey = Enum.KeyCode.RightShift
+        Window = {
+            Name = "Lucid Hub",
+            Title = "Lucid Hub",
+            SubTitle = "by ProbTom",
+            LoadingTitle = "Lucid Hub",
+            LoadingSubtitle = "by ProbTom",
+            TabWidth = 160,
+            Size = UDim2.fromOffset(580, 460),
+            Theme = "Dark",
+            MinimizeKey = Enum.KeyCode.RightControl
+        },
+        Tabs = {
+            {Name = "Home", Icon = "rbxassetid://4483345998"},
+            {Name = "Main", Icon = "rbxassetid://4483345998"},
+            {Name = "Items", Icon = "rbxassetid://4483345998"},
+            {Name = "Teleports", Icon = "rbxassetid://4483345998"},
+            {Name = "Misc", Icon = "rbxassetid://4483345998"},
+            {Name = "Trade", Icon = "rbxassetid://4483345998"},
+            {Name = "Credit", Icon = "rbxassetid://4483345998"}
+        }
     },
-    
+
+    -- Save Configuration
+    Save = {
+        Enabled = true,
+        FolderName = "LucidHub",
+        FileName = "Config"
+    },
+
+    -- Item Settings
     Items = {
+        ChestSettings = {
+            MinRange = 10,
+            MaxRange = 100,
+            Default = 50
+        },
         FishRarities = {
             "Common",
-            "Uncommon",
             "Rare",
-            "Epic",
             "Legendary",
             "Mythical",
             "Enchant Relics",
             "Exotic",
             "Limited",
             "Gemstones"
-        },
-        
-        RodRanking = {
-            "Rod Of The Forgotten Fang",
-            "Rod Of The Eternal King",
-            "Rod Of The Depth",
-            "No-Life Rod",
-            "Krampus's Rod",
-            "Trident Rod",
-            "Kings Rod",
-            "Aurora Rod",
-            "Mythical Rod",
-            "Destiny Rod",
-            "Celestial Rod",
-            "Voyager Rod",
-            "Riptide Rod",
-            "Seasons Rod",
-            "Resourceful Rod",
-            "Precision Rod",
-            "Steady Rod",
-            "Nocturnal Rod",
-            "Reinforced Rod",
-            "Magnet Rod",
-            "Rapid Rod",
-            "Fortune Rod",
-            "Phoenix Rod",
-            "Scurvy Rod",
-            "Midas Rod",
-            "Buddy Bond Rod",
-            "Haunted Rod",
-            "Relic Rod",
-            "Antler Rod",
-            "North-Star Rod",
-            "Astral Rod",
-            "Event Horizon Rod",
-            "Candy Cane Rod",
-            "Fungal Rod",
-            "Magma Rod",
-            "Long Rod",
-            "Lucky Rod",
-            "Fast Rod",
-            "Stone Rod",
-            "Carbon Rod",
-            "Plastic Rod",
-            "Training Rod",
-            "Fischer's Rod",
-            "Flimsy Rod"
-        },
-        
-        ChestSettings = {
-            MinRange = 10,
-            MaxRange = 100,
-            DefaultRange = 50
         }
     },
-    
-    Options = {
-        AutoFish = false,
-        AutoReel = false,
-        AutoShake = false,
-        AutoSell = false,
-        AutoEquipBestRod = false,
-        AutoCollectChests = false,
-        ChestRange = 50
+
+    -- URLs for dynamic loading
+    URLs = {
+        Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
+        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/",
+        FluentUI = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
+        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
+        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
     }
 }
+
+-- Protect configuration from modification
+if getgenv then
+    getgenv().Config = Config
+end
+
+return Config
