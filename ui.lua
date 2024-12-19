@@ -5,13 +5,9 @@ local UI = {
     _window = nil,
     _tabs = {},
     _connections = {},
-    _config = {
-        Title = "Lucid Hub",
-        SubTitle = "by ProbTom",
-        TabWidth = 160,
-        Size = UDim2.fromOffset(600, 400),
-        Theme = "Dark",
-        MinimizeKeybind = Enum.KeyCode.LeftControl
+    _icons = {
+        main = "rbxassetid://10723424505",
+        settings = "rbxassetid://10734931430"
     }
 }
 
@@ -19,6 +15,16 @@ local UI = {
 local Services = {
     Players = game:GetService("Players"),
     HttpService = game:GetService("HttpService")
+}
+
+-- UI Configuration
+local UIConfig = {
+    Title = "Lucid Hub",
+    SubTitle = "by ProbTom",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(600, 400),
+    Theme = "Dark",
+    MinimizeKeybind = Enum.KeyCode.LeftControl
 }
 
 -- Load required UI libraries
@@ -36,128 +42,102 @@ local function loadUILibraries()
         return nil
     end
 
-    -- Load Fluent UI if not already loaded
     if not getgenv().Fluent then
         getgenv().Fluent = fetchLibrary("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", 3)
-    end
-
-    -- Load UI addons
-    if not getgenv().SaveManager then
-        getgenv().SaveManager = fetchLibrary("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua", 3)
-    end
-
-    if not getgenv().InterfaceManager then
-        getgenv().InterfaceManager = fetchLibrary("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua", 3)
     end
 
     return getgenv().Fluent ~= nil
 end
 
 -- Create main window and tabs
-local function createMainWindow()
-    UI._window = getgenv().Fluent:CreateWindow({
-        Title = UI._config.Title,
-        SubTitle = UI._config.SubTitle,
-        TabWidth = UI._config.TabWidth,
-        Size = UI._config.Size,
-        Theme = UI._config.Theme,
-        MinimizeKeybind = UI._config.MinimizeKeybind
-    })
-
-    -- Create main tabs
-    UI._tabs.Main = UI._window:AddTab({ Title = "Main", Icon = "rbxassetid://10723424505" })
-    UI._tabs.Settings = UI._window:AddTab({ Title = "Settings", Icon = "rbxassetid://10734931430" })
-
-    return true
+function UI.CreateWindow()
+    if not UI._window then
+        UI._window = getgenv().Fluent:CreateWindow({
+            Title = UIConfig.Title,
+            SubTitle = UIConfig.SubTitle,
+            TabWidth = UIConfig.TabWidth,
+            Size = UIConfig.Size,
+            Theme = UIConfig.Theme,
+            MinimizeKeybind = UIConfig.MinimizeKeybind
+        })
+    end
+    return UI._window
 end
 
--- Create main sections and elements
-local function createMainSections()
-    -- Fishing section
-    local fishingSection = UI._tabs.Main:AddSection("Fishing")
+-- Create main tabs with proper icons
+function UI.CreateTabs()
+    -- Main tab with fishing icon
+    UI._tabs.Main = UI._window:AddTab({
+        Title = "Main",
+        Icon = UI._icons.main
+    })
+
+    -- Settings tab with proper gear icon
+    UI._tabs.Settings = UI._window:AddTab({
+        Title = "Settings",
+        Icon = UI._icons.settings
+    })
+
+    return UI._tabs
+end
+
+-- Create main sections
+function UI.CreateMainSections()
+    local sections = {}
     
-    local autoFishToggle = fishingSection:AddToggle("AutoFish", {
-        Title = "Auto Fish",
+    -- Fishing Controls Section
+    sections.Fishing = UI._tabs.Main:AddSection("Fishing Controls")
+    
+    -- Auto Cast Toggle
+    sections.Fishing:AddToggle("AutoCast", {
+        Title = "Auto Cast",
         Default = false,
         Callback = function(value)
             if getgenv().State then
-                getgenv().State.AutoFishing = value
+                getgenv().State.AutoCasting = value
             end
         end
     })
 
-    local autoSellToggle = fishingSection:AddToggle("AutoSell", {
-        Title = "Auto Sell",
+    -- Auto Reel Toggle
+    sections.Fishing:AddToggle("AutoReel", {
+        Title = "Auto Reel",
         Default = false,
         Callback = function(value)
             if getgenv().State then
-                getgenv().State.AutoSelling = value
+                getgenv().State.AutoReeling = value
             end
         end
     })
 
-    -- Settings section
-    local configSection = UI._tabs.Settings:AddSection("Configuration")
-    
-    local debugToggle = configSection:AddToggle("DebugMode", {
-        Title = "Debug Mode",
-        Default = true,
+    -- Auto Shake Toggle
+    sections.Fishing:AddToggle("AutoShake", {
+        Title = "Auto Shake",
+        Default = false,
         Callback = function(value)
-            if getgenv().Config then
-                getgenv().Config.Debug = value
+            if getgenv().State then
+                getgenv().State.AutoShaking = value
             end
         end
     })
 
-    -- Initialize SaveManager
-    if getgenv().SaveManager then
-        getgenv().SaveManager:SetLibrary(getgenv().Fluent)
-        getgenv().SaveManager:SetFolder("LucidHub")
-        getgenv().SaveManager:BuildConfigSection(UI._tabs.Settings)
-        getgenv().SaveManager:Load("auto")
-    end
-
-    -- Initialize InterfaceManager
-    if getgenv().InterfaceManager then
-        getgenv().InterfaceManager:SetLibrary(getgenv().Fluent)
-        getgenv().InterfaceManager:SetFolder("LucidHub")
-        getgenv().InterfaceManager:BuildInterfaceSection(UI._tabs.Settings)
-    end
-
-    return true
+    return sections
 end
 
 -- Initialize UI system
-local function initializeUI()
+function UI.Initialize()
+    if UI._initialized then
+        return true
+    end
+
     if not loadUILibraries() then
         warn("Failed to load UI libraries")
         return false
     end
 
-    if not createMainWindow() then
-        warn("Failed to create main window")
-        return false
-    end
-
-    if not createMainSections() then
-        warn("Failed to create UI sections")
-        return false
-    end
-
-    return true
-end
-
--- Main initialization
-local function initialize()
-    if UI._initialized then
-        return true
-    end
-
-    local success = pcall(initializeUI)
-    if not success then
-        warn("⚠️ Failed to initialize UI system")
-        return false
-    end
+    UI.CreateWindow()
+    UI.CreateTabs()
+    UI.CreateMainSections()
 
     UI._initialized = true
     
@@ -170,10 +150,6 @@ end
 
 -- Cleanup function
 function UI.Cleanup()
-    if getgenv().SaveManager then
-        getgenv().SaveManager:Save("auto")
-    end
-    
     for _, connection in pairs(UI._connections) do
         if typeof(connection) == "RBXScriptConnection" then
             connection:Disconnect()
@@ -183,11 +159,10 @@ function UI.Cleanup()
 end
 
 -- Run initialization
-local success = initialize()
+local success = UI.Initialize()
 
 if not success then
     warn("⚠️ Failed to initialize UI system")
-    return false
 end
 
 -- Setup cleanup on teleport
