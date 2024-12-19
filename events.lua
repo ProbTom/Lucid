@@ -3,26 +3,27 @@ local Events = {
     _version = "1.0.1",
     _initialized = false,
     _eventStatus = {},
-    REQUIRED_EVENTS = {
+    _requiredEvents = {
         "castrod",
         "reelfinished",
         "character"
-    }
+    },
+    _connections = {}
 }
 
 -- Core services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Services = {
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    RunService = game:GetService("RunService")
+}
 
--- Set global reference immediately
-getgenv().Events = Events
-
--- Check events availability
-function Events.CheckEvent(eventName)
+-- Silent event check without warnings
+function Events.CheckEvent(eventName, silent)
     if Events._eventStatus[eventName] ~= nil then
         return Events._eventStatus[eventName]
     end
     
-    local events = ReplicatedStorage:FindFirstChild("events")
+    local events = Services.ReplicatedStorage:FindFirstChild("events")
     if not events then
         Events._eventStatus[eventName] = false
         return false
@@ -31,12 +32,32 @@ function Events.CheckEvent(eventName)
     local exists = events:FindFirstChild(eventName) ~= nil
     Events._eventStatus[eventName] = exists
     
-    -- Only warn once per event
-    if not exists and getgenv().Config and getgenv().Config.Debug then
-        warn("⚠️ Event not found:", eventName)
+    return exists
+end
+
+-- Watch for event creation/removal
+function Events.WatchEvents()
+    local events = Services.ReplicatedStorage:FindFirstChild("events")
+    if not events then
+        events = Instance.new("Folder")
+        events.Name = "events"
+        events.Parent = Services.ReplicatedStorage
     end
     
-    return exists
+    -- Watch for changes in the events folder
+    Events._connections.added = events.ChildAdded:Connect(function(child)
+        Events._eventStatus[child.Name] = true
+        if getgenv().State and getgenv().State.Events then
+            getgenv().State.Events.Available[child.Name] = true
+        end
+    end)
+    
+    Events._connections.removed = events.ChildRemoved:Connect(function(child)
+        Events._eventStatus[child.Name] = false
+        if getgenv().State and getgenv().State.Events then
+            getgenv().State.Events.Available[child.Name] = false
+        end
+    end)
 end
 
 -- Initialize events system
@@ -56,38 +77,42 @@ function Events.Initialize()
         }
     end
 
-    -- Check all required events once
-    for _, eventName in ipairs(Events.REQUIRED_EVENTS) do
-        getgenv().State.Events.Available[eventName] = Events.CheckEvent(eventName)
+    -- Check all required events silently first time
+    for _, eventName in ipairs(Events._requiredEvents) do
+        getgenv().State.Events.Available[eventName] = Events.CheckEvent(eventName, true)
     end
 
+    -- Set up event watching
+    Events.WatchEvents()
+
     Events._initialized = true
+    
+    if getgenv().Config and getgenv().Config.Debug then
+        print("✓ Events module initialized successfully")
+    end
+    
     return true
 end
 
--- Public interface
-function Events.IsAvailable(eventName)
-    return Events._eventStatus[eventName] == true
-end
-
-function Events.GetEvent(eventName)
-    if not Events.IsAvailable(eventName) then
-        return nil
+-- Cleanup function
+function Events.Cleanup()
+    for _, connection in pairs(Events._connections) do
+        if typeof(connection) == "RBXScriptConnection" then
+            connection:Disconnect()
+        end
     end
-    
-    local events = ReplicatedStorage:FindFirstChild("events")
-    return events and events:FindFirstChild(eventName)
+    Events._connections = {}
 end
 
 -- Run initialization
 local success = Events.Initialize()
 
-if success then
-    if getgenv().Config and getgenv().Config.Debug then
-        print("✓ Successfully loaded module: events")
-    end
-else
-    warn("Failed to initialize events system")
+if not success and getgenv().Config and getgenv().Config.Debug then
+    warn("⚠️ Failed to initialize Events module")
 end
+
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+    Events.Cleanup()
+end)
 
 return Events
