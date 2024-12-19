@@ -48,18 +48,30 @@ autoCast:OnChanged(function()
     end)
 end)
 
--- Auto Shake Toggle
+-- Auto Shake Toggle with improved detection
 local autoShake = MainTab:AddToggle("autoShake", {
     Title = "Auto Shake",
     Default = false
 })
+
+local lastShakeTime = 0
+local SHAKE_COOLDOWN = 0.1 -- 100ms cooldown between shakes
 
 autoShake:OnChanged(function()
     pcall(function()
         if autoShake.Value then
             RunService:BindToRenderStep("AutoShake", 1, function()
                 if LocalPlayer.PlayerGui then
-                    Functions.autoShake(LocalPlayer.PlayerGui)
+                    local currentTime = tick()
+                    -- Only shake if enough time has passed and we're actually fishing
+                    if currentTime - lastShakeTime >= SHAKE_COOLDOWN then
+                        -- Check if we're actually in a fishing state before shaking
+                        local fishingGui = LocalPlayer.PlayerGui:FindFirstChild("FishingGui")
+                        if fishingGui and fishingGui.Enabled then
+                            Functions.autoShake(LocalPlayer.PlayerGui)
+                            lastShakeTime = currentTime
+                        end
+                    end
                 end
             end)
         else
