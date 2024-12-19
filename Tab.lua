@@ -1,21 +1,22 @@
--- Previous wait for game load code remains the same...
-
-local function safeCallMethod(object, methodName, ...)
-    if object and typeof(object[methodName]) == "function" then
-        return pcall(function()
-            return object[methodName](object, ...)
-        end)
-    end
-    return false, string.format("Method %s not available", methodName)
+-- Tab.lua
+-- Dependency check and initialization
+if not game:IsLoaded() then
+    game.Loaded:Wait()
 end
 
-local function createWindow()
-    if not getgenv().Fluent then
-        error("Fluent UI library not initialized")
-        return
-    end
+-- Verify required global states
+assert(type(getgenv().Fluent) == "table", "Fluent UI library not initialized")
+assert(type(getgenv().Functions) == "table", "Functions module not initialized")
+assert(type(getgenv().Options) == "table", "Options not initialized")
 
-    -- Check if window already exists
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+-- Create window with error handling
+local function createWindow()
     if getgenv().LucidWindow then
         return {
             Success = true,
@@ -24,77 +25,172 @@ local function createWindow()
         }
     end
 
-    local success, Window = pcall(function()
+    local success, window = pcall(function()
         return getgenv().Fluent:CreateWindow({
             Title = "Lucid Hub",
             SubTitle = "by ProbTom",
             TabWidth = 160,
             Size = UDim2.fromOffset(580, 460),
             Acrylic = true,
-            Theme = "Dark",
-            MinimizeConfig = {
-                Side = "Left",
-                Position = UDim2.new(0, 0, 0.5, 0),
-                Background = "rbxassetid://0",
-                ButtonBackground = "rbxassetid://0",
-                ImageColor3 = Color3.fromRGB(255, 255, 255),
-            }
+            Theme = "Dark"
         })
     end)
 
-    if not success then
-        warn("Failed to create window:", Window)
-        return false
+    if not success or not window then
+        warn("Failed to create window:", window)
+        return {
+            Success = false,
+            Error = window
+        }
     end
 
     -- Store window reference
-    getgenv().LucidWindow = Window
+    getgenv().LucidWindow = window
 
-    -- Create tabs with error handling
-    local Tabs = {
-        Main = Window:AddTab({
-            Title = "Main",
-            Icon = "rbxassetid://10723424505"
-        }),
-        Settings = Window:AddTab({
-            Title = "Settings",
-            Icon = "rbxassetid://10734949203"
-        }),
-        Credits = Window:AddTab({
-            Title = "Credits",
-            Icon = "rbxassetid://10723346959"
-        })
-    }
+    -- Initialize tabs with error handling
+    local Tabs = {}
+    
+    local function createTab(name, config)
+        local tabSuccess, tab = pcall(function()
+            return window:AddTab(config)
+        end)
+        
+        if tabSuccess and tab then
+            Tabs[name] = tab
+            return tab
+        else
+            warn("Failed to create tab:", name, tab)
+            return nil
+        end
+    end
+
+    -- Create main tabs
+    createTab("Main", {
+        Title = "Main",
+        Icon = "rbxassetid://10723424505"
+    })
+
+    createTab("Settings", {
+        Title = "Settings",
+        Icon = "rbxassetid://10734949203"
+    })
+
+    createTab("Credits", {
+        Title = "Credits",
+        Icon = "rbxassetid://10723346959"
+    })
 
     -- Store tabs reference
     getgenv().Tabs = Tabs
 
-    -- Initialize settings with safe method calls
+    -- Initialize Settings tab
     if Tabs.Settings then
-        local SettingsTab = Tabs.Settings
-        local ThemeSection = SettingsTab:AddSection("Theme")
+        local settingsSuccess, settingsSection = pcall(function()
+            return Tabs.Settings:AddSection("Theme")
+        end)
 
-        if ThemeSection then
-            -- Add settings controls with safe method calls
-            ThemeSection:AddDropdown("ThemeDropdown", {
-                Title = "Theme",
-                Values = {"Light", "Dark", "Darker", "Discord", "Aqua"},
-                Multi = false,
-                Default = "Dark",
-                Callback = function(value)
-                    safeCallMethod(Window, "SetTheme", value)
-                end
-            })
+        if settingsSuccess and settingsSection then
+            pcall(function()
+                settingsSection:AddDropdown("ThemeDropdown", {
+                    Title = "Theme",
+                    Values = {"Light", "Dark", "Darker", "Discord", "Aqua"},
+                    Multi = false,
+                    Default = "Dark",
+                    Callback = function(value)
+                        pcall(function()
+                            window:SetTheme(value)
+                            getgenv().Functions.ShowNotification("Theme changed to " .. value)
+                        end)
+                    end
+                })
 
-            -- Add other settings controls...
+                settingsSection:AddToggle("SaveWindowToggle", {
+                    Title = "Save Window Position",
+                    Default = false,
+                    Callback = function(value)
+                        pcall(function()
+                            window:SaveConfig(value)
+                            getgenv().Functions.ShowNotification("Window position saving " .. (value and "enabled" or "disabled"))
+                        end)
+                    end
+                })
+
+                settingsSection:AddToggle("AcrylicToggle", {
+                    Title = "Acrylic",
+                    Default = true,
+                    Callback = function(value)
+                        pcall(function()
+                            window:ToggleAcrylic(value)
+                            getgenv().Functions.ShowNotification("Acrylic effect " .. (value and "enabled" or "disabled"))
+                        end)
+                    end
+                })
+
+                settingsSection:AddSlider("TransparencySlider", {
+                    Title = "Transparency",
+                    Default = 0,
+                    Min = 0,
+                    Max = 100,
+                    Callback = function(value)
+                        pcall(function()
+                            window:SetBackgroundTransparency(value / 100)
+                            getgenv().Functions.ShowNotification("Transparency set to " .. value .. "%")
+                        end)
+                    end
+                })
+            end)
         end
+    end
+
+    -- Initialize Credits tab
+    if Tabs.Credits then
+        local creditsSuccess, creditsSection = pcall(function()
+            return Tabs.Credits:AddSection("Credits")
+        end)
+
+        if creditsSuccess and creditsSection then
+            pcall(function()
+                creditsSection:AddParagraph({
+                    Title = "Developer",
+                    Content = "ProbTom"
+                })
+
+                creditsSection:AddParagraph({
+                    Title = "UI Library",
+                    Content = "Fluent UI Library by dawid-scripts"
+                })
+            end)
+        end
+    end
+
+    -- Apply saved settings if available
+    local savedConfig = getgenv().CompatibilityLayer.getConfig()
+    if savedConfig and savedConfig.windowState then
+        pcall(function()
+            if savedConfig.windowState.theme then
+                window:SetTheme(savedConfig.windowState.theme)
+            end
+            if savedConfig.windowState.transparency then
+                window:SetBackgroundTransparency(savedConfig.windowState.transparency)
+            end
+            if savedConfig.windowState.acrylic ~= nil then
+                window:ToggleAcrylic(savedConfig.windowState.acrylic)
+            end
+        end)
     end
 
     return {
         Success = true,
-        Window = Window,
+        Window = window,
         Tabs = Tabs
     }
 end
 
-return createWindow()
+-- Create and return window
+local windowResult = createWindow()
+if not windowResult.Success then
+    error("Failed to create window: " .. tostring(windowResult.Error))
+    return false
+end
+
+return true
