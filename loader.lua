@@ -1,4 +1,4 @@
--- Check if already executed first, before doing anything else
+-- Check if already executed first
 if getgenv().LucidHubLoaded then
     warn("Lucid Hub: Already executed!")
     return
@@ -13,12 +13,22 @@ local function cleanupExisting()
         CoreGui:FindFirstChild("ClickButton"):Destroy()
     end
     
+    -- Clean up any existing Fluent windows
+    if getgenv().Fluent then
+        pcall(function()
+            for _, window in pairs(getgenv().Fluent.Windows) do
+                window:Destroy()
+            end
+        end)
+    end
+    
     -- Clear all states
     getgenv().Fluent = nil
     getgenv().SaveManager = nil
     getgenv().InterfaceManager = nil
     getgenv().Config = nil
     getgenv().Tabs = nil
+    getgenv().Options = nil
 end
 
 -- Clean up any existing instances
@@ -29,7 +39,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Define config globally to be used by other scripts
+-- Define config globally
 getgenv().Config = {
     UI = {
         MainColor = Color3.fromRGB(38, 38, 38),
@@ -63,19 +73,31 @@ pcall(function()
     getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
 end)
 
--- Load the rest of your scripts
-local files = {
-    "init.lua",
-    "ui.lua",
-    "Tab.lua",
-    "MainTab.lua"
+-- Function to load scripts
+local function loadScript(name)
+    local success, result = pcall(function()
+        local source = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. name)
+        return loadstring(source)()
+    end)
+    
+    if not success then
+        warn("Failed to load " .. name .. ": " .. tostring(result))
+        return false
+    end
+    
+    return true
+end
+
+-- Load scripts in order
+local loadOrder = {
+    "init.lua",      -- First to initialize variables
+    "Tab.lua",       -- Second to create the window and tabs
+    "functions.lua", -- Third to load functions
+    "MainTab.lua"    -- Last to use everything
 }
 
-for _, file in ipairs(files) do
-    local source = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. file)
-    local success, result = pcall(loadstring(source))
-    if not success then
-        warn("Failed to load " .. file .. ": " .. tostring(result))
+for _, scriptName in ipairs(loadOrder) do
+    if not loadScript(scriptName) then
         return
     end
     task.wait(0.1)
