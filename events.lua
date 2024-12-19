@@ -1,30 +1,44 @@
 -- events.lua
 -- Core events module for Lucid Hub
-if getgenv().LucidEvents then
-    return getgenv().LucidEvents
-end
-
 local Events = {
     _version = "1.0.1",
     _initialized = false,
-    _debug = false
+    _eventStatus = {}  -- Track event status centrally
 }
 
 -- Core services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Event configuration
-local EVENT_CONFIG = {
-    events = {
-        castrod = {required = false, retry = true},
-        reelfinished = {required = false, retry = true},
-        character = {required = false, retry = true}
-    },
-    retryAttempts = 3,
-    retryDelay = 1
+-- Required events definition
+Events.REQUIRED_EVENTS = {
+    "castrod",
+    "reelfinished", 
+    "character"
 }
 
--- Initialize events system with single execution guarantee
+-- Check events availability
+function Events.CheckEvent(eventName)
+    if Events._eventStatus[eventName] ~= nil then
+        return Events._eventStatus[eventName]
+    end
+    
+    local events = ReplicatedStorage:FindFirstChild("events")
+    if not events then
+        Events._eventStatus[eventName] = false
+        return false
+    end
+
+    local exists = events:FindFirstChild(eventName) ~= nil
+    Events._eventStatus[eventName] = exists
+    
+    if not exists and getgenv().Config and getgenv().Config.Debug then
+        warn("⚠️ Event not found:", eventName)
+    end
+    
+    return exists
+end
+
+-- Initialize events system
 local function initialize()
     if Events._initialized then
         return true
@@ -34,37 +48,45 @@ local function initialize()
     if not getgenv().State then
         getgenv().State = {}
     end
+    
     if not getgenv().State.Events then
         getgenv().State.Events = {
-            Available = {},
-            Initialized = false
+            Available = {}
         }
     end
 
-    -- Get events container
-    local events = ReplicatedStorage:FindFirstChild("events")
-    
-    -- Check events availability silently
-    for eventName, config in pairs(EVENT_CONFIG.events) do
-        local eventExists = false
-        if events then
-            eventExists = events:FindFirstChild(eventName) ~= nil
-        end
-        getgenv().State.Events.Available[eventName] = eventExists
+    -- Check all required events once
+    for _, eventName in ipairs(Events.REQUIRED_EVENTS) do
+        getgenv().State.Events.Available[eventName] = Events.CheckEvent(eventName)
     end
 
     Events._initialized = true
-    getgenv().State.Events.Initialized = true
     return true
 end
 
--- Run initialization once
-local success = pcall(initialize)
+-- Public interface
+function Events.IsAvailable(eventName)
+    return Events._eventStatus[eventName] == true
+end
+
+function Events.GetEvent(eventName)
+    if not Events.IsAvailable(eventName) then
+        return nil
+    end
+    
+    local events = ReplicatedStorage:FindFirstChild("events")
+    return events and events:FindFirstChild(eventName)
+end
+
+-- Run initialization
+local success = initialize()
 
 if success then
-    getgenv().LucidEvents = Events
-    return Events
+    if getgenv().Config and getgenv().Config.Debug then
+        print("✓ Successfully loaded module: events")
+    end
 else
     warn("Failed to initialize events system")
-    return false
 end
+
+return Events
