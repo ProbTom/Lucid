@@ -43,6 +43,21 @@ if not Fluent then
     return
 end
 
+-- Create Fluent window
+local Window = Fluent:CreateWindow({
+    Title = "Lucid Hub",
+    SubTitle = "by ProbTom",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark"
+})
+
+-- Initialize tabs
+getgenv().Tabs = {
+    Main = Window:AddTab({ Title = "Main", Icon = "fish" })
+}
+
 -- Create mobile interface if needed
 local DeviceType = UserInputService.TouchEnabled and "Mobile" or "PC"
 if DeviceType == "Mobile" then
@@ -123,5 +138,17 @@ if DeviceType == "Mobile" then
         end)
     end)
 end
+
+-- Set minimize keybind
+Window:SetValue("MinimizeKeybind", Config.UI.MinimizeKey)
+
+-- Save window state
+Window:OnClose(function()
+    pcall(function()
+        if getgenv().cleanup then
+            getgenv().cleanup()
+        end
+    end)
+end)
 
 return true
