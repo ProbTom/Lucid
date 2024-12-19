@@ -21,8 +21,8 @@ getgenv().Config = {
     Debug = true,
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/",
-        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/main.lua"
+        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/main.lua",
+        FluentBackup = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/src/main.lua" -- Backup Fluent source
     },
     MaxRetries = 3,
     RetryDelay = 1
@@ -31,54 +31,30 @@ getgenv().Config = {
 local function debugPrint(...)
     if getgenv().Config.Debug then
         print("[Lucid Debug]", ...)
+        if type(debug) == "table" and type(debug.traceback) == "function" then
+            print(debug.traceback())
+        end
     end
 end
 
-local function loadScript(name, maxRetries)
-    maxRetries = maxRetries or getgenv().Config.MaxRetries
-    local retryCount = 0
-    local lastError
+local function loadScript(name)
+    local success, result = pcall(function()
+        local source = game:HttpGet(getgenv().Config.URLs.Main .. name)
+        if not source then return false end
+        
+        local loaded = loadstring(source)
+        if not loaded then return false end
+        
+        return loaded()
+    end)
     
-    while retryCount < maxRetries do
-        local success, result = pcall(function()
-            local source = game:HttpGet(getgenv().Config.URLs.Main .. name)
-            local loaded = loadstring(source)
-            if loaded then
-                return loaded()
-            end
-            return false
-        end)
-        
-        if success and result then
-            debugPrint("Successfully loaded:", name)
-            return true
-        end
-        
-        -- If main fails, try backup
-        success, result = pcall(function()
-            local source = game:HttpGet(getgenv().Config.URLs.Backup .. name)
-            local loaded = loadstring(source)
-            if loaded then
-                return loaded()
-            end
-            return false
-        end)
-        
-        if success and result then
-            debugPrint("Successfully loaded from backup:", name)
-            return true
-        else
-            lastError = result
-            warn(string.format("Failed to load %s (Attempt %d/%d): %s", 
-                name, retryCount + 1, maxRetries, tostring(result)))
-            task.wait(getgenv().Config.RetryDelay)
-        end
-        retryCount = retryCount + 1
+    if success and result then
+        debugPrint("Successfully loaded:", name)
+        return true
+    else
+        warn(string.format("Failed to load %s: %s", name, tostring(result)))
+        return false
     end
-    
-    error(string.format("Failed to load %s after %d attempts. Last error: %s", 
-        name, maxRetries, tostring(lastError)))
-    return false
 end
 
 -- Load compatibility layer first
@@ -88,56 +64,71 @@ if not loadScript("compatibility.lua") then
     return
 end
 
--- Load Fluent UI with compatibility wrapper
-local function loadFluentUI()
-    debugPrint("Fetching Fluent UI source...")
-    local success, content = pcall(function()
-        return game:HttpGet(getgenv().Config.URLs.Fluent)
-    end)
-
-    if not success then
-        debugPrint("Failed to fetch Fluent UI source:", content)
+-- Initialize Fluent UI with retries
+local function initializeFluentUI()
+    local function tryLoadFluent(url)
+        local success, content = pcall(function()
+            return game:HttpGet(url)
+        end)
+        
+        if not success then
+            debugPrint("Failed to fetch Fluent UI from:", url)
+            return false
+        end
+        
+        local loaded = loadstring(content)
+        if not loaded then
+            debugPrint("Failed to compile Fluent UI source")
+            return false
+        end
+        
+        local success, lib = pcall(loaded)
+        if not success or type(lib) ~= "table" then
+            debugPrint("Failed to execute Fluent UI:", lib)
+            return false
+        end
+        
+        return lib
+    end
+    
+    -- Try main URL first
+    local fluentLib = tryLoadFluent(getgenv().Config.URLs.Fluent)
+    
+    -- If main fails, try backup
+    if not fluentLib then
+        debugPrint("Trying backup Fluent URL...")
+        fluentLib = tryLoadFluent(getgenv().Config.URLs.FluentBackup)
+    end
+    
+    if not fluentLib then
         return false
     end
-
-    debugPrint("Loading Fluent UI source...")
-    local success, fluentLoaded = pcall(loadstring, content)
-    if not success then
-        debugPrint("Failed to load Fluent UI source:", fluentLoaded)
-        return false
+    
+    -- Verify essential methods exist
+    local requiredMethods = {"CreateWindow", "Notify"}
+    for _, method in ipairs(requiredMethods) do
+        if type(fluentLib[method]) ~= "function" then
+            debugPrint("Missing required Fluent UI method:", method)
+            return false
+        end
     end
-
-    debugPrint("Executing Fluent UI...")
-    local success, fluentLib = pcall(fluentLoaded)
-    if not success then
-        debugPrint("Failed to execute Fluent UI:", fluentLib)
-        return false
-    end
-
-    if type(fluentLib) ~= "table" then
-        debugPrint("Fluent UI did not return a valid library table")
-        return false
-    end
-
+    
     -- Apply compatibility wrapper
-    if getgenv().CompatibilityLayer and type(getgenv().CompatibilityLayer.wrapFluentUI) == "function" then
-        debugPrint("Applying compatibility wrapper to Fluent UI")
+    if type(getgenv().CompatibilityLayer) == "table" and 
+       type(getgenv().CompatibilityLayer.wrapFluentUI) == "function" then
         local wrapped = getgenv().CompatibilityLayer.wrapFluentUI(fluentLib)
         if type(wrapped) == "table" then
             getgenv().Fluent = wrapped
             return true
-        else
-            debugPrint("Compatibility wrapper failed to return a valid table")
-            return false
         end
-    else
-        debugPrint("Compatibility layer not found or invalid")
-        return false
     end
+    
+    debugPrint("Failed to wrap Fluent UI with compatibility layer")
+    return false
 end
 
 debugPrint("Initializing Fluent UI...")
-if not loadFluentUI() then
+if not initializeFluentUI() then
     error("Failed to initialize Fluent UI")
     return
 end
