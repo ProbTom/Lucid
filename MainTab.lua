@@ -1,62 +1,50 @@
--- Check for required dependencies first
-if not getgenv().Tabs or not getgenv().Tabs.Main then
-    warn("Waiting for Tabs to initialize...")
+local function waitForDependency(name, path)
     local startTime = tick()
-    while not getgenv().Tabs or not getgenv().Tabs.Main do
+    while not (getgenv()[name] and (not path or path(getgenv()[name]))) do
         if tick() - startTime > 10 then
-            error("Tabs failed to initialize after 10 seconds")
-            return
+            error(string.format("Failed to load dependency: %s after 10 seconds", name))
+            return false
         end
         task.wait(0.1)
     end
+    return true
 end
+
+-- Wait for critical dependencies
+if not waitForDependency("Tabs", function(t) return t.Main end) then return false end
+if not waitForDependency("Functions") then return false end
+if not waitForDependency("Options") then return false end
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Initialize Options table if it doesn't exist
-if not getgenv().Options then
-    getgenv().Options = {
-        CastMode = { Value = "Legit" },
-        ReelMode = { Value = "Blatant" },
-        autoCast = { Value = false },
-        autoShake = { Value = false },
-        autoReel = { Value = false }
-    }
-end
+-- Cache MainTab reference
+local MainTab = getgenv().Tabs.Main
+
+-- Create main section
+local mainSection = MainTab:AddSection("Auto Fishing")
 
 -- Initialize state variables from Options
 local CastMode = getgenv().Options.CastMode.Value
 local ReelMode = getgenv().Options.ReelMode.Value
 
--- Ensure Functions table exists
-if not getgenv().Functions then
-    warn("Waiting for Functions to initialize...")
-    local startTime = tick()
-    while not getgenv().Functions do
-        if tick() - startTime > 10 then
-            error("Functions failed to initialize after 10 seconds")
-            return
-        end
-        task.wait(0.1)
-    end
-end
-
--- Cache Tabs reference
-local MainTab = getgenv().Tabs.Main
-
--- Main Section
-local mainSection = MainTab:AddSection("Auto Fishing")
-
 -- Auto Cast Toggle
-local autoCast = MainTab:AddToggle("autoCast", {Title = "Auto Cast", Default = false})
+local autoCast = MainTab:AddToggle("autoCast", {
+    Title = "Auto Cast",
+    Default = false
+})
+
 autoCast:OnChanged(function()
     pcall(function()
         if autoCast.Value then
             RunService:BindToRenderStep("AutoCast", 1, function()
                 if LocalPlayer.Character then
-                    Functions.autoCast(CastMode, LocalPlayer.Character, LocalPlayer.Character:FindFirstChild("HumanoidRootPart"))
+                    Functions.autoCast(
+                        CastMode, 
+                        LocalPlayer.Character, 
+                        LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    )
                 end
             end)
         else
@@ -66,7 +54,11 @@ autoCast:OnChanged(function()
 end)
 
 -- Auto Shake Toggle
-local autoShake = MainTab:AddToggle("autoShake", {Title = "Auto Shake", Default = false})
+local autoShake = MainTab:AddToggle("autoShake", {
+    Title = "Auto Shake",
+    Default = false
+})
+
 autoShake:OnChanged(function()
     pcall(function()
         if autoShake.Value then
@@ -82,7 +74,11 @@ autoShake:OnChanged(function()
 end)
 
 -- Auto Reel Toggle
-local autoReel = MainTab:AddToggle("autoReel", {Title = "Auto Reel", Default = false})
+local autoReel = MainTab:AddToggle("autoReel", {
+    Title = "Auto Reel",
+    Default = false
+})
+
 autoReel:OnChanged(function()
     pcall(function()
         if autoReel.Value then
@@ -123,7 +119,7 @@ reelModeDropdown:OnChanged(function(Value)
     getgenv().Options.ReelMode.Value = Value
 end)
 
--- Cleanup handler
+-- Add cleanup handler
 local function cleanupTab()
     pcall(function()
         RunService:UnbindFromRenderStep("AutoCast")
