@@ -7,6 +7,11 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 
+-- Add cooldown tracking
+Functions._lastShake = 0
+Functions._lastCast = 0
+Functions._lastReel = 0
+
 Functions.ShowNotification = function(String)
     if getgenv().Fluent then
         getgenv().Fluent:Notify({
@@ -18,6 +23,10 @@ Functions.ShowNotification = function(String)
 end
 
 Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
+    -- Check cooldown
+    if tick() - Functions._lastCast < 0.5 then return end
+    Functions._lastCast = tick()
+
     pcall(function()
         if LocalCharacter then
             local tool = LocalCharacter:FindFirstChildOfClass("Tool")
@@ -61,6 +70,10 @@ Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
 end
 
 Functions.autoShake = function(ShakeMode, PlayerGui)
+    -- Check cooldown
+    if tick() - Functions._lastShake < 0.2 then return end
+    Functions._lastShake = tick()
+
     if ShakeMode == "Navigation" then
         pcall(function()
             local shakeui = PlayerGui:FindFirstChild("shakeui")
@@ -68,12 +81,12 @@ Functions.autoShake = function(ShakeMode, PlayerGui)
                 local safezone = shakeui:FindFirstChild("safezone")
                 local button = safezone and safezone:FindFirstChild("button")
                 if button and GuiService then
-                    -- Make button larger
                     button.Size = UDim2.new(1001, 0, 1001, 0)
                     task.wait(0.2)
                     GuiService.SelectedObject = button
                     if GuiService.SelectedObject == button then
                         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                        task.wait(0.1)
                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
                     end
                     task.wait(0.1)
@@ -88,21 +101,25 @@ Functions.autoShake = function(ShakeMode, PlayerGui)
                 local safezone = shakeui:FindFirstChild("safezone")
                 local button = safezone and safezone:FindFirstChild("button")
                 if button then
-                    -- Make button larger
                     button.Size = UDim2.new(1001, 0, 1001, 0)
                     local pos = button.AbsolutePosition
                     local size = button.AbsoluteSize
-                    VirtualInputManager:SendMouseButtonEvent(
-                        pos.X + size.X / 2,
-                        pos.Y + size.Y / 2,
-                        0, true, game, 0
-                    )
-                    task.wait(0.1)
-                    VirtualInputManager:SendMouseButtonEvent(
-                        pos.X + size.X / 2,
-                        pos.Y + size.Y / 2,
-                        0, false, game, 0
-                    )
+                    
+                    -- Send multiple click events for better reliability
+                    for i = 1, 2 do
+                        VirtualInputManager:SendMouseButtonEvent(
+                            pos.X + size.X / 2,
+                            pos.Y + size.Y / 2,
+                            0, true, game, 0
+                        )
+                        task.wait(0.1)
+                        VirtualInputManager:SendMouseButtonEvent(
+                            pos.X + size.X / 2,
+                            pos.Y + size.Y / 2,
+                            0, false, game, 0
+                        )
+                        task.wait(0.1)
+                    end
                 end
             end
         end)
@@ -110,6 +127,10 @@ Functions.autoShake = function(ShakeMode, PlayerGui)
 end
 
 Functions.autoReel = function(PlayerGui, ReelMode)
+    -- Check cooldown
+    if tick() - Functions._lastReel < 0.2 then return end
+    Functions._lastReel = tick()
+
     pcall(function()
         local reel = PlayerGui:FindFirstChild("reel")
         if reel then
@@ -140,6 +161,11 @@ Functions.handleZoneCast = function(ZoneCast, Zone, FishingZonesFolder, Humanoid
             end
         end)
     end
+end
+
+-- Add cleanup function
+Functions.cleanup = function()
+    GuiService.SelectedObject = nil
 end
 
 return Functions
