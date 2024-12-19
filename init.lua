@@ -1,103 +1,33 @@
--- Safe service getter
-local function getService(serviceName)
-    local success, service = pcall(function()
-        return game:GetService(serviceName)
-    end)
-    if success then
-        return service
-    else
-        warn("Failed to get service: " .. serviceName)
-        return nil
-    end
-end
-
--- Initialize required services with error handling
-local ReplicatedStorage = getService("ReplicatedStorage")
-local Players = getService("Players")
-local RunService = getService("RunService")
-local VirtualUser = getService("VirtualUser")
-local LocalPlayer = Players.LocalPlayer
-
--- Initialize global tables
-if not getgenv().Options then
-    getgenv().Options = {
-        -- Main Features
-        autoCast = { Value = false },
-        autoShake = { Value = false },
-        autoReel = { Value = false },
-        CastMode = { Value = "Legit" },
-        ReelMode = { Value = "Blatant" }
-    }
-end
-
-if not getgenv().Tabs then
-    getgenv().Tabs = {
-        Main = nil  -- Will be populated by Tab.lua
-    }
-end
-
--- Wait for game load
+-- init.lua
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Wait for LocalPlayer if not loaded
-if not LocalPlayer then
-    Players.PlayerAdded:Wait()
-    LocalPlayer = Players.LocalPlayer
-end
+-- Initialize global tables
+if not _G.Functions then _G.Functions = {} end
+if not _G.Options then _G.Options = {} end
 
--- Safe check for playerstats
-local playerStats = ReplicatedStorage and ReplicatedStorage:FindFirstChild("playerstats")
-if not playerStats then
-    warn("playerstats not found in ReplicatedStorage")
-end
+-- Load Fluent UI Library
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
--- Connection handling
-local connections = {}
-local function addConnection(connection)
-    if typeof(connection) == "RBXScriptConnection" then
-        table.insert(connections, connection)
-        return connection
-    end
-    return nil
-end
+-- Initialize global state
+getgenv().Fluent = Fluent
+getgenv().SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+getgenv().InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
--- Cleanup function
-local function cleanup()
-    -- Disconnect all connections
-    for _, connection in ipairs(connections) do
-        if typeof(connection) == "RBXScriptConnection" and connection.Connected then
-            connection:Disconnect()
-        end
-    end
-    table.clear(connections)
+-- Load core modules in order
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/compatibility.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/functions.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/Tab.lua"))()
 
-    -- Unbind from RunService
-    pcall(function()
-        RunService:UnbindFromRenderStep("AutoCast")
-        RunService:UnbindFromRenderStep("AutoShake")
-        RunService:UnbindFromRenderStep("AutoReel")
-    end)
+-- Load feature modules after core initialization
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/MainTab.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/ItemsTab.lua"))()
 
-    -- Reset options
-    for _, option in pairs(getgenv().Options) do
-        option.Value = false
-    end
-end
-
--- Add cleanup connection for player removal
-addConnection(Players.PlayerRemoving:Connect(function(player)
-    if player == LocalPlayer then
-        cleanup()
-    end
-end))
-
--- Export variables and functions
-getgenv().ReplicatedStorage = ReplicatedStorage
-getgenv().LocalPlayer = LocalPlayer
-getgenv().playerStats = playerStats
-getgenv().addConnection = addConnection
-getgenv().cleanup = cleanup
+-- Initialize SaveManager
+getgenv().SaveManager:SetLibrary(Fluent)
+getgenv().SaveManager:SetFolder("LucidHub")
+getgenv().SaveManager:Load("LucidHub")
 
 return true
