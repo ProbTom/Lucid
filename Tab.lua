@@ -13,7 +13,7 @@ end
 
 -- Get required services and configurations
 local MarketplaceService = getService("MarketplaceService")
-local Config = getgenv().Config or require(script.Parent.config)
+local Config = getgenv().Config  -- Changed line here
 local Fluent = getgenv().Fluent
 
 if not Fluent then
