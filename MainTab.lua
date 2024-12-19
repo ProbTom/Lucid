@@ -34,27 +34,31 @@ local autoReel = MainTab:AddToggle("autoReel", {
 })
 
 local lastReelTime = 0
-local REEL_COOLDOWN = 0.1  -- Add a small cooldown to prevent spam
+local REEL_COOLDOWN = 0.05  -- Reduced cooldown for faster response
+local reelEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("reelfinished")
 
 autoReel:OnChanged(function()
     pcall(function()
         if autoReel.Value then
-            RunService:BindToRenderStep("AutoReel", 1, function()
+            RunService:BindToRenderStep("AutoReel", Enum.RenderPriority.First.Value, function()
                 if LocalPlayer.PlayerGui and tick() - lastReelTime > REEL_COOLDOWN then
-                    -- Original auto reel function
-                    Functions.autoReel(LocalPlayer.PlayerGui)
+                    -- Check if we have a rod equipped
+                    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
+                    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
                     
-                    -- New reel finish event
-                    local args = {
-                        [1] = 100,
-                        [2] = true
-                    }
-                    
-                    pcall(function()
-                        game:GetService("ReplicatedStorage"):WaitForChild("events"):WaitForChild("reelfinished"):FireServer(unpack(args))
-                    end)
-                    
-                    lastReelTime = tick()
+                    if rod and rod.values and not rod.values.casting.Value then
+                        -- Original auto reel function
+                        Functions.autoReel(LocalPlayer.PlayerGui)
+                        
+                        -- Fire reel finish event
+                        task.spawn(function()
+                            pcall(function()
+                                reelEvent:FireServer(100, true)
+                            end)
+                        end)
+                        
+                        lastReelTime = tick()
+                    end
                 end
             end)
         else
@@ -71,7 +75,7 @@ local autoShake = MainTab:AddToggle("autoShake", {
 
 local lastShakeClick = 0
 local lureGui = nil
-local SHAKE_COOLDOWN = 0.05  -- Faster response time
+local SHAKE_COOLDOWN = 0.05
 
 local function ExportValue(arg1, arg2)
     return tonumber(string.format("%."..(arg2 or 1)..'f', arg1))
@@ -82,8 +86,8 @@ autoShake:OnChanged(function()
         if autoShake.Value then
             -- Create lure percentage GUI
             if not lureGui then
-                lureGui = game:GetService("ReplicatedStorage").resources.items.items.GPS.GPS.gpsMain.xyz:Clone()
-                lureGui.Parent = game.Players.LocalPlayer.PlayerGui:WaitForChild("hud"):WaitForChild("safezone"):WaitForChild("backpack")
+                lureGui = ReplicatedStorage.resources.items.items.GPS.GPS.gpsMain.xyz:Clone()
+                lureGui.Parent = LocalPlayer.PlayerGui:WaitForChild("hud"):WaitForChild("safezone"):WaitForChild("backpack")
                 lureGui.Name = "Lure"
                 lureGui.Text = "<font color='#ff4949'>Lure </font>: 0%"
             end
@@ -105,7 +109,7 @@ autoShake:OnChanged(function()
                             lastShakeClick = tick()
                             VirtualUser:Button1Down(Vector2.new(1, 1))
                             task.spawn(function()
-                                task.wait(0.01) -- Minimal delay for button release
+                                task.wait(0.01)
                                 VirtualUser:Button1Up(Vector2.new(1, 1))
                             end)
                         end
@@ -114,7 +118,6 @@ autoShake:OnChanged(function()
             end)
         else
             RunService:UnbindFromRenderStep("AutoShake")
-            -- Remove lure GUI when disabled
             if lureGui then
                 lureGui:Destroy()
                 lureGui = nil
@@ -158,7 +161,6 @@ local function cleanupTab()
         if autoShake then autoShake:SetValue(false) end
         if autoReel then autoReel:SetValue(false) end
 
-        -- Clean up lure GUI if it exists
         if lureGui then
             lureGui:Destroy()
             lureGui = nil
