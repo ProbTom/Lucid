@@ -1,14 +1,28 @@
 -- functions.lua
+local Functions = {}
+
+-- Core Services
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
 
--- Initialize Functions table
-local Functions = {}
+-- Constants
+local MINIMUM_WAIT = 0.05
+local DEFAULT_STRENGTH = 100
 
--- Core fishing functions
+-- Utility Functions
+Functions.ShowNotification = function(title, message)
+    if getgenv().Fluent then
+        getgenv().Fluent:Notify({
+            Title = title or "Notification",
+            Content = message or "",
+            Duration = 3
+        })
+    end
+end
+
+-- Core Fishing Functions
 Functions.autoFish = function(gui)
     pcall(function()
         if not gui then return end
@@ -18,11 +32,14 @@ Functions.autoFish = function(gui)
         
         if not rod then return end
         
-        -- Handle casting
+        -- Only cast if we're not in a minigame
         if not gui:FindFirstChild("minigame") then
             local castEvent = ReplicatedStorage.events:WaitForChild("castrod")
             castEvent:FireServer()
-            return
+            
+            if getgenv().Config.Debug then
+                Functions.ShowNotification("Auto Fish", "Casting rod...")
+            end
         end
     end)
 end
@@ -35,11 +52,15 @@ Functions.autoReel = function(gui)
         if not minigame then return end
         
         local reelEvent = ReplicatedStorage.events:WaitForChild("reelfinished")
-        local strength = 100 -- Maximum strength
         
-        if tick() - (getgenv().State.LastReelTime or 0) >= 0.05 then
-            reelEvent:FireServer(strength, true)
+        -- Ensure we don't spam the server
+        if tick() - (getgenv().State.LastReelTime or 0) >= MINIMUM_WAIT then
+            reelEvent:FireServer(DEFAULT_STRENGTH, true)
             getgenv().State.LastReelTime = tick()
+            
+            if getgenv().Config.Debug then
+                Functions.ShowNotification("Auto Reel", "Reeling fish...")
+            end
         end
     end)
 end
@@ -51,15 +72,19 @@ Functions.autoShake = function(gui)
         local minigame = gui:FindFirstChild("minigame")
         if not minigame then return end
         
-        if tick() - (getgenv().State.LastShakeTime or 0) >= 0.05 then
+        if tick() - (getgenv().State.LastShakeTime or 0) >= MINIMUM_WAIT then
             VirtualUser:CaptureController()
             VirtualUser:ClickButton1(Vector2.new())
             getgenv().State.LastShakeTime = tick()
+            
+            if getgenv().Config.Debug then
+                Functions.ShowNotification("Auto Shake", "Shaking...")
+            end
         end
     end)
 end
 
--- Inventory management functions
+-- Inventory Management Functions
 Functions.sellFish = function(rarity)
     pcall(function()
         if not getgenv().State.AutoSelling then return end
@@ -69,9 +94,14 @@ Functions.sellFish = function(rarity)
             if item:FindFirstChild("values") and 
                item.values:FindFirstChild("rarity") and 
                item.values.rarity.Value == rarity then
+                
                 local sellEvent = ReplicatedStorage.events:WaitForChild("character")
                 sellEvent:FireServer("sell", item.Name)
-                task.wait(0.1)
+                task.wait(0.1) -- Prevent server overload
+                
+                if getgenv().Config.Debug then
+                    Functions.ShowNotification("Auto Sell", "Selling " .. item.Name)
+                end
             end
         end
     end)
@@ -90,6 +120,10 @@ Functions.collectChest = function(chest, range)
             if distance <= (range or getgenv().Options.ChestRange) then
                 local collectEvent = ReplicatedStorage.events:WaitForChild("character")
                 collectEvent:FireServer("collect", chest)
+                
+                if getgenv().Config.Debug then
+                    Functions.ShowNotification("Auto Collect", "Collecting chest...")
+                end
             end
         end
     end)
@@ -100,32 +134,47 @@ Functions.equipBestRod = function()
         local character = LocalPlayer.Character
         if not character then return end
         
+        -- Iterate through rod ranking to find the best available rod
         for _, rodName in ipairs(getgenv().Config.Items.RodRanking) do
             if character:FindFirstChild(rodName) then
                 local equipEvent = ReplicatedStorage.events:WaitForChild("character")
                 equipEvent:FireServer("equip", rodName)
+                
+                if getgenv().Config.Debug then
+                    Functions.ShowNotification("Auto Equip", "Equipped " .. rodName)
+                end
                 break
             end
         end
     end)
 end
 
--- Utility functions
-Functions.ShowNotification = function(title, content, duration)
-    if getgenv().Fluent then
-        getgenv().Fluent:Notify({
-            Title = title or "Lucid Hub",
-            Content = content,
-            Duration = duration or 5
-        })
+-- Error Handling Functions
+Functions.HandleError = function(context, error)
+    if getgenv().Config.Debug then
+        warn(string.format("[%s] Error: %s", context, error))
+        Functions.ShowNotification("Error", context .. ": " .. error)
     end
 end
 
-Functions.CalculateDistance = function(position1, position2)
-    return (position1 - position2).Magnitude
+-- Initialize function module
+local function InitializeFunctions()
+    if not getgenv().Config then
+        error("Functions: Config not initialized")
+        return false
+    end
+    
+    if not getgenv().State then
+        error("Functions: State not initialized")
+        return false
+    end
+    
+    return true
 end
 
--- Set global Functions reference
-getgenv().Functions = Functions
+-- Run initialization
+if not InitializeFunctions() then
+    return false
+end
 
-return true
+return Functions
