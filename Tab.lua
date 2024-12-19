@@ -29,42 +29,6 @@ local success, result = pcall(function()
         getgenv().Tabs = {}
     end
 
-    -- Create all tabs
-    getgenv().Tabs.Home = window:AddTab({
-        Title = "Home",
-        Icon = "home"
-    })
-
-    getgenv().Tabs.Main = window:AddTab({
-        Title = "Main",
-        Icon = "list"
-    })
-
-    getgenv().Tabs.Items = window:AddTab({
-        Title = "Items",
-        Icon = "package"
-    })
-
-    getgenv().Tabs.Teleports = window:AddTab({
-        Title = "Teleports",
-        Icon = "map-pin"
-    })
-
-    getgenv().Tabs.Misc = window:AddTab({
-        Title = "Misc",
-        Icon = "file-text"
-    })
-
-    getgenv().Tabs.Trade = window:AddTab({
-        Title = "Trade",
-        Icon = "gift"
-    })
-
-    getgenv().Tabs.Exclusives = window:AddTab({
-        Title = "Credit",
-        Icon = "heart"
-    })
-
     -- Initialize Options for Items tab
     getgenv().Options.ChestRange = getgenv().Config.Items.ChestRange.Default
     getgenv().Options.SelectedRarities = {Common = true}
@@ -72,9 +36,27 @@ local success, result = pcall(function()
     getgenv().Options.AutoSellEnabled = false
     getgenv().Options.AutoEquipBestRod = false
 
+    -- Create all tabs with consistent order
+    local TabOrder = {
+        {Name = "Home", Icon = "home"},
+        {Name = "Main", Icon = "list"},
+        {Name = "Items", Icon = "package"},
+        {Name = "Teleports", Icon = "map-pin"},
+        {Name = "Misc", Icon = "file-text"},
+        {Name = "Trade", Icon = "gift"},
+        {Name = "Credit", Icon = "heart"}
+    }
+
+    for _, tabInfo in ipairs(TabOrder) do
+        getgenv().Tabs[tabInfo.Name] = window:AddTab({
+            Title = tabInfo.Name,
+            Icon = tabInfo.Icon
+        })
+    end
+
     -- Add Credits content
-    if getgenv().Tabs.Exclusives then
-        local creditsSection = getgenv().Tabs.Exclusives:AddSection("Credits")
+    if getgenv().Tabs.Credit then
+        local creditsSection = getgenv().Tabs.Credit:AddSection("Credits")
         
         creditsSection:AddParagraph({
             Title = "Developer",
@@ -84,6 +66,17 @@ local success, result = pcall(function()
         creditsSection:AddParagraph({
             Title = "UI Library",
             Content = "Fluent UI Library by dawid-scripts"
+        })
+    end
+
+    -- Setup save manager integration for Items tab
+    if getgenv().SaveManager then
+        getgenv().SaveManager:SetIgnoreIndexes({
+            "ChestRange",
+            "SelectedRarities",
+            "AutoCollectEnabled",
+            "AutoSellEnabled",
+            "AutoEquipBestRod"
         })
     end
 
