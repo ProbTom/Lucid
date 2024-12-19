@@ -1,7 +1,19 @@
 -- MainTab.lua
+local MainTab = {}
+
+-- Core Services
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+-- Constants
+local STATS_UPDATE_INTERVAL = 1.0
+local DEFAULT_KEYBINDS = {
+    AutoFish = Enum.KeyCode.F,
+    AutoReel = Enum.KeyCode.R,
+    AutoShake = Enum.KeyCode.X
+}
 
 -- Verify dependencies
 if not getgenv().Tabs or not getgenv().Tabs.Main then
@@ -9,19 +21,21 @@ if not getgenv().Tabs or not getgenv().Tabs.Main then
     return false
 end
 
-local MainTab = getgenv().Tabs.Main
+local Tab = getgenv().Tabs.Main
 
 -- Create sections
-local FishingSection = MainTab:AddSection("Fishing Controls")
-local AutomationSection = MainTab:AddSection("Automation")
-local StatsSection = MainTab:AddSection("Stats Tracking")
+local FishingSection = Tab:AddSection("Fishing Controls")
+local AutomationSection = Tab:AddSection("Automation")
+local StatsSection = Tab:AddSection("Stats Tracking")
+local KeybindSection = Tab:AddSection("Keybinds")
 
 -- Fishing Controls
 local autoFishToggle = FishingSection:AddToggle("AutoFish", {
     Title = "Auto Fish",
-    Default = false,
+    Default = getgenv().Options.AutoFish,
     Callback = function(value)
         getgenv().Options.AutoFish = value
+        
         if value then
             getgenv().Events.StartAutoFishing()
         else
@@ -37,7 +51,7 @@ local autoFishToggle = FishingSection:AddToggle("AutoFish", {
 
 local autoReelToggle = FishingSection:AddToggle("AutoReel", {
     Title = "Auto Reel",
-    Default = false,
+    Default = getgenv().Options.AutoReel,
     Callback = function(value)
         getgenv().Options.AutoReel = value
         getgenv().Functions.ShowNotification(
@@ -49,7 +63,7 @@ local autoReelToggle = FishingSection:AddToggle("AutoReel", {
 
 local autoShakeToggle = FishingSection:AddToggle("AutoShake", {
     Title = "Auto Shake",
-    Default = false,
+    Default = getgenv().Options.AutoShake,
     Callback = function(value)
         getgenv().Options.AutoShake = value
         getgenv().Functions.ShowNotification(
@@ -62,72 +76,110 @@ local autoShakeToggle = FishingSection:AddToggle("AutoShake", {
 -- Automation Controls
 local autoEquipToggle = AutomationSection:AddToggle("AutoEquip", {
     Title = "Auto Equip Best Rod",
-    Default = false,
+    Default = getgenv().Options.AutoEquipBestRod,
     Callback = function(value)
         getgenv().Options.AutoEquipBestRod = value
-        if value and getgenv().Functions then
+        if value then
             getgenv().Functions.equipBestRod()
         end
     end
 })
 
--- Stats Display
-local function updateStats()
-    if not LocalPlayer or not ReplicatedStorage.playerstats:FindFirstChild(LocalPlayer.Name) then
-        return
-    end
-    
-    local stats = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats
-    local fishCaught = stats:FindFirstChild("fishcaught") and stats.fishcaught.Value or 0
-    local coins = stats:FindFirstChild("coins") and stats.coins.Value or 0
-    
-    StatsSection:AddLabel(string.format("Fish Caught: %d", fishCaught))
-    StatsSection:AddLabel(string.format("Coins: %d", coins))
-end
+-- Stats Display System
+local statsLabels = {
+    FishCaught = StatsSection:AddLabel("Fish Caught: 0"),
+    Coins = StatsSection:AddLabel("Coins: 0"),
+    CurrentRod = StatsSection:AddLabel("Current Rod: None")
+}
 
--- Stats update loop
-local function startStatsLoop()
-    task.spawn(function()
-        while task.wait(1) do
-            pcall(updateStats)
+local function updateStats()
+    pcall(function()
+        if not LocalPlayer or not ReplicatedStorage.playerstats:FindFirstChild(LocalPlayer.Name) then
+            return
         end
+        
+        local stats = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats
+        local fishCaught = stats:FindFirstChild("fishcaught") and stats.fishcaught.Value or 0
+        local coins = stats:FindFirstChild("coins") and stats.coins.Value or 0
+        local currentRod = stats:FindFirstChild("rod") and stats.rod.Value or "None"
+        
+        statsLabels.FishCaught:Set("Fish Caught: " .. tostring(fishCaught))
+        statsLabels.Coins:Set("Coins: " .. tostring(coins))
+        statsLabels.CurrentRod:Set("Current Rod: " .. currentRod)
     end)
 end
 
--- Initialize stats display
-updateStats()
-startStatsLoop()
+-- Keybind System
+local function setupKeybinds()
+    KeybindSection:AddKeybind({
+        Title = "Toggle Auto Fish",
+        Default = DEFAULT_KEYBINDS.AutoFish,
+        Callback = function()
+            autoFishToggle:Set(not autoFishToggle.Value)
+        end
+    })
+    
+    KeybindSection:AddKeybind({
+        Title = "Toggle Auto Reel",
+        Default = DEFAULT_KEYBINDS.AutoReel,
+        Callback = function()
+            autoReelToggle:Set(not autoReelToggle.Value)
+        end
+    })
+    
+    KeybindSection:AddKeybind({
+        Title = "Toggle Auto Shake",
+        Default = DEFAULT_KEYBINDS.AutoShake,
+        Callback = function()
+            autoShakeToggle:Set(not autoShakeToggle.Value)
+        end
+    })
+end
 
--- Add keybinds
-MainTab:AddKeybind({
-    Title = "Toggle Auto Fish",
-    Default = Enum.KeyCode.F,
+-- Quick Actions
+FishingSection:AddButton({
+    Title = "Force Cast Rod",
     Callback = function()
-        autoFishToggle:Set(not autoFishToggle.Value)
+        getgenv().Functions.autoFish(LocalPlayer:WaitForChild("PlayerGui"))
     end
 })
 
-MainTab:AddKeybind({
-    Title = "Toggle Auto Reel",
-    Default = Enum.KeyCode.R,
-    Callback = function()
-        autoReelToggle:Set(not autoReelToggle.Value)
+-- Initialize MainTab
+local function InitializeMainTab()
+    if not getgenv().Config then
+        error("MainTab: Config not initialized")
+        return false
     end
-})
-
--- Add quick actions
-local QuickActionsSection = MainTab:AddSection("Quick Actions")
-
-QuickActionsSection:AddButton({
-    Title = "Stop All Actions",
-    Callback = function()
-        autoFishToggle:Set(false)
-        autoReelToggle:Set(false)
-        autoShakeToggle:Set(false)
-        autoEquipToggle:Set(false)
-        getgenv().Events.CleanupAllConnections()
-        getgenv().Functions.ShowNotification("Quick Actions", "All actions stopped")
+    
+    if not getgenv().Functions then
+        error("MainTab: Functions not initialized")
+        return false
     end
-})
+    
+    if not getgenv().Events then
+        error("MainTab: Events not initialized")
+        return false
+    end
+    
+    -- Start stats update loop
+    task.spawn(function()
+        while task.wait(STATS_UPDATE_INTERVAL) do
+            updateStats()
+        end
+    end)
+    
+    -- Setup keybinds
+    setupKeybinds()
+    
+    -- Initial stats update
+    updateStats()
+    
+    return true
+end
 
-return true
+-- Run initialization
+if not InitializeMainTab() then
+    return false
+end
+
+return MainTab
