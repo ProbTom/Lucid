@@ -1,115 +1,47 @@
 -- compatibility.lua
-local Compatibility = {}
+local Compatibility = {
+    _version = "1.0.1",
+    _initialized = false
+}
 
--- Core Services
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- Core services
+local Services = {
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Players = game:GetService("Players")
+}
 
--- Initialize Config if not exists
-if not getgenv().Config then
-    getgenv().Config = {
-        Version = "1.0.1",
-        Debug = true,
-        URLs = {
-            Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-            Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
-        },
-        Items = {
-            FishRarities = {"Common", "Rare", "Legendary", "Mythical", "Enchant Relics", "Exotic", "Limited", "Gemstones"},
-            RodRanking = {},
-            ChestSettings = {
-                MinRange = 10,
-                MaxRange = 100,
-                DefaultRange = 50
-            }
-        },
-        Options = {
-            AutoFish = false,
-            AutoReel = false,
-            AutoShake = false,
-            AutoSell = false,
-            ChestRange = 50
-        }
-    }
+-- Service validation
+Compatibility.ValidateServices = function()
+    for name, service in pairs(Services) do
+        if not service then
+            return false
+        end
+    end
+    return true
 end
 
--- Initialize State if not exists
-if not getgenv().State then
-    getgenv().State = {
-        AutoFishing = false,
-        AutoSelling = false,
-        SelectedRarities = {},
-        LastReelTime = 0,
-        LastShakeTime = 0,
-        Events = {
+-- Game Events Setup with centralized event handling
+Compatibility.SetupGameEvents = function()
+    -- Check if Events module is loaded
+    if not getgenv().Events then
+        warn("Events module not loaded")
+        return false
+    end
+
+    -- Initialize state if needed
+    if not getgenv().State then
+        getgenv().State = {}
+    end
+    
+    if not getgenv().State.Events then
+        getgenv().State.Events = {
             Available = {}
         }
-    }
-end
-
--- Version handling and checks
-Compatibility.CheckVersion = function()
-    return {
-        current = getgenv().Config.Version,
-        latest = "1.0.1",
-        needsUpdate = false
-    }
-end
-
--- Required game services validation
-Compatibility.ValidateServices = function()
-    local required = {
-        "Players",
-        "ReplicatedStorage",
-        "RunService",
-        "UserInputService",
-        "CoreGui"
-    }
-    
-    local missing = {}
-    for _, service in ipairs(required) do
-        if not pcall(function() return game:GetService(service) end) then
-            table.insert(missing, service)
-        end
-    end
-    
-    return #missing == 0, missing
-end
-
--- Game Events Setup with improved error handling
-Compatibility.SetupGameEvents = function()
-    local events = ReplicatedStorage:FindFirstChild("events")
-    if not events then
-        if getgenv().Config.Debug then
-            warn("⚠️ Events folder not found in ReplicatedStorage, creating fallback handlers")
-        end
-        -- Create a fallback events table
-        getgenv().State.Events.Available = {
-            castrod = false,
-            reelfinished = false,
-            character = false
-        }
-        return true
     end
 
-    -- Check required events
-    local requiredEvents = {
-        "castrod",
-        "reelfinished",
-        "character"
-    }
-
-    -- Check each event and store availability
-    for _, eventName in ipairs(requiredEvents) do
-        local eventExists = events:FindFirstChild(eventName) ~= nil
-        getgenv().State.Events.Available[eventName] = eventExists
-        
-        if not eventExists and getgenv().Config.Debug then
-            warn("⚠️ Event not found:", eventName)
-        end
+    -- Use centralized event checking from Events module
+    for _, eventName in ipairs(getgenv().Events.REQUIRED_EVENTS) do
+        getgenv().State.Events.Available[eventName] = getgenv().Events.IsAvailable(eventName)
     end
 
     return true
@@ -166,7 +98,11 @@ end
 
 -- Feature availability check
 Compatibility.IsFeatureAvailable = function(featureName)
-    if featureName:match("auto") and getgenv().State.Events.Available then
+    if not getgenv().State or not getgenv().State.Events or not getgenv().State.Events.Available then
+        return false
+    end
+
+    if featureName:match("auto") then
         local requiredEvents = {
             autofish = {"castrod"},
             autoreel = {"reelfinished"},
@@ -185,17 +121,43 @@ Compatibility.IsFeatureAvailable = function(featureName)
     return true
 end
 
+-- Memory cleanup function
+Compatibility.Cleanup = function()
+    pcall(function()
+        -- Clear metatable modifications
+        local mt = getrawmetatable(game)
+        if mt and mt.__namecall then
+            setreadonly(mt, false)
+            mt.__namecall = nil
+            setreadonly(mt, true)
+        end
+        
+        -- Clear event handlers
+        if getgenv().State and getgenv().State.Events then
+            getgenv().State.Events = {
+                Available = {}
+            }
+        end
+    end)
+end
+
 -- Initialize compatibility checks
 local function InitializeCompatibility()
+    if Compatibility._initialized then
+        return true
+    end
+
     local status = {
-        events = Compatibility.SetupGameEvents(),
-        environment = Compatibility.ValidateEnvironment(),
         services = Compatibility.ValidateServices(),
+        environment = Compatibility.ValidateEnvironment(),
         anticheat = Compatibility.SetupAntiCheatBypass()
     }
     
+    -- Setup events last to ensure all dependencies are ready
+    status.events = Compatibility.SetupGameEvents()
+    
     -- Log initialization results if debug is enabled
-    if getgenv().Config.Debug then
+    if getgenv().Config and getgenv().Config.Debug then
         for check, result in pairs(status) do
             if not result then
                 warn(string.format("⚠️ Compatibility initialization failed for: %s", check))
@@ -203,17 +165,26 @@ local function InitializeCompatibility()
         end
     end
     
-    -- Return true to allow script to continue with reduced functionality
+    Compatibility._initialized = true
     return true
 end
 
--- Run initialization and return module
-if InitializeCompatibility() then
-    if getgenv().Config.Debug then
+-- Setup cleanup on script end
+if getgenv().Config then
+    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+        Compatibility.Cleanup()
+    end)
+end
+
+-- Run initialization
+local success = InitializeCompatibility()
+
+if success then
+    if getgenv().Config and getgenv().Config.Debug then
         print("✓ Compatibility layer initialized successfully")
     end
 else
-    warn("⚠️ Compatibility layer initialization failed")
+    warn("Failed to initialize compatibility layer")
 end
 
 return Compatibility
