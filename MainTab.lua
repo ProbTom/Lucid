@@ -56,7 +56,22 @@ end)
 -- Auto Shake Toggle
 local autoShake = Tabs.Main:AddToggle("autoShake", {Title = "Auto Shake", Default = false})
 autoShake:OnChanged(function()
-    -- Empty callback
+    if Options.autoShake.Value then
+        -- Start Auto Shake
+        game:GetService("RunService"):BindToRenderStep("AutoShake", 1, function()
+            pcall(function()
+                if game.Players.LocalPlayer.PlayerGui:FindFirstChild("shakeui") and 
+                   game.Players.LocalPlayer.PlayerGui.shakeui.Enabled then
+                    game.Players.LocalPlayer.PlayerGui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
+                    game:GetService("VirtualUser"):Button1Down(Vector2.new(1, 1))
+                    game:GetService("VirtualUser"):Button1Up(Vector2.new(1, 1))
+                end
+            end)
+        end)
+    else
+        -- Stop Auto Shake
+        game:GetService("RunService"):UnbindFromRenderStep("AutoShake")
+    end
 end)
 
 -- Auto Reel Toggle
