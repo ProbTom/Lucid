@@ -1,14 +1,13 @@
--- Check if we already have a window
-if getgenv().LucidWindow then
-    return true
+-- Wait for game to load
+if not game:IsLoaded() then
+    game.Loaded:Wait()
 end
 
--- Wait for Fluent to be available
+-- Wait for Fluent UI to be available and initialized
 local function waitForFluent()
     local startTime = tick()
-    while not getgenv().Fluent do
+    while not (getgenv().Fluent and typeof(getgenv().Fluent.CreateWindow) == "function") do
         if tick() - startTime > 10 then
-            error("Failed to load Fluent UI library after 10 seconds")
             return false
         end
         task.wait(0.1)
@@ -16,122 +15,144 @@ local function waitForFluent()
     return true
 end
 
+-- Check if window already exists
+if getgenv().LucidWindow then
+    return {
+        Success = true,
+        Window = getgenv().LucidWindow,
+        Tabs = getgenv().Tabs
+    }
+end
+
+-- Wait for Fluent UI
 if not waitForFluent() then
+    error("Failed to load Fluent UI library")
     return false
 end
 
--- Create Window
-local Window = getgenv().Fluent:CreateWindow({
-    Title = "Lucid Hub",
-    SubTitle = "by ProbTom",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = true,
-    Theme = "Dark",
-    MinimizeConfig = {
-        Side = "Left",
-        Position = UDim2.new(0, 0, 0.5, 0),
-        Background = "rbxassetid://0",
-        ButtonBackground = "rbxassetid://0",
-        ImageColor3 = Color3.fromRGB(255, 255, 255),
-    }
-})
+-- Create window with pcall to catch any errors
+local success, Window = pcall(function()
+    return getgenv().Fluent:CreateWindow({
+        Title = "Lucid Hub",
+        SubTitle = "by ProbTom",
+        TabWidth = 160,
+        Size = UDim2.fromOffset(580, 460),
+        Acrylic = true,
+        Theme = "Dark",
+        MinimizeConfig = {
+            Side = "Left",
+            Position = UDim2.new(0, 0, 0.5, 0),
+            Background = "rbxassetid://0",
+            ButtonBackground = "rbxassetid://0",
+            ImageColor3 = Color3.fromRGB(255, 255, 255),
+        }
+    })
+end)
 
--- Store window reference globally
+if not success then
+    warn("Failed to create window:", Window)
+    return false
+end
+
+-- Store window reference
 getgenv().LucidWindow = Window
 
--- Create Tabs object to store all tabs
-local Tabs = {
-    Main = Window:AddTab({
-        Title = "Main",
-        Icon = "rbxassetid://10723424505"
-    }),
-    Settings = Window:AddTab({
-        Title = "Settings",
-        Icon = "rbxassetid://10734949203"
-    }),
-    Credits = Window:AddTab({
-        Title = "Credits",
-        Icon = "rbxassetid://10723346959"
-    })
-}
+-- Create tabs with pcall
+local success, Tabs = pcall(function()
+    return {
+        Main = Window:AddTab({
+            Title = "Main",
+            Icon = "rbxassetid://10723424505"
+        }),
+        Settings = Window:AddTab({
+            Title = "Settings",
+            Icon = "rbxassetid://10734949203"
+        }),
+        Credits = Window:AddTab({
+            Title = "Credits",
+            Icon = "rbxassetid://10723346959"
+        })
+    }
+end)
 
--- Add credits section
-local CreditsSection = Tabs.Credits:AddSection("Credits")
+if not success then
+    warn("Failed to create tabs:", Tabs)
+    return false
+end
 
-CreditsSection:AddParagraph({
-    Title = "Script Developer",
-    Content = "ProbTom - Main Developer"
-})
-
-CreditsSection:AddParagraph({
-    Title = "UI Library",
-    Content = "Fluent Interface Suite by dawid"
-})
-
--- Make Tabs accessible globally
+-- Store tabs reference
 getgenv().Tabs = Tabs
 
--- Set up settings tab
-local SettingsTab = Tabs.Settings
-local ThemeManager = getgenv().Fluent.Options
-
--- Add theme customization
-local ThemeSection = SettingsTab:AddSection("Theme")
-
-local ThemeDropdown = ThemeSection:AddDropdown("ThemeDropdown", {
-    Title = "Theme",
-    Values = {"Light", "Dark", "Darker", "Discord", "Aqua"},
-    Multi = false,
-    Default = "Dark",
-})
-
-ThemeDropdown:OnChanged(function(value)
-    Window:SetTheme(value)
+-- Credits Section
+pcall(function()
+    local CreditsSection = Tabs.Credits:AddSection("Credits")
+    CreditsSection:AddParagraph({
+        Title = "Script Developer",
+        Content = "ProbTom - Main Developer"
+    })
+    CreditsSection:AddParagraph({
+        Title = "UI Library",
+        Content = "Fluent Interface Suite by dawid"
+    })
 end)
 
--- Add window customization
-local WindowSection = SettingsTab:AddSection("Window")
+-- Settings Tab
+pcall(function()
+    local SettingsTab = Tabs.Settings
+    local ThemeSection = SettingsTab:AddSection("Theme")
 
-local WindowToggle = WindowSection:AddToggle("WindowToggle", {
-    Title = "Save Window Info",
-    Default = false,
-})
+    ThemeSection:AddDropdown("ThemeDropdown", {
+        Title = "Theme",
+        Values = {"Light", "Dark", "Darker", "Discord", "Aqua"},
+        Multi = false,
+        Default = "Dark",
+        Callback = function(value)
+            Window:SetTheme(value)
+        end
+    })
 
-WindowToggle:OnChanged(function(value)
-    Window:SaveConfig(value)
+    local WindowSection = SettingsTab:AddSection("Window")
+    
+    WindowSection:AddToggle("WindowToggle", {
+        Title = "Save Window Info",
+        Default = false,
+        Callback = function(value)
+            Window:SaveConfig(value)
+        end
+    })
+
+    WindowSection:AddKeybind("MinimizeKeybind", {
+        Title = "Minimize Bind",
+        Default = "LeftControl",
+        Callback = function(value)
+            Window:SetMinimizeKeybind(value)
+        end
+    })
+
+    local CustomSection = SettingsTab:AddSection("Customization")
+
+    CustomSection:AddSlider("Transparency", {
+        Title = "Transparency",
+        Default = 0,
+        Min = 0,
+        Max = 100,
+        Rounding = 0,
+        Callback = function(value)
+            Window:SetBackgroundTransparency(value / 100)
+        end
+    })
+
+    CustomSection:AddToggle("AcrylicToggle", {
+        Title = "Acrylic",
+        Default = true,
+        Callback = function(value)
+            Window:ToggleAcrylic(value)
+        end
+    })
 end)
 
-local MinimizeKeybind = WindowSection:AddKeybind("MinimizeKeybind", {
-    Title = "Minimize Bind",
-    Default = "LeftControl",
-})
-
-MinimizeKeybind:OnChanged(function(value)
-    Window:SetMinimizeKeybind(value)
-end)
-
--- Add UI customization
-local CustomSection = SettingsTab:AddSection("Customization")
-
-local TransparencySlider = CustomSection:AddSlider("Transparency", {
-    Title = "Transparency",
-    Default = 0,
-    Min = 0,
-    Max = 100,
-    Rounding = 0,
-    Callback = function(value)
-        Window:SetBackgroundTransparency(value / 100)
-    end
-})
-
-local AcrylicToggle = CustomSection:AddToggle("AcrylicToggle", {
-    Title = "Acrylic",
-    Default = true,
-})
-
-AcrylicToggle:OnChanged(function(value)
-    Window:ToggleAcrylic(value)
-end)
-
-return true
+return {
+    Success = true,
+    Window = Window,
+    Tabs = Tabs
+}
