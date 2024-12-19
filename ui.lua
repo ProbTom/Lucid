@@ -27,44 +27,51 @@ local Services = {
     RunService = getService("RunService")
 }
 
--- Configuration
+-- Window Configuration - Updated with all required fields
 local Config = {
-    WINDOW_SETTINGS = {
-        Name = "Lucid Hub",
-        LoadingTitle = "Lucid Hub",
-        LoadingSubtitle = "by ProbTom",
-        Discord = "https://discord.gg/example",
+    WINDOW = {
+        Title = "Lucid Hub", -- Required field
+        SubTitle = "v1.0.1", -- Required field
+        TabWidth = 160,
+        Size = Vector2.new(550, 350),
+        UseAcrylic = true,
+        Theme = "Dark",
+        MinimizeKey = Enum.KeyCode.RightShift,
+        MinimizeKeybind = "RightShift", -- Backup format
         ConfigurationSaving = {
             Enabled = true,
             FolderName = "LucidHub",
-            FileName = "Configuration"
-        }
+            FileName = "Config"
+        },
+        Discord = {
+            Enabled = false,
+            Invite = "discord.gg/example"
+        },
+        KeySystem = false
     },
     TABS = {
         Main = {
-            Name = "Main",
-            Icon = "home"
+            Title = "Main",
+            Icon = "rbxassetid://4483345998"
         },
         Items = {
-            Name = "Items",
-            Icon = "package"
+            Title = "Items",
+            Icon = "rbxassetid://4483345998"
         },
         Settings = {
-            Name = "Settings",
-            Icon = "settings"
+            Title = "Settings",
+            Icon = "rbxassetid://4483345998"
         }
     }
 }
 
 -- Dependency verification
 local function verifyDependencies()
-    -- Check required global functions
     if not getgenv or not getgenv().Fluent then
         warn("Critical dependency missing: Fluent UI Library")
         return false
     end
 
-    -- Check required services
     for name, service in pairs(Services) do
         if not service then
             warn("Required service missing:", name)
@@ -72,7 +79,6 @@ local function verifyDependencies()
         end
     end
 
-    -- Check LocalPlayer
     if not Services.Players.LocalPlayer then
         warn("LocalPlayer not available")
         return false
@@ -81,24 +87,35 @@ local function verifyDependencies()
     return true
 end
 
--- Safe window creation
+-- Safe window creation with all required parameters
 local function createWindow()
     if not getgenv().Fluent then
         return nil
     end
 
     local success, window = pcall(function()
-        -- Create window with minimal configuration to avoid Offset issues
         return getgenv().Fluent:CreateWindow({
-            Name = Config.WINDOW_SETTINGS.Name,
-            LoadingTitle = Config.WINDOW_SETTINGS.LoadingTitle,
-            LoadingSubtitle = Config.WINDOW_SETTINGS.LoadingSubtitle,
-            ConfigurationSaving = Config.WINDOW_SETTINGS.ConfigurationSaving
+            -- Required parameters
+            Title = Config.WINDOW.Title,
+            SubTitle = Config.WINDOW.SubTitle,
+            TabWidth = Config.WINDOW.TabWidth,
+            Size = Config.WINDOW.Size,
+            
+            -- Window configuration
+            Acrylic = Config.WINDOW.UseAcrylic,
+            Theme = Config.WINDOW.Theme,
+            MinimizeKey = Config.WINDOW.MinimizeKey,
+            MinimizeKeybind = Config.WINDOW.MinimizeKeybind,
+            
+            -- Additional configurations
+            ConfigurationSaving = Config.WINDOW.ConfigurationSaving,
+            Discord = Config.WINDOW.Discord,
+            KeySystem = Config.WINDOW.KeySystem
         })
     end)
 
     if not success or not window then
-        warn("Failed to create window:", window)
+        warn("Failed to create window:", tostring(window))
         return nil
     end
 
@@ -113,7 +130,10 @@ local function createTabs(window)
     
     for id, info in pairs(Config.TABS) do
         local success, tab = pcall(function()
-            return window:CreateTab(info)
+            return window:CreateTab({
+                Title = info.Title,
+                Icon = info.Icon
+            })
         end)
         
         if success and tab then
@@ -126,8 +146,8 @@ local function createTabs(window)
     return true
 end
 
--- Safe notification system
-function UI.Notify(title, content, duration)
+-- UI Public Interface
+function UI.ShowNotification(title, content, duration)
     if not getgenv().Fluent then return end
     
     pcall(function()
@@ -139,7 +159,6 @@ function UI.Notify(title, content, duration)
     end)
 end
 
--- Section creation with error handling
 function UI.CreateSection(tabName, sectionName)
     local tab = UI._components.Tabs and UI._components.Tabs[tabName]
     if not tab then return nil end
@@ -170,39 +189,33 @@ end
 
 -- Core initialization
 local function initialize()
-    -- Verify dependencies first
     if not verifyDependencies() then
         return false
     end
     
-    -- Create window
     local window = createWindow()
     if not window then
         return false
     end
     
-    -- Store window reference
     UI._components.Window = window
     
-    -- Create tabs
     if not createTabs(window) then
         return false
     end
     
-    -- Initialize SaveManager if available
     if getgenv().SaveManager then
         pcall(function()
             getgenv().SaveManager:SetLibrary(getgenv().Fluent)
             getgenv().SaveManager:SetWindow(window)
-            getgenv().SaveManager:Load(Config.WINDOW_SETTINGS.ConfigurationSaving.FileName)
+            getgenv().SaveManager:Load(Config.WINDOW.ConfigurationSaving.FileName)
         end)
     end
     
-    -- Set up cleanup
     Services.Players.LocalPlayer.OnTeleport:Connect(function()
         pcall(function()
             if getgenv().SaveManager then
-                getgenv().SaveManager:Save(Config.WINDOW_SETTINGS.ConfigurationSaving.FileName)
+                getgenv().SaveManager:Save(Config.WINDOW.ConfigurationSaving.FileName)
             end
             if UI._components.Window then
                 UI._components.Window:Destroy()
@@ -215,7 +228,7 @@ local function initialize()
     return true
 end
 
--- Module finalization
+-- Run initialization with error handling
 local success, result = pcall(initialize)
 
 if success and result then
@@ -225,6 +238,6 @@ if success and result then
     end
     return UI
 else
-    warn("⚠️ Failed to initialize UI system:", result)
+    warn("⚠️ Failed to initialize UI system:", tostring(result))
     return false
 end
