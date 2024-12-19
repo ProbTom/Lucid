@@ -1,5 +1,7 @@
 -- config.lua
-getgenv().Config = {
+local Config = {
+    Version = "1.0.0",
+    Debug = true,
     UI = {
         MainColor = Color3.fromRGB(38, 38, 38),
         ButtonColor = Color3.new(220, 125, 255),
@@ -8,7 +10,8 @@ getgenv().Config = {
     },
     GameID = 16732694052,
     URLs = {
-        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
+        Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
+        Fluent = "https://github.com/dawid-scripts/Fluent/releases/download/1.1.0/main.lua",
         SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
         InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
     },
@@ -22,7 +25,7 @@ getgenv().Config = {
             "Rod Of The Forgotten Fang",
             "Rod Of The Eternal King",
             "Rod Of The Depth",
-            "No-Life Rod,
+            "No-Life Rod",
             "Krampus's Rod",
             "Trident Rod",
             "Kings Rod",
@@ -62,7 +65,7 @@ getgenv().Config = {
             "Plastic Rod",
             "Training Rod",
             "Fischer's Rod",
-            "Flismy Rod"
+            "Flimsy Rod"
         },
         FishRarities = {
             "Common",
@@ -70,14 +73,14 @@ getgenv().Config = {
             "Rare",
             "Epic",
             "Legendary",
-            "Mythical"
-            "Enchant Relics"
-            "Exotic"
-            "Limited"
+            "Mythical",
+            "Enchant Relics",
+            "Exotic",
+            "Limited",
             "Gemstones"
         }
-    },
-    Debug = true
+    }
 }
 
-return true
+getgenv().Config = Config
+return Config
