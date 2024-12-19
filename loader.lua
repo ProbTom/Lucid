@@ -23,58 +23,25 @@ local function initializeCore()
         Initialized = false
     }
 
-    -- Initialize config before loading modules
-    getgenv().Config = {
-        Version = "1.0.1",
-        Debug = true,
-        URLs = {
-            Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-            Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
-        },
-        Items = {
-            FishRarities = {"Common", "Rare", "Legendary", "Mythical", "Enchant Relics", "Exotic", "Limited", "Gemstones"},
-            RodRanking = {},
-            ChestSettings = {
-                MinRange = 10,
-                MaxRange = 100,
-                DefaultRange = 50
-            }
-        },
-        Options = {
-            AutoFish = false,
-            AutoReel = false,
-            AutoShake = false,
-            AutoSell = false,
-            ChestRange = 50
-        }
-    }
-
-    -- Initialize options
-    getgenv().Options = {
-        AutoFish = false,
-        AutoReel = false,
-        AutoShake = false,
-        AutoSell = false,
-        ChestRange = getgenv().Config.Items.ChestSettings.DefaultRange,
-        AutoCollectChests = false
-    }
-
     -- Load Fluent UI with error handling
     local success, Fluent = pcall(function()
         return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
     end)
 
-    if not success then
+    if not success or not Fluent then
         warn("Failed to load Fluent UI:", Fluent)
         return false
     end
 
     -- Store UI references globally
     getgenv().Fluent = Fluent
+    getgenv().Window = nil -- Will be set by UI module
     
     -- Load UI addons
-    getgenv().SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-    getgenv().InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+    pcall(function()
+        getgenv().SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+        getgenv().InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+    end)
 
     return true
 end
@@ -92,95 +59,42 @@ local function loadModule(moduleName, retries)
         end)
 
         if success and result then
-            if getgenv().Config.Debug then
-                print("✓ Successfully loaded module:", moduleName)
-            end
+            print("✓ Successfully loaded module:", moduleName)
             return result
         end
 
         if attempt < retries then
-            task.wait(1) -- Wait before retry
-            if getgenv().Config.Debug then
-                warn(string.format("Retry %d/%d loading module: %s", attempt, retries, moduleName))
-            end
+            warn(string.format("Retry %d/%d loading module: %s", attempt, retries, moduleName))
+            task.wait(1)
         else
             warn("Failed to load module:", moduleName, result)
-        end
-    end
-
-    return false
-end
-
--- Main initialization sequence with dependency management
-local function initialize()
-    if not initializeCore() then
-        warn("Failed to initialize core components")
-        return false
-    end
-
-    -- Define module loading order with dependencies
-    local moduleSequence = {
-        {name = "functions", required = true},    -- Load functions first
-        {name = "compatibility", required = true}, -- Load compatibility checks
-        {name = "events", required = true},        -- Load event handlers
-        {name = "ui", required = true},            -- Load UI system
-        {name = "MainTab", required = false},      -- Load tabs
-        {name = "ItemsTab", required = false}
-    }
-
-    -- Load modules in sequence
-    local loadedModules = {}
-    for _, module in ipairs(moduleSequence) do
-        local moduleResult = loadModule(module.name)
-        
-        if not moduleResult and module.required then
-            warn("Failed to load required module:", module.name)
             return false
         end
-        
-        loadedModules[module.name] = moduleResult
-        
-        -- Store important modules globally
-        if module.name == "functions" then
-            getgenv().Functions = moduleResult
-        elseif module.name == "events" then
-            getgenv().Events = moduleResult
-        end
-        
-        -- Small delay between module loads
-        task.wait(0.1)
     end
-
-    -- Initialize SaveManager
-    if getgenv().SaveManager then
-        pcall(function()
-            getgenv().SaveManager:SetLibrary(getgenv().Fluent)
-            getgenv().SaveManager:SetFolder("LucidHub")
-            getgenv().SaveManager:Load("LucidHub")
-        end)
-    end
-
-    -- Set initialization flags
-    getgenv().State.Initialized = true
-    getgenv().LucidHubLoaded = true
-
-    if getgenv().Config.Debug then
-        print("✓ Lucid Hub loaded successfully!")
-    end
-
-    return true
-end
-
--- Execute initialization with error handling
-local success, result = pcall(initialize)
-
-if not success or not result then
-    warn("⚠️ Lucid Hub failed to initialize completely")
-    -- Cleanup on failure
-    if getgenv().State then
-        getgenv().State.Initialized = false
-    end
+    
     return false
 end
 
-return true
+-- Initialize core first
+local coreSuccess = initializeCore()
+if not coreSuccess then
+    warn("Failed to initialize core systems")
+    return
+end
+
+-- Load modules in correct order
+local moduleOrder = {
+    "functions",
+    "compatibility",
+    "events",
+    "ui"
+}
+
+for _, moduleName in ipairs(moduleOrder) do
+    if not loadModule(moduleName) then
+        warn("Failed to load required module:", moduleName)
+        return
+    end
+end
+
+getgenv().LucidHubLoaded = true
