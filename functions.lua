@@ -7,7 +7,6 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 
--- Utility function for notifications
 Functions.ShowNotification = function(String)
     if getgenv().Fluent then
         getgenv().Fluent:Notify({
@@ -18,7 +17,6 @@ Functions.ShowNotification = function(String)
     end
 end
 
--- Enhanced auto cast function
 Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
     pcall(function()
         if LocalCharacter then
@@ -62,7 +60,6 @@ Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
     end)
 end
 
--- Enhanced auto shake function
 Functions.autoShake = function(ShakeMode, PlayerGui)
     if ShakeMode == "Navigation" then
         pcall(function()
@@ -71,7 +68,7 @@ Functions.autoShake = function(ShakeMode, PlayerGui)
                 local safezone = shakeui:FindFirstChild("safezone")
                 local button = safezone and safezone:FindFirstChild("button")
                 if button and GuiService then
-                    -- Make the button huge for easier hitting
+                    -- Make button larger
                     button.Size = UDim2.new(1001, 0, 1001, 0)
                     task.wait(0.2)
                     GuiService.SelectedObject = button
@@ -91,7 +88,7 @@ Functions.autoShake = function(ShakeMode, PlayerGui)
                 local safezone = shakeui:FindFirstChild("safezone")
                 local button = safezone and safezone:FindFirstChild("button")
                 if button then
-                    -- Make the button huge for easier hitting
+                    -- Make button larger
                     button.Size = UDim2.new(1001, 0, 1001, 0)
                     local pos = button.AbsolutePosition
                     local size = button.AbsoluteSize
@@ -112,7 +109,6 @@ Functions.autoShake = function(ShakeMode, PlayerGui)
     end
 end
 
--- Enhanced auto reel function
 Functions.autoReel = function(PlayerGui, ReelMode)
     pcall(function()
         local reel = PlayerGui:FindFirstChild("reel")
@@ -133,7 +129,6 @@ Functions.autoReel = function(PlayerGui, ReelMode)
     end)
 end
 
--- Enhanced zone cast function
 Functions.handleZoneCast = function(ZoneCast, Zone, FishingZonesFolder, HumanoidRootPart)
     if ZoneCast and Zone and HumanoidRootPart then
         pcall(function()
@@ -144,18 +139,6 @@ Functions.handleZoneCast = function(ZoneCast, Zone, FishingZonesFolder, Humanoid
                 HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, targetPosition)
             end
         end)
-    end
-end
-
--- Add a cleanup function
-Functions.cleanup = function()
-    RunService:UnbindFromRenderStep("AutoCast")
-    RunService:UnbindFromRenderStep("AutoShake")
-    RunService:UnbindFromRenderStep("AutoReel")
-    
-    -- Clear any GuiService selections
-    if GuiService.SelectedObject then
-        GuiService.SelectedObject = nil
     end
 end
 
