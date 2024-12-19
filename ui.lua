@@ -28,8 +28,14 @@ pcall(function()
     end
 end)
 
--- Initialize globals
-local Config = getgenv().Config
+-- Initialize globals with safe defaults
+local Config = getgenv().Config or {
+    UI = {
+        MainColor = Color3.fromRGB(50, 50, 50),
+        ButtonColor = Color3.fromRGB(255, 255, 255),
+        MinimizeKey = Enum.KeyCode.LeftControl
+    }
+}
 local Fluent = getgenv().Fluent
 
 if not Fluent then
@@ -43,8 +49,20 @@ if DeviceType == "Mobile" then
     pcall(function()
         local ClickButton = Instance.new("ScreenGui")
         ClickButton.Name = "ClickButton"
-        ClickButton.Parent = CoreGui
         ClickButton.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        
+        -- Handle ResetOnSpawn
+        ClickButton.ResetOnSpawn = false
+        
+        -- Try to use Synapse X's protect_gui or secure the GUI using other methods
+        if syn and syn.protect_gui then
+            syn.protect_gui(ClickButton)
+        end
+        
+        -- Parent the GUI safely
+        pcall(function()
+            ClickButton.Parent = CoreGui
+        end)
 
         local MainFrame = Instance.new("Frame")
         MainFrame.Name = "MainFrame"
@@ -55,6 +73,37 @@ if DeviceType == "Mobile" then
         MainFrame.BorderSizePixel = 0
         MainFrame.Position = UDim2.new(1, -60, 0, 10)
         MainFrame.Size = UDim2.new(0, 45, 0, 45)
+        
+        -- Make the frame draggable
+        local isDragging = false
+        local dragStart = nil
+        local startPos = nil
+
+        MainFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+                isDragging = true
+                dragStart = input.Position
+                startPos = MainFrame.Position
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if isDragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+                local delta = input.Position - dragStart
+                MainFrame.Position = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+                isDragging = false
+            end
+        end)
 
         local UICorner = Instance.new("UICorner")
         UICorner.CornerRadius = UDim.new(1, 0)
@@ -64,7 +113,7 @@ if DeviceType == "Mobile" then
         TextButton.Parent = MainFrame
         TextButton.BackgroundTransparency = 1
         TextButton.Size = UDim2.new(1, 0, 1, 0)
-        TextButton.Font = Enum.Font.SourceSans
+        TextButton.Font = Enum.Font.SourceSansBold
         TextButton.Text = "Open"
         TextButton.TextColor3 = Config.UI.ButtonColor
         TextButton.TextSize = 20
@@ -73,6 +122,7 @@ if DeviceType == "Mobile" then
             local VirtualInputManager = getService("VirtualInputManager")
             if VirtualInputManager then
                 VirtualInputManager:SendKeyEvent(true, Config.UI.MinimizeKey, false, game)
+                task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Config.UI.MinimizeKey, false, game)
             end
         end)
