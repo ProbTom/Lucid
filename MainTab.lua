@@ -46,7 +46,7 @@ autoReel:OnChanged(function()
                     local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
                     local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
                     
-                    if rod and rod.values and not rod.values.casting.Value then
+                    if rod then
                         -- Original auto reel function
                         Functions.autoReel(LocalPlayer.PlayerGui)
                         
@@ -97,7 +97,7 @@ autoShake:OnChanged(function()
                     -- Update lure percentage
                     local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
                     local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
-                    if rod and rod.values.lure then
+                    if rod and rod:FindFirstChild("values") and rod.values:FindFirstChild("lure") then
                         lureGui.Text = "<font color='#ff4949'>Lure </font>: "..tostring(ExportValue(tostring(rod.values.lure.Value), 2)).."%"
                     end
 
