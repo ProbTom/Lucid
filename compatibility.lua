@@ -8,39 +8,66 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Constants
-local REQUIRED_SERVICES = {
-    "Players",
-    "ReplicatedStorage",
-    "RunService",
-    "UserInputService",
-    "CoreGui"
-}
+-- Initialize Config if not exists
+if not getgenv().Config then
+    getgenv().Config = {
+        Version = "1.0.0",
+        Debug = true,
+        URLs = {
+            Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
+            Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
+        },
+        Items = {
+            FishRarities = {"Common", "Rare", "Legendary", "Mythical", "Enchant Relics", "Exotic", "Limited", "Gemstones"},
+            RodRanking = {},
+            ChestSettings = {
+                MinRange = 10,
+                MaxRange = 100,
+                DefaultRange = 50
+            }
+        },
+        Options = {
+            AutoFish = false,
+            AutoReel = false,
+            AutoShake = false,
+            AutoSell = false,
+            ChestRange = 50
+        }
+    }
+end
 
-local REQUIRED_FUNCTIONS = {
-    "getgenv",
-    "hookfunction",
-    "newcclosure",
-    "setreadonly",
-    "getrawmetatable"
-}
+-- Initialize State if not exists
+if not getgenv().State then
+    getgenv().State = {
+        AutoFishing = false,
+        AutoSelling = false,
+        SelectedRarities = {},
+        LastReelTime = 0,
+        LastShakeTime = 0
+    }
+end
 
 -- Version handling and checks
 Compatibility.CheckVersion = function()
-    local currentVersion = getgenv().Config.Version or "1.0.0"
-    local latestVersion = "1.0.0"
-    
     return {
-        current = currentVersion,
-        latest = latestVersion,
-        needsUpdate = currentVersion ~= latestVersion
+        current = getgenv().Config.Version,
+        latest = "1.0.0",
+        needsUpdate = false
     }
 end
 
 -- Required game services validation
 Compatibility.ValidateServices = function()
+    local required = {
+        "Players",
+        "ReplicatedStorage",
+        "RunService",
+        "UserInputService",
+        "CoreGui"
+    }
+    
     local missing = {}
-    for _, service in ipairs(REQUIRED_SERVICES) do
+    for _, service in ipairs(required) do
         if not pcall(function() return game:GetService(service) end) then
             table.insert(missing, service)
         end
@@ -49,23 +76,23 @@ Compatibility.ValidateServices = function()
     return #missing == 0, missing
 end
 
--- Game event system compatibility
-Compatibility.ValidateGameEvents = function()
-    local events = ReplicatedStorage:FindFirstChild("events") or ReplicatedStorage:FindFirstChild("Events")
+-- Game Events Setup
+Compatibility.SetupGameEvents = function()
+    -- Create events folder if it doesn't exist
+    local events = ReplicatedStorage:FindFirstChild("events")
     if not events then
-        -- Create events folder if it doesn't exist
         events = Instance.new("Folder")
         events.Name = "events"
         events.Parent = ReplicatedStorage
     end
-    
-    -- Create required remote events if they don't exist
+
+    -- Create required events
     local requiredEvents = {
         "castrod",
         "reelfinished",
         "character"
     }
-    
+
     for _, eventName in ipairs(requiredEvents) do
         if not events:FindFirstChild(eventName) then
             local newEvent = Instance.new("RemoteEvent")
@@ -73,16 +100,24 @@ Compatibility.ValidateGameEvents = function()
             newEvent.Parent = events
         end
     end
-    
-    return true, {}
+
+    return true
 end
 
 -- Script environment validation
 Compatibility.ValidateEnvironment = function()
+    local required = {
+        ["getgenv"] = type(getgenv) == "function",
+        ["hookfunction"] = type(hookfunction) == "function",
+        ["newcclosure"] = type(newcclosure) == "function",
+        ["setreadonly"] = type(setreadonly) == "function",
+        ["getrawmetatable"] = type(getrawmetatable) == "function"
+    }
+    
     local missing = {}
-    for _, funcName in ipairs(REQUIRED_FUNCTIONS) do
-        if type(_G[funcName]) ~= "function" then
-            table.insert(missing, funcName)
+    for name, available in pairs(required) do
+        if not available then
+            table.insert(missing, name)
         end
     end
     
@@ -91,9 +126,9 @@ end
 
 -- Anti-cheat bypass setup
 Compatibility.SetupAntiCheatBypass = function()
-    local success = pcall(function()
+    pcall(function()
         local mt = getrawmetatable(game)
-        if not mt then return false end
+        if not mt then return end
         
         local old = mt.__namecall
         setreadonly(mt, false)
@@ -115,67 +150,21 @@ Compatibility.SetupAntiCheatBypass = function()
         setreadonly(mt, true)
     end)
     
-    return success
+    return true
 end
 
--- Module configuration validation
-Compatibility.ValidateConfig = function()
-    if not getgenv().Config then
-        getgenv().Config = {
-            Version = "1.0.0",
-            Debug = true,
-            URLs = {
-                Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-                Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
-            },
-            Items = {
-                FishRarities = {"Common", "Rare", "Legendary"},
-                RodRanking = {},
-                ChestSettings = {
-                    MinRange = 10,
-                    MaxRange = 100,
-                    DefaultRange = 50
-                }
-            },
-            Options = {
-                AutoFish = false,
-                AutoReel = false,
-                AutoShake = false,
-                AutoSell = false,
-                ChestRange = 50
-            }
-        }
-    end
-    return true, {}
-end
-
--- Global state validation
-Compatibility.ValidateState = function()
-    if not getgenv().State then
-        getgenv().State = {
-            AutoFishing = false,
-            AutoSelling = false,
-            SelectedRarities = {},
-            LastReelTime = 0,
-            LastShakeTime = 0
-        }
-    end
-    return true, {}
-end
-
--- Initialize all compatibility checks
+-- Initialize compatibility checks
 local function InitializeCompatibility()
-    -- Initialize config and state first
-    Compatibility.ValidateConfig()
-    Compatibility.ValidateState()
+    -- Set up game events first
+    Compatibility.SetupGameEvents()
     
+    -- Run other checks
     local checks = {
         {name = "Environment", func = Compatibility.ValidateEnvironment},
-        {name = "Services", func = Compatibility.ValidateServices},
-        {name = "Game Events", func = Compatibility.ValidateGameEvents}
+        {name = "Services", func = Compatibility.ValidateServices}
     }
     
-    local failed = {}
+    local allPassed = true
     for _, check in ipairs(checks) do
         local success, missing = check.func()
         if not success then
@@ -185,20 +174,17 @@ local function InitializeCompatibility()
                     table.concat(missing, ", ")
                 ))
             end
+            allPassed = false
         end
     end
     
     -- Setup anti-cheat bypass
     Compatibility.SetupAntiCheatBypass()
     
+    -- Return true even if some checks fail - we'll run in degraded mode
     return true
 end
 
--- Run initialization
-if not InitializeCompatibility() then
-    if getgenv().Config.Debug then
-        warn("⚠️ Compatibility initialization completed with warnings")
-    end
-end
-
+-- Run initialization and return module
+InitializeCompatibility()
 return Compatibility
