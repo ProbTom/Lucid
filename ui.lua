@@ -1,178 +1,214 @@
 -- ui.lua
 local UI = {}
 
--- Core Services
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
+-- Core Services with error handling
+local function getService(serviceName)
+    local success, service = pcall(function()
+        return game:GetService(serviceName)
+    end)
+    
+    if not success then
+        warn("Failed to get service:", serviceName)
+        return nil
+    end
+    
+    return service
+end
+
+local Players = getService("Players")
+local CoreGui = getService("CoreGui")
+local TweenService = getService("TweenService")
+local LocalPlayer = Players and Players.LocalPlayer
 
 -- UI Constants
 local UI_CONFIG = {
     Title = "Lucid Hub",
-    SubTitle = "v" .. (getgenv().Config and getgenv().Config.Version or "1.0.1"),
+    SubTitle = "by ProbTom",
+    TabWidth = 160,
+    MinimumWidth = 500,
+    MinimumHeight = 300,
     Theme = "Dark",
     KeySystem = false
 }
 
 -- Theme Configuration
-local THEMES = {
+local THEME_COLORS = {
     Dark = {
-        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
-        SecondaryColor3 = Color3.fromRGB(35, 35, 35),
-        AccentColor3 = Color3.fromRGB(0, 150, 255),
-        TextColor3 = Color3.fromRGB(240, 240, 240),
-        Font = Enum.Font.GothamMedium
-    },
-    Light = {
-        BackgroundColor3 = Color3.fromRGB(240, 240, 240),
-        SecondaryColor3 = Color3.fromRGB(230, 230, 230),
-        AccentColor3 = Color3.fromRGB(0, 120, 215),
-        TextColor3 = Color3.fromRGB(25, 25, 25),
-        Font = Enum.Font.GothamMedium
+        Background = Color3.fromRGB(25, 25, 25),
+        Foreground = Color3.fromRGB(35, 35, 35),
+        Accent = Color3.fromRGB(0, 125, 255),
+        Text = Color3.fromRGB(255, 255, 255),
+        SubText = Color3.fromRGB(180, 180, 180)
     }
 }
 
--- Error Handler
-local function handleError(context, error)
-    if getgenv().Config and getgenv().Config.Debug then
-        warn(string.format("[UI] %s Error: %s", context, error))
-        if getgenv().Functions and getgenv().Functions.ShowNotification then
-            getgenv().Functions.ShowNotification("UI Error", context .. ": " .. error)
-        end
-    end
-end
-
--- UI Creation with error handling
+-- Enhanced error handling for UI creation
 local function createWindow()
-    if getgenv().Window then
-        pcall(function()
-            getgenv().Window:Destroy()
-        end)
+    if not getgenv().Fluent then
+        warn("Fluent UI library not loaded")
+        return nil
     end
-
+    
     local success, window = pcall(function()
         return getgenv().Fluent:CreateWindow({
             Title = UI_CONFIG.Title,
             SubTitle = UI_CONFIG.SubTitle,
-            TabWidth = 160,
-            Size = UDim2.fromOffset(580, 460),
+            TabWidth = UI_CONFIG.TabWidth,
+            Size = Vector2.new(UI_CONFIG.MinimumWidth, UI_CONFIG.MinimumHeight),
             Acrylic = true,
             Theme = UI_CONFIG.Theme,
             MinimizeKey = Enum.KeyCode.LeftControl
         })
     end)
-
+    
     if not success then
-        handleError("Window Creation", window)
+        warn("Failed to create window:", window)
         return nil
     end
-
+    
     return window
 end
 
--- Enhanced Theme Management
-UI.SetTheme = function(themeName)
-    if not THEMES[themeName] then
-        handleError("Theme Setting", "Invalid theme: " .. themeName)
-        return false
-    end
-
+-- Initialize SaveManager with error handling
+local function initializeSaveManager(window)
+    if not window or not getgenv().SaveManager then return end
+    
     pcall(function()
-        local theme = THEMES[themeName]
-        if getgenv().Window then
-            getgenv().Window:SetBackgroundColor3(theme.BackgroundColor3)
-            getgenv().Window:SetAccentColor3(theme.AccentColor3)
-            -- Apply theme to all elements
-            for _, element in pairs(getgenv().Window:GetDescendants()) do
-                if element:IsA("TextLabel") or element:IsA("TextButton") then
-                    element.TextColor3 = theme.TextColor3
-                    element.Font = theme.Font
-                end
-                if element:IsA("Frame") then
-                    element.BackgroundColor3 = theme.SecondaryColor3
-                end
-            end
-        end
+        getgenv().SaveManager:SetLibrary(getgenv().Fluent)
+        getgenv().SaveManager:SetWindow(window)
+        getgenv().SaveManager:SetFolder("LucidHub/Configs")
+        getgenv().SaveManager:BuildConfigSection(window.Tabs.Settings)
+        getgenv().SaveManager:LoadAutoloadConfig()
     end)
-
-    UI_CONFIG.Theme = themeName
-    return true
 end
 
--- Notification System with improved error handling
+-- Initialize InterfaceManager with error handling
+local function initializeInterfaceManager(window)
+    if not window or not getgenv().InterfaceManager then return end
+    
+    pcall(function()
+        getgenv().InterfaceManager:SetLibrary(getgenv().Fluent)
+        getgenv().InterfaceManager:SetWindow(window)
+        getgenv().InterfaceManager:BuildInterfaceSection(window.Tabs.Settings)
+    end)
+end
+
+-- Enhanced notification system
 UI.ShowNotification = function(title, content, duration)
+    if not getgenv().Fluent then return end
+    
     pcall(function()
-        if getgenv().Window then
-            getgenv().Window:Notify({
-                Title = title or "Notification",
-                Content = content or "",
-                Duration = duration or 3
-            })
-        end
+        getgenv().Fluent:Notify({
+            Title = title or "Notification",
+            Content = content or "",
+            Duration = duration or 3,
+            Theme = UI_CONFIG.Theme
+        })
     end)
 end
 
--- Enhanced Save/Load System
-UI.SaveWindowState = function()
+-- Window management functions
+UI.MinimizeWindow = function()
+    if not getgenv().Window then return end
+    
     pcall(function()
-        if getgenv().SaveManager then
-            getgenv().SaveManager:Save("LucidHub")
-        end
+        getgenv().Window:Minimize()
     end)
 end
 
-UI.LoadWindowState = function()
+UI.MaximizeWindow = function()
+    if not getgenv().Window then return end
+    
     pcall(function()
-        if getgenv().SaveManager then
-            getgenv().SaveManager:Load("LucidHub")
-        end
+        getgenv().Window:Maximize()
     end)
 end
 
--- UI Cleanup System
+-- Tab management with error handling
+UI.CreateTab = function(name, icon)
+    if not getgenv().Window then return nil end
+    
+    local success, tab = pcall(function()
+        return getgenv().Window:AddTab({
+            Title = name,
+            Icon = icon or "home"
+        })
+    end)
+    
+    if not success then
+        warn("Failed to create tab:", name)
+        return nil
+    end
+    
+    return tab
+end
+
+-- Section management with error handling
+UI.CreateSection = function(tab, name)
+    if not tab then return nil end
+    
+    local success, section = pcall(function()
+        return tab:AddSection(name)
+    end)
+    
+    if not success then
+        warn("Failed to create section:", name)
+        return nil
+    end
+    
+    return section
+end
+
+-- Enhanced cleanup system
 UI.Cleanup = function()
     pcall(function()
+        if getgenv().SaveManager then
+            getgenv().SaveManager:SaveAutoloadConfig()
+        end
+        
         if getgenv().Window then
-            UI.SaveWindowState()
             getgenv().Window:Destroy()
         end
     end)
 end
 
--- Initialize UI System with comprehensive error handling
+-- Initialize UI with comprehensive error handling
 local function InitializeUI()
-    local requirements = {
-        {name = "Fluent", value = getgenv().Fluent},
-        {name = "SaveManager", value = getgenv().SaveManager},
-        {name = "Config", value = getgenv().Config}
-    }
-    
-    for _, req in ipairs(requirements) do
-        if not req.value then
-            handleError("Initialization", "Missing requirement: " .. req.name)
-            return false
-        end
-    end
-
-    -- Create main window
-    getgenv().Window = createWindow()
-    if not getgenv().Window then
-        handleError("Initialization", "Failed to create window")
+    -- Validate environment
+    if not getgenv then
+        warn("Missing getgenv environment")
         return false
     end
-
-    -- Apply default theme
-    UI.SetTheme(UI_CONFIG.Theme)
-
-    -- Setup auto-save
+    
+    -- Create window
+    local window = createWindow()
+    if not window then
+        warn("Failed to create main window")
+        return false
+    end
+    
+    -- Store window reference globally
+    getgenv().Window = window
+    
+    -- Initialize managers
+    initializeSaveManager(window)
+    initializeInterfaceManager(window)
+    
+    -- Set up cleanup handler
     game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-        UI.SaveWindowState()
+        UI.Cleanup()
     end)
-
-    -- Load previous state if available
-    UI.LoadWindowState()
-
+    
+    -- Create default tabs
+    if not getgenv().Tabs then
+        getgenv().Tabs = {}
+    end
+    
+    -- Initialize successful
+    if getgenv().Config and getgenv().Config.Debug then
+        UI.ShowNotification("Initialization", "UI system loaded successfully")
+    end
+    
     return true
 end
 
