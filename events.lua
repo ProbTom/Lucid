@@ -2,110 +2,121 @@
 local Events = {
     _version = "1.0.1",
     _initialized = false,
-    _eventStatus = {},
-    _requiredEvents = {
-        "castrod",
-        "reelfinished",
-        "character"
-    },
     _connections = {},
-    _pendingEvents = {}
+    _events = {
+        required = {
+            castrod = false,
+            reelfinished = false,
+            character = false
+        }
+    }
 }
 
 -- Core services
 local Services = {
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Players = game:GetService("Players"),
     RunService = game:GetService("RunService")
 }
 
--- Silent event check without warnings
-function Events.CheckEvent(eventName)
-    if Events._eventStatus[eventName] ~= nil then
-        return Events._eventStatus[eventName]
-    end
-    
-    local events = Services.ReplicatedStorage:FindFirstChild("events")
-    if not events then
-        Events._eventStatus[eventName] = false
-        Events._pendingEvents[eventName] = true
-        return false
-    end
+local Player = Services.Players.LocalPlayer
 
-    local exists = events:FindFirstChild(eventName) ~= nil
-    Events._eventStatus[eventName] = exists
-    
-    if not exists then
-        Events._pendingEvents[eventName] = true
-    end
-    
-    return exists
+-- Initialize state if not exists
+if not getgenv().State then
+    getgenv().State = {
+        Events = {
+            Available = {}
+        }
+    }
 end
 
--- Watch for event creation/removal
-function Events.WatchEvents()
-    local events = Services.ReplicatedStorage:FindFirstChild("events")
-    if not events then
-        events = Instance.new("Folder")
-        events.Name = "events"
-        events.Parent = Services.ReplicatedStorage
+-- Silent event verification
+function Events.VerifyEvents()
+    local events = Services.ReplicatedStorage:WaitForChild("events", 1)
+    if not events then return false end
+    
+    for eventName, _ in pairs(Events._events.required) do
+        local event = events:FindFirstChild(eventName)
+        Events._events.required[eventName] = event ~= nil
+        getgenv().State.Events.Available[eventName] = event ~= nil
     end
     
-    -- Watch for changes in the events folder
-    Events._connections.added = events.ChildAdded:Connect(function(child)
-        Events._eventStatus[child.Name] = true
-        Events._pendingEvents[child.Name] = nil
-        if getgenv().State and getgenv().State.Events then
+    return true
+end
+
+-- Event monitoring system
+function Events.StartEventMonitoring()
+    if Events._connections.monitor then return end
+    
+    local events = Services.ReplicatedStorage:WaitForChild("events", 1)
+    if not events then return end
+    
+    Events._connections.monitor = events.ChildAdded:Connect(function(child)
+        if Events._events.required[child.Name] ~= nil then
+            Events._events.required[child.Name] = true
             getgenv().State.Events.Available[child.Name] = true
-        end
-        
-        if getgenv().Config and getgenv().Config.Debug then
-            print(string.format("✓ Event became available: %s", child.Name))
         end
     end)
     
     Events._connections.removed = events.ChildRemoved:Connect(function(child)
-        Events._eventStatus[child.Name] = false
-        Events._pendingEvents[child.Name] = true
-        if getgenv().State and getgenv().State.Events then
+        if Events._events.required[child.Name] ~= nil then
+            Events._events.required[child.Name] = false
             getgenv().State.Events.Available[child.Name] = false
         end
     end)
 end
 
+-- Event handling system
+function Events.HandleFishingEvents()
+    if Events._connections.fishing then return end
+    
+    local events = Services.ReplicatedStorage:WaitForChild("events", 1)
+    if not events then return end
+    
+    -- Handle rod cast events
+    local castEvent = events:FindFirstChild("castrod")
+    if castEvent then
+        Events._connections.cast = castEvent.OnClientEvent:Connect(function()
+            if getgenv().Functions then
+                task.spawn(function()
+                    task.wait(0.1) -- Small delay for game state update
+                    if getgenv().State.AutoReeling then
+                        getgenv().Functions.Reel()
+                    end
+                end)
+            end
+        end)
+    end
+    
+    -- Handle character events (shake)
+    local characterEvent = events:FindFirstChild("character")
+    if characterEvent then
+        Events._connections.character = characterEvent.OnClientEvent:Connect(function(action)
+            if action == "shake" and getgenv().Functions then
+                task.spawn(function()
+                    task.wait(0.1) -- Small delay for game state update
+                    if getgenv().State.AutoShaking then
+                        getgenv().Functions.Shake()
+                    end
+                end)
+            end
+        end)
+    end
+end
+
 -- Initialize events system
 function Events.Initialize()
-    if Events._initialized then
-        return true
-    end
-
-    -- Ensure state exists
-    if not getgenv().State then
-        getgenv().State = {}
-    end
+    if Events._initialized then return true end
     
-    if not getgenv().State.Events then
-        getgenv().State.Events = {
-            Available = {}
-        }
-    end
-
-    -- Check all required events silently
-    for _, eventName in ipairs(Events._requiredEvents) do
-        getgenv().State.Events.Available[eventName] = Events.CheckEvent(eventName)
-    end
-
-    -- Set up event watching
-    Events.WatchEvents()
+    -- Verify events existence
+    Events.VerifyEvents()
     
-    -- Set up periodic event availability checker
-    Events._connections.checker = Services.RunService.Heartbeat:Connect(function()
-        for eventName in pairs(Events._pendingEvents) do
-            if Events.CheckEvent(eventName) then
-                Events._pendingEvents[eventName] = nil
-            end
-        end
-    end)
-
+    -- Start monitoring
+    Events.StartEventMonitoring()
+    
+    -- Setup event handlers
+    Events.HandleFishingEvents()
+    
     Events._initialized = true
     
     if getgenv().Config and getgenv().Config.Debug then
@@ -123,8 +134,6 @@ function Events.Cleanup()
         end
     end
     Events._connections = {}
-    Events._pendingEvents = {}
-    Events._eventStatus = {}
 end
 
 -- Run initialization
