@@ -1,34 +1,30 @@
 -- Tab.lua
 local success, result = pcall(function()
-    -- Wait for game load
     if not game:IsLoaded() then
         game.Loaded:Wait()
     end
 
-    -- Get services
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
-    -- Check dependencies
     if not getgenv().Fluent then return "Fluent UI library not initialized" end
     if not getgenv().Functions then return "Functions module not initialized" end
     if not getgenv().Options then return "Options not initialized" end
+    if not getgenv().Config then return "Config not initialized" end
 
-    -- Create window if it doesn't exist
     if not getgenv().LucidWindow then
         getgenv().LucidWindow = getgenv().Fluent:CreateWindow({
             Title = "Lucid Hub",
             SubTitle = "by ProbTom",
             TabWidth = 160,
             Size = UDim2.fromOffset(580, 460),
-            Theme = "Rose"
+            Theme = getgenv().Config.UI.Theme
         })
     end
 
     local window = getgenv().LucidWindow
     if not window then return "Failed to create window" end
 
-    -- Initialize Tabs table
     if not getgenv().Tabs then
         getgenv().Tabs = {}
     end
@@ -46,7 +42,7 @@ local success, result = pcall(function()
 
     getgenv().Tabs.Items = window:AddTab({
         Title = "Items",
-        Icon = "box"
+        Icon = "package"
     })
 
     getgenv().Tabs.Teleports = window:AddTab({
@@ -69,7 +65,14 @@ local success, result = pcall(function()
         Icon = "heart"
     })
 
-    -- Add Credits content to Exclusives tab
+    -- Initialize Options for Items tab
+    getgenv().Options.ChestRange = getgenv().Config.Items.ChestRange.Default
+    getgenv().Options.SelectedRarities = {Common = true}
+    getgenv().Options.AutoCollectEnabled = false
+    getgenv().Options.AutoSellEnabled = false
+    getgenv().Options.AutoEquipBestRod = false
+
+    -- Add Credits content
     if getgenv().Tabs.Exclusives then
         local creditsSection = getgenv().Tabs.Exclusives:AddSection("Credits")
         
