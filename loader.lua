@@ -133,6 +133,7 @@ local loadOrder = {
     {name = "functions.lua", required = true},
     {name = "Tab.lua", required = true},
     {name = "MainTab.lua", required = true}
+    {name = "ItemsTab.lua", required= true}
 }
 
 for _, script in ipairs(loadOrder) do
