@@ -1,80 +1,77 @@
 -- ui.lua
 -- Core UI Module for Lucid Hub
+if getgenv().LucidUI then
+    return getgenv().LucidUI
+end
+
 local UI = {
     _version = "1.0.1",
     _initialized = false,
     _components = {}
 }
 
--- Protection against multiple initializations
-if getgenv().LucidUI then
-    return getgenv().LucidUI
-end
-
--- Core services with protection
+-- Core services
 local Services = {
     Players = game:GetService("Players"),
-    CoreGui = game:GetService("CoreGui")
+    CoreGui = game:GetService("CoreGui"),
+    RunService = game:GetService("RunService")
 }
 
--- Configuration constants with required fields
-local Config = {
-    WINDOW = {
-        Name = "Lucid Hub",
-        Title = "Lucid Hub", -- Required
-        LoadingTitle = "Lucid Hub", -- Required
-        SubTitle = "by ProbTom", -- Required
-        LoadingSubtitle = "by ProbTom", -- Required
-        TabWidth = 160,
-        Size = UDim2.fromOffset(580, 460),
-        Theme = "Dark",
-        ConfigurationSaving = {
-            Enabled = true,
-            FolderName = "LucidHub",
-            FileName = "Config"
-        }
-    },
-    TABS = {
-        {Name = "Home", Icon = "home"},
-        {Name = "Main", Icon = "list"},
-        {Name = "Items", Icon = "package"},
-        {Name = "Teleports", Icon = "map-pin"},
-        {Name = "Misc", Icon = "file-text"},
-        {Name = "Trade", Icon = "gift"},
-        {Name = "Credit", Icon = "heart"}
-    }
-}
-
--- Dependency verification
-local function verifyDependencies()
-    if not getgenv or not getgenv().Fluent then
-        warn("Critical dependency missing: Fluent UI Library")
+-- Verify environment and dependencies
+local function verifyEnvironment()
+    -- Check for required globals
+    if not getgenv or not getgenv().Config then
+        warn("Missing required global: Config")
         return false
     end
 
-    if not Services.Players.LocalPlayer then
-        warn("LocalPlayer not available")
+    if not getgenv().Fluent then
+        warn("Missing required dependency: Fluent UI")
         return false
+    end
+
+    -- Verify services
+    for name, service in pairs(Services) do
+        if not service then
+            warn("Required service missing:", name)
+            return false
+        end
     end
 
     return true
 end
 
--- Create window with mandatory parameters
+-- Create window with all required parameters
 local function createWindow()
     if not getgenv().Fluent then return nil end
 
-    -- Use pcall to catch any errors
+    local Config = getgenv().Config
+    if not Config or not Config.UI or not Config.UI.Window then
+        warn("Missing UI configuration")
+        return nil
+    end
+
     local success, window = pcall(function()
-        -- Create window with all required parameters
         return getgenv().Fluent:CreateWindow({
-            Name = Config.WINDOW.Name,           -- Required
-            Title = Config.WINDOW.Title,         -- Required
-            SubTitle = Config.WINDOW.SubTitle,   -- Required
-            TabWidth = Config.WINDOW.TabWidth,
-            Size = Config.WINDOW.Size,
-            Theme = Config.WINDOW.Theme,
-            ConfigurationSaving = Config.WINDOW.ConfigurationSaving
+            -- Required parameters
+            Name = Config.UI.Window.Name,
+            Title = Config.UI.Window.Title,
+            SubTitle = Config.UI.Window.SubTitle,
+            LoadingTitle = Config.UI.Window.LoadingTitle,
+            LoadingSubtitle = Config.UI.Window.LoadingSubtitle,
+            
+            -- Optional parameters
+            TabWidth = Config.UI.Window.TabWidth,
+            Size = Config.UI.Window.Size,
+            Theme = Config.UI.Window.Theme,
+            MinimizeKey = Config.UI.Window.MinimizeKey,
+            
+            -- Save configuration
+            ConfigurationSaving = {
+                Enabled = Config.Save.Enabled,
+                FolderName = Config.Save.FolderName,
+                FileName = Config.Save.FileName
+            }
         })
     end)
 
@@ -86,18 +83,22 @@ local function createWindow()
     return window
 end
 
--- Create tabs with proper error handling
+-- Create tabs with comprehensive error handling
 local function createTabs(window)
     if not window then return false end
     
+    local Config = getgenv().Config
+    if not Config or not Config.UI or not Config.UI.Tabs then
+        warn("Missing tab configuration")
+        return false
+    end
+    
     UI._components.Tabs = {}
     
-    for _, tabInfo in ipairs(Config.TABS) do
-        -- Use pcall for tab creation
+    for _, tabInfo in ipairs(Config.UI.Tabs) do
         local success, tab = pcall(function()
             return window:AddTab({
-                Name = tabInfo.Name,    -- Required
-                Title = tabInfo.Name,   -- Required
+                Title = tabInfo.Name,
                 Icon = tabInfo.Icon
             })
         end)
@@ -112,17 +113,48 @@ local function createTabs(window)
     return true
 end
 
--- Core initialization
+-- Public interface
+function UI.ShowNotification(title, content, duration)
+    if not getgenv().Fluent then return end
+    
+    pcall(function()
+        getgenv().Fluent:Notify({
+            Title = title or "Notification",
+            Content = content or "",
+            Duration = duration or 3
+        })
+    end)
+end
+
+function UI.GetWindow()
+    return UI._components.Window
+end
+
+function UI.GetTab(name)
+    return UI._components.Tabs and UI._components.Tabs[name]
+end
+
+function UI.CreateSection(tabName, sectionName)
+    local tab = UI._components.Tabs and UI._components.Tabs[tabName]
+    if not tab then return nil end
+    
+    local success, section = pcall(function()
+        return tab:CreateSection(sectionName)
+    end)
+    
+    return success and section or nil
+end
+
+-- Initialize UI system
 local function initialize()
     if UI._initialized then
         return true
     end
 
-    if not verifyDependencies() then
+    if not verifyEnvironment() then
         return false
     end
 
-    -- Create window
     local window = createWindow()
     if not window then
         return false
@@ -131,19 +163,18 @@ local function initialize()
     -- Store window references
     UI._components.Window = window
     getgenv().Window = window
-    getgenv().LucidWindow = window  -- For compatibility
+    getgenv().LucidWindow = window
 
-    -- Create tabs
     if not createTabs(window) then
         return false
     end
 
-    -- Initialize SaveManager if available
+    -- Initialize SaveManager
     if getgenv().SaveManager then
         pcall(function()
             getgenv().SaveManager:SetLibrary(getgenv().Fluent)
             getgenv().SaveManager:SetWindow(window)
-            getgenv().SaveManager:Load(Config.WINDOW.ConfigurationSaving.FileName)
+            getgenv().SaveManager:Load(getgenv().Config.Save.FileName)
         end)
     end
 
@@ -151,7 +182,7 @@ local function initialize()
     Services.Players.LocalPlayer.OnTeleport:Connect(function()
         pcall(function()
             if getgenv().SaveManager then
-                getgenv().SaveManager:Save(Config.WINDOW.ConfigurationSaving.FileName)
+                getgenv().SaveManager:Save(getgenv().Config.Save.FileName)
             end
             if UI._components.Window then
                 UI._components.Window:Destroy()
@@ -161,26 +192,6 @@ local function initialize()
 
     UI._initialized = true
     return true
-end
-
--- Public interface
-function UI.GetWindow()
-    return UI._components.Window
-end
-
-function UI.GetTab(name)
-    return UI._components.Tabs and UI._components.Tabs[name]
-end
-
-function UI.ShowNotification(title, content, duration)
-    if not getgenv().Fluent then return end
-    pcall(function()
-        getgenv().Fluent:Notify({
-            Title = title or "Notification",
-            Content = content or "",
-            Duration = duration or 3
-        })
-    end)
 end
 
 -- Run initialization with proper error handling
