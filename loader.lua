@@ -21,7 +21,7 @@ getgenv().Config = {
     Debug = true,
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua" -- Corrected URL
+        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
     },
     MaxRetries = 3,
     RetryDelay = 1
@@ -30,21 +30,28 @@ getgenv().Config = {
 local function debugPrint(...)
     if getgenv().Config.Debug then
         print("[Lucid Debug]", ...)
-        if type(debug) == "table" and type(debug.traceback) == "function" then
-            print(debug.traceback())
-        end
     end
 end
 
 local function loadScript(name)
     local success, result = pcall(function()
         local source = game:HttpGet(getgenv().Config.URLs.Main .. name)
-        if not source then return false end
+        if not source then 
+            debugPrint("No source found for:", name)
+            return false 
+        end
         
         local loaded = loadstring(source)
-        if not loaded then return false end
+        if not loaded then 
+            debugPrint("Failed to compile:", name)
+            return false 
+        end
         
-        return loaded()
+        local result = loaded()
+        if not result then
+            debugPrint("Script execution returned nil:", name)
+        end
+        return result
     end)
     
     if success and result then
@@ -63,30 +70,38 @@ if not loadScript("compatibility.lua") then
     return
 end
 
--- Initialize Fluent UI
+-- Initialize Fluent UI with step-by-step debugging
 local function initializeFluentUI()
+    debugPrint("Step 1: Fetching Fluent UI source...")
     local success, content = pcall(function()
         return game:HttpGet(getgenv().Config.URLs.Fluent)
     end)
     
     if not success then
-        debugPrint("Failed to fetch Fluent UI:", content)
+        debugPrint("Failed to fetch Fluent UI source:", content)
         return false
     end
     
-    local loaded = loadstring(content)
+    debugPrint("Step 2: Compiling Fluent UI source...")
+    local loaded, loadError = loadstring(content)
     if not loaded then
-        debugPrint("Failed to compile Fluent UI source")
+        debugPrint("Failed to compile Fluent UI:", loadError)
         return false
     end
     
+    debugPrint("Step 3: Executing Fluent UI...")
     local success, lib = pcall(loaded)
-    if not success or type(lib) ~= "table" then
+    if not success then
         debugPrint("Failed to execute Fluent UI:", lib)
         return false
     end
     
-    -- Verify essential methods exist
+    if type(lib) ~= "table" then
+        debugPrint("Fluent UI did not return a table, got:", type(lib))
+        return false
+    end
+    
+    debugPrint("Step 4: Verifying Fluent UI methods...")
     local requiredMethods = {"CreateWindow", "Notify"}
     for _, method in ipairs(requiredMethods) do
         if type(lib[method]) ~= "function" then
@@ -95,18 +110,29 @@ local function initializeFluentUI()
         end
     end
     
-    -- Apply compatibility wrapper
-    if type(getgenv().CompatibilityLayer) == "table" and 
-       type(getgenv().CompatibilityLayer.wrapFluentUI) == "function" then
-        local wrapped = getgenv().CompatibilityLayer.wrapFluentUI(lib)
-        if type(wrapped) == "table" then
-            getgenv().Fluent = wrapped
-            return true
-        end
+    debugPrint("Step 5: Checking compatibility layer...")
+    if type(getgenv().CompatibilityLayer) ~= "table" then
+        debugPrint("CompatibilityLayer is not a table")
+        return false
     end
     
-    debugPrint("Failed to wrap Fluent UI with compatibility layer")
-    return false
+    if type(getgenv().CompatibilityLayer.wrapFluentUI) ~= "function" then
+        debugPrint("CompatibilityLayer.wrapFluentUI is not a function")
+        return false
+    end
+    
+    debugPrint("Step 6: Wrapping Fluent UI...")
+    local wrapped = getgenv().CompatibilityLayer.wrapFluentUI(lib)
+    if type(wrapped) ~= "table" then
+        debugPrint("Wrapped Fluent UI is not a table, got:", type(wrapped))
+        return false
+    end
+    
+    debugPrint("Step 7: Setting global Fluent...")
+    getgenv().Fluent = wrapped
+    
+    debugPrint("Fluent UI initialization complete!")
+    return true
 end
 
 debugPrint("Initializing Fluent UI...")
