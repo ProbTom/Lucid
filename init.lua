@@ -18,15 +18,21 @@ local RunService = getService("RunService")
 local VirtualUser = getService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
--- Initialize Options table if it doesn't exist
+-- Initialize global tables
 if not getgenv().Options then
     getgenv().Options = {
-        -- Main Features (only what's actually used in MainTab)
+        -- Main Features
         autoCast = { Value = false },
         autoShake = { Value = false },
         autoReel = { Value = false },
         CastMode = { Value = "Legit" },
         ReelMode = { Value = "Blatant" }
+    }
+end
+
+if not getgenv().Tabs then
+    getgenv().Tabs = {
+        Main = nil  -- Will be populated by Tab.lua
     }
 end
 
