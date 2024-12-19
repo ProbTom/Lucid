@@ -16,19 +16,6 @@ if not getgenv().Fluent then
     return
 end
 
--- Load functions with error handling
-local Functions
-local success, result = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/functions.lua"))()
-end)
-
-if success then
-    Functions = result
-else
-    warn("Failed to load functions: " .. tostring(result))
-    return
-end
-
 -- Get required services with error handling
 local function getService(serviceName)
     local success, service = pcall(function()
@@ -43,124 +30,45 @@ local function getService(serviceName)
 end
 
 local Players = getService("Players")
-local RunService = getService("RunService")
-local ReplicatedStorage = getService("ReplicatedStorage")
-local UserInputService = getService("UserInputService")
-local VirtualInputManager = getService("VirtualInputManager")
-
--- Initialize local variables with error handling
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
     warn("LocalPlayer not found")
     return
 end
 
-local LocalCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = LocalCharacter:FindFirstChild("HumanoidRootPart")
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local FishingZonesFolder = workspace:WaitForChild("zones"):WaitForChild("fishing")
 
 -- Initialize state variables
 local CastMode = "Legit"
 local ShakeMode = "Navigation"
 local ReelMode = "Blatant"
-local autoCastEnabled = false
-local autoShakeEnabled = false
-local autoReelEnabled = false
-local FreezeChar = false
-local ZoneCast = false
 local Zone = nil
-
--- Initialize connections
-local autoShakeConnection
-local autoReelConnection
 
 -- Main Section
 local mainSection = Tabs.Main:AddSection("Auto Fishing")
 
--- Connection cleanup function
-local function cleanupConnections()
-    if autoShakeConnection then
-        autoShakeConnection:Disconnect()
-        autoShakeConnection = nil
-    end
-    if autoReelConnection then
-        autoReelConnection:Disconnect()
-        autoReelConnection = nil
-    end
-end
-
 -- Auto Cast Toggle
 local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false})
 autoCast:OnChanged(function()
-    if Options.autoCast.Value then
-        autoCastEnabled = true
-        pcall(function()
-            local RodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-            if LocalPlayer.Backpack:FindFirstChild(RodName) then
-                LocalPlayer.Character.Humanoid:EquipTool(LocalPlayer.Backpack:FindFirstChild(RodName))
-            end
-            Functions.autoCast(CastMode, LocalCharacter, HumanoidRootPart)
-        end)
-    else
-        autoCastEnabled = false
-    end
+    -- Empty callback
 end)
 
 -- Auto Shake Toggle
 local autoShake = Tabs.Main:AddToggle("autoShake", {Title = "Auto Shake", Default = false})
 autoShake:OnChanged(function()
-    if Options.autoShake.Value then
-        autoShakeEnabled = true
-        if not autoShakeConnection then
-            autoShakeConnection = RunService.RenderStepped:Connect(function()
-                Functions.autoShake(ShakeMode, PlayerGui)
-            end)
-        end
-    else
-        autoShakeEnabled = false
-        if autoShakeConnection then
-            autoShakeConnection:Disconnect()
-            autoShakeConnection = nil
-        end
-    end
+    -- Empty callback
 end)
 
 -- Auto Reel Toggle
 local autoReel = Tabs.Main:AddToggle("autoReel", {Title = "Auto Reel", Default = false})
 autoReel:OnChanged(function()
-    if Options.autoReel.Value then
-        autoReelEnabled = true
-        if not autoReelConnection then
-            autoReelConnection = RunService.RenderStepped:Connect(function()
-                Functions.autoReel(PlayerGui, ReelMode)
-            end)
-        end
-    else
-        autoReelEnabled = false
-        if autoReelConnection then
-            autoReelConnection:Disconnect()
-            autoReelConnection = nil
-        end
-    end
+    -- Empty callback
 end)
 
 -- Freeze Character Toggle
 local FreezeCharacter = Tabs.Main:AddToggle("FreezeCharacter", {Title = "Freeze Character", Default = false})
 FreezeCharacter:OnChanged(function()
-    if HumanoidRootPart then
-        local oldpos = HumanoidRootPart.CFrame
-        FreezeChar = Options.FreezeCharacter.Value
-        
-        if FreezeChar then
-            spawn(function()
-                while FreezeChar and HumanoidRootPart do
-                    HumanoidRootPart.CFrame = oldpos
-                    RunService.RenderStepped:Wait()
-                end
-            end)
-        end
-    end
+    -- Empty callback
 end)
 
 -- Mode Section
@@ -205,10 +113,7 @@ local zoneSection = Tabs.Main:AddSection("Zone Settings")
 -- Zone Cast Toggle
 local zoneToggle = Tabs.Main:AddToggle("ZoneCast", {Title = "Zone Cast", Default = false})
 zoneToggle:OnChanged(function()
-    ZoneCast = Options.ZoneCast.Value
-    if ZoneCast and Zone then
-        Functions.handleZoneCast(ZoneCast, Zone, FishingZonesFolder, HumanoidRootPart)
-    end
+    -- Empty callback
 end)
 
 -- Zone Selection Dropdown
@@ -225,47 +130,6 @@ local zoneDropdown = Tabs.Main:AddDropdown("ZoneSelect", {
 })
 zoneDropdown:OnChanged(function(Value)
     Zone = Value
-    if ZoneCast then
-        Functions.handleZoneCast(ZoneCast, Zone, FishingZonesFolder, HumanoidRootPart)
-    end
-end)
-
--- Setup Event Connections
-PlayerGui.DescendantAdded:Connect(function(descendant)
-    if autoShakeEnabled and descendant.Name == "button" 
-    and descendant.Parent and descendant.Parent.Name == "safezone" then
-        Functions.autoShake(ShakeMode, PlayerGui)
-    end
-    
-    if autoReelEnabled and descendant.Name == "playerbar" 
-    and descendant.Parent and descendant.Parent.Name == "bar" then
-        Functions.autoReel(PlayerGui, ReelMode)
-    end
-end)
-
--- Anti-AFK
-LocalPlayer.Idled:Connect(function()
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-end)
-
--- Keep-alive loop for auto features
-spawn(function()
-    while true do
-        if autoCastEnabled then
-            pcall(function()
-                Functions.autoCast(CastMode, LocalCharacter, HumanoidRootPart)
-            end)
-        end
-        task.wait(0.1)
-    end
-end)
-
--- Cleanup on script end
-game:GetService("CoreGui").ChildRemoved:Connect(function(child)
-    if child.Name == "Fluent" then
-        cleanupConnections()
-    end
 end)
 
 return true
