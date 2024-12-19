@@ -2,23 +2,30 @@
 local function cleanupExisting()
     local CoreGui = game:GetService("CoreGui")
     
-    -- Clear existing states
-    getgenv().LucidHubLoaded = false
-    getgenv().cuppink = false
+    -- Remove existing GUI elements
+    if CoreGui:FindFirstChild("ClickButton") then
+        CoreGui:FindFirstChild("ClickButton"):Destroy()
+    end
+    
+    -- Clear existing states but check if it was previously loaded
+    local wasLoaded = getgenv().LucidHubLoaded
+    
+    -- Clear all states
     getgenv().Fluent = nil
     getgenv().SaveManager = nil
     getgenv().InterfaceManager = nil
     getgenv().Config = nil
     getgenv().Tabs = nil
     
-    -- Remove existing GUI elements
-    if CoreGui:FindFirstChild("ClickButton") then
-        CoreGui:FindFirstChild("ClickButton"):Destroy()
-    end
+    return wasLoaded
 end
 
--- Clean up before starting
-cleanupExisting()
+-- Check for re-execution
+local wasLoaded = cleanupExisting()
+if wasLoaded then
+    warn("Lucid Hub: Already executed! Cleaning up previous instance...")
+    task.wait(0.5) -- Give time for cleanup
+end
 
 -- Wait for game load
 if not game:IsLoaded() then
@@ -77,12 +84,13 @@ for _, file in ipairs(files) do
     task.wait(0.1)
 end
 
+-- Mark as loaded
 getgenv().LucidHubLoaded = true
 
 if getgenv().Fluent then
     getgenv().Fluent:Notify({
         Title = "Lucid Hub",
-        Content = "Successfully loaded!",
+        Content = wasLoaded and "Successfully reloaded!" or "Successfully loaded!",
         Duration = 5
     })
 end
