@@ -29,7 +29,7 @@ Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
                 local hasBobber = tool:FindFirstChild("bobber")
                 if not hasBobber then
                     if CastMode == "Legit" then
-                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, LocalPlayer, 0)
+                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
                         
                         local powerBarConnection
                         powerBarConnection = HumanoidRootPart.ChildAdded:Connect(function()
@@ -39,7 +39,7 @@ Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
                                     powerBar.bar.Changed:Connect(function(property)
                                         if property == "Size" and 
                                            powerBar.bar.Size == UDim2.new(1, 0, 1, 0) then
-                                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, LocalPlayer, 0)
+                                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
                                             if powerBarConnection then
                                                 powerBarConnection:Disconnect()
                                             end
@@ -68,9 +68,9 @@ Functions.autoShake = function(gui)
     pcall(function()
         if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
             gui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
-            VirtualInputManager:Button1Down(Vector2.new(1, 1))
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
             task.wait(0.1)
-            VirtualInputManager:Button1Up(Vector2.new(1, 1))
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
         end
     end)
 end
@@ -108,11 +108,7 @@ Functions.handleZoneCast = function(ZoneCast, Zone, FishingZonesFolder, Humanoid
     end
 end
 
--- Initialize notifications if they don't exist
-if not getgenv().Notifications then
-    getgenv().Notifications = {
-        Actions = true
-    }
-end
+-- Set global Functions table
+getgenv().Functions = Functions
 
-return Functions
+return true
