@@ -4,92 +4,77 @@ local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
--- Verify environment
+-- Core environment check
 if not getgenv then
     error("Unsupported environment")
     return false
 end
 
--- Initialize default configuration if missing
-if not getgenv().Config then
-    getgenv().Config = {
-        UI = {
-            MainColor = Color3.fromRGB(38, 38, 38),
-            ButtonColor = Color3.fromRGB(220, 125, 255),
-            MinimizeKey = Enum.KeyCode.RightControl,
-            Theme = "Dark"
-        }
-    }
-end
-
--- Clean up existing window
-if getgenv().Window then
-    pcall(function()
-        getgenv().Window:Destroy()
-    end)
-    getgenv().Window = nil
-end
-
--- Verify Fluent UI library
+-- Check required dependencies
 if not getgenv().Fluent then
     error("Fluent UI library not initialized")
     return false
 end
 
--- Create window
+-- Check if window already exists and clean up
+if getgenv().LucidWindow then
+    pcall(function()
+        getgenv().LucidWindow:Destroy()
+    end)
+    getgenv().LucidWindow = nil
+end
+
+-- Create new window instance
 local Window = getgenv().Fluent:CreateWindow({
     Title = "Lucid Hub",
     SubTitle = "by ProbTom",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
-    Theme = getgenv().Config.UI.Theme,
-    MinimizeKey = getgenv().Config.UI.MinimizeKey
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Store window reference
-getgenv().Window = Window
+-- Store window reference safely
+getgenv().LucidWindow = Window
 
--- Create tabs
-local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "home" }),
-    Items = Window:AddTab({ Title = "Items", Icon = "package" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
-}
-
--- Configure settings tab
-local SettingsTab = Tabs.Settings
-if SettingsTab then
-    local ThemeSection = SettingsTab:AddSection("Theme")
-    if ThemeSection then
-        ThemeSection:AddColorPicker("UIColor", {
-            Title = "Main Color",
-            Default = getgenv().Config.UI.MainColor,
-            Callback = function(color)
-                getgenv().Config.UI.MainColor = color
-                Window:SetAccent(color)
-            end
-        })
-    end
-
-    SettingsTab:AddButton({
-        Title = "Toggle UI",
-        Callback = function()
-            if Window.Minimized then
-                Window:Restore()
-            else
-                Window:Minimize()
-            end
-        end
-    })
-end
+-- Create base tabs
+local MainTab = Window:AddTab({ Title = "Main", Icon = "home" })
+local ItemsTab = Window:AddTab({ Title = "Items", Icon = "package" })
+local SettingsTab = Window:AddTab({ Title = "Settings", Icon = "settings" })
 
 -- Store tabs globally
-getgenv().Tabs = Tabs
+getgenv().LucidTabs = {
+    Main = MainTab,
+    Items = ItemsTab,
+    Settings = SettingsTab
+}
 
--- Setup minimize keybind
+-- Initialize Settings Tab
+local ThemeSection = SettingsTab:AddSection("Theme")
+ThemeSection:AddColorPicker("UIColor", {
+    Title = "Main Color",
+    Default = Color3.fromRGB(38, 38, 38),
+    Callback = function(color)
+        Window:SetAccent(color)
+    end
+})
+
+-- Add UI Toggle
+SettingsTab:AddButton({
+    Title = "Toggle UI",
+    Callback = function()
+        if Window.Minimized then
+            Window:Restore()
+        else
+            Window:Minimize()
+        end
+    end
+})
+
+-- Setup keybind for window toggle
 UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == getgenv().Config.UI.MinimizeKey then
+    if input.KeyCode == Enum.KeyCode.RightControl then
         if Window.Minimized then
             Window:Restore()
         else
