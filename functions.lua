@@ -1,60 +1,36 @@
 -- functions.lua
-local Functions = {}
-
--- Core Services with error handling
-local function getService(serviceName)
-    local success, service = pcall(function()
-        return game:GetService(serviceName)
-    end)
-    
-    if not success then
-        warn("Failed to get service:", serviceName)
-        return nil
-    end
-    
-    return service
-end
-
--- Initialize required services first
-local Players = getService("Players")
-local ReplicatedStorage = getService("ReplicatedStorage")
-
--- Wait for LocalPlayer to be available
-local LocalPlayer = Players and Players.LocalPlayer
-if not LocalPlayer then
-    local success, player = pcall(function()
-        return Players:WaitForChild("LocalPlayer", 10)
-    end)
-    if success then
-        LocalPlayer = player
-    end
-end
-
--- Early validation to prevent nil errors
-if not Players or not ReplicatedStorage or not LocalPlayer then
-    warn("Essential services or LocalPlayer not available")
-    return false
-end
-
--- Verify global state initialization
-if not getgenv or not getgenv() then
-    warn("getgenv not available")
-    return false
-end
-
--- Initialize required global states if they don't exist
-if not getgenv().Config then
-    getgenv().Config = {
-        Debug = true,
-        Version = "1.0.1"
+local Functions = {
+    _version = "1.0.1",
+    _initialized = false,
+    _connections = {},
+    _timers = {
+        lastCast = 0,
+        lastReel = 0,
+        lastShake = 0
+    },
+    _cooldowns = {
+        cast = 1,
+        reel = 0.5,
+        shake = 0.5
     }
-end
+}
 
+-- Core services
+local Services = {
+    Players = game:GetService("Players"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    RunService = game:GetService("RunService")
+}
+
+local Player = Services.Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+
+-- Initialize state if not exists
 if not getgenv().State then
     getgenv().State = {
-        AutoFishing = false,
-        AutoSelling = false,
-        SelectedRarities = {},
+        AutoCasting = false,
+        AutoReeling = false,
+        AutoShaking = false,
         LastReelTime = 0,
         LastShakeTime = 0,
         Events = {
@@ -63,160 +39,105 @@ if not getgenv().State then
     }
 end
 
--- Enhanced Notification System with nil checks
-Functions.ShowNotification = function(title, message)
-    if not getgenv().Fluent then return end
+-- Core fishing functions with cooldown management
+function Functions.Cast()
+    if tick() - Functions._timers.lastCast < Functions._cooldowns.cast then return end
     
-    pcall(function()
-        getgenv().Fluent:Notify({
-            Title = title or "Notification",
-            Content = message or "",
-            Duration = 3
-        })
-    end)
+    local events = Services.ReplicatedStorage:WaitForChild("events", 1)
+    if not events then return end
+    
+    local castEvent = events:FindFirstChild("castrod")
+    if not castEvent then return end
+
+    Functions._timers.lastCast = tick()
+    castEvent:FireServer()
 end
 
--- Fishing Functions with improved error handling
-Functions.autoFish = function(playerGui)
-    if not playerGui then return end
+function Functions.Reel()
+    if tick() - Functions._timers.lastReel < Functions._cooldowns.reel then return end
     
-    pcall(function()
-        local fishingGui = playerGui:WaitForChild("FishingGui", 1)
+    local events = Services.ReplicatedStorage:WaitForChild("events", 1)
+    if not events then return end
+    
+    local reelEvent = events:FindFirstChild("reelfinished")
+    if not reelEvent then return end
+
+    Functions._timers.lastReel = tick()
+    reelEvent:FireServer()
+end
+
+function Functions.Shake()
+    if tick() - Functions._timers.lastShake < Functions._cooldowns.shake then return end
+    
+    local events = Services.ReplicatedStorage:WaitForChild("events", 1)
+    if not events then return end
+    
+    local characterEvent = events:FindFirstChild("character")
+    if not characterEvent then return end
+
+    Functions._timers.lastShake = tick()
+    characterEvent:FireServer("shake")
+end
+
+-- Auto fishing system
+function Functions.StartAutoFishing()
+    if Functions._connections.fishing then return end
+    
+    Functions._connections.fishing = Services.RunService.Heartbeat:Connect(function()
+        if not Player or not Player.Character then return end
+        
+        local playerGui = Player:FindFirstChild("PlayerGui")
+        if not playerGui then return end
+        
+        local fishingGui = playerGui:FindFirstChild("FishingGui")
         if not fishingGui then return end
-        
-        local castingBar = fishingGui:FindFirstChild("CastingBar")
-        if not castingBar or not castingBar.Visible then
-            local events = ReplicatedStorage:FindFirstChild("events")
-            if events and events:FindFirstChild("castrod") then
-                events.castrod:FireServer()
+
+        -- Auto Cast Logic
+        if getgenv().State.AutoCasting then
+            local castingBar = fishingGui:FindFirstChild("CastingBar")
+            if not castingBar or not castingBar.Visible then
+                Functions.Cast()
+            end
+        end
+
+        -- Auto Reel Logic
+        if getgenv().State.AutoReeling then
+            local reelButton = fishingGui:FindFirstChild("ReelButton")
+            if reelButton and reelButton.Visible then
+                Functions.Reel()
+            end
+        end
+
+        -- Auto Shake Logic
+        if getgenv().State.AutoShaking then
+            local shakeBar = fishingGui:FindFirstChild("ShakeBar")
+            if shakeBar and shakeBar.Visible then
+                Functions.Shake()
             end
         end
     end)
 end
 
-Functions.autoReel = function(playerGui)
-    if not playerGui then return end
-    
-    pcall(function()
-        local fishingGui = playerGui:WaitForChild("FishingGui", 1)
-        if not fishingGui then return end
-        
-        local reelButton = fishingGui:FindFirstChild("ReelButton")
-        if reelButton and reelButton.Visible then
-            local events = ReplicatedStorage:FindFirstChild("events")
-            if events and events:FindFirstChild("reelfinished") then
-                events.reelfinished:FireServer()
-            end
-        end
-    end)
-end
-
-Functions.autoShake = function(playerGui)
-    if not playerGui then return end
-    
-    pcall(function()
-        local fishingGui = playerGui:WaitForChild("FishingGui", 1)
-        if not fishingGui then return end
-        
-        local shakeBar = fishingGui:FindFirstChild("ShakeBar")
-        if shakeBar and shakeBar.Visible then
-            local events = ReplicatedStorage:FindFirstChild("events")
-            if events and events:FindFirstChild("character") then
-                events.character:FireServer("shake")
-            end
-        end
-    end)
-end
-
--- Inventory Management Functions with nil checks
-Functions.sellFish = function(rarity)
-    if not rarity or not LocalPlayer then return end
-    
-    pcall(function()
-        local backpack = LocalPlayer:WaitForChild("Backpack")
-        local sold = 0
-        
-        for _, item in pairs(backpack:GetChildren()) do
-            if item:FindFirstChild("values") and 
-               item.values:FindFirstChild("rarity") and 
-               item.values.rarity.Value == rarity then
-                local events = ReplicatedStorage:FindFirstChild("events")
-                if events and events:FindFirstChild("sellfish") then
-                    events.sellfish:FireServer(item)
-                    sold = sold + 1
-                end
-            end
-        end
-        
-        if getgenv().Config.Debug and sold > 0 then
-            Functions.ShowNotification("Sold Items", string.format("Sold %d %s items", sold, rarity))
-        end
-    end)
-end
-
-Functions.equipBestRod = function()
-    if not LocalPlayer then return end
-    
-    pcall(function()
-        local backpack = LocalPlayer:WaitForChild("Backpack")
-        local bestRod = nil
-        local bestPower = 0
-        
-        for _, item in pairs(backpack:GetChildren()) do
-            if item:FindFirstChild("values") and 
-               item.values:FindFirstChild("power") and 
-               item.values:FindFirstChild("type") and 
-               item.values.type.Value == "Rod" then
-                local power = item.values.power.Value
-                if power > bestPower then
-                    bestPower = power
-                    bestRod = item
-                end
-            end
-        end
-        
-        if bestRod and LocalPlayer.Character then
-            bestRod.Parent = LocalPlayer.Character
-            if getgenv().Config.Debug then
-                Functions.ShowNotification("Equipment", "Equipped best rod: " .. bestRod.Name)
-            end
-        end
-    end)
-end
-
-Functions.collectChest = function(chest, range)
-    if not chest or not range or not LocalPlayer then return end
-    
-    pcall(function()
-        local character = LocalPlayer.Character
-        if not character then return end
-        
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if not humanoidRootPart then return end
-        
-        local distance = (chest:GetPivot().Position - humanoidRootPart.Position).Magnitude
-        if distance <= range then
-            local events = ReplicatedStorage:FindFirstChild("events")
-            if events and events:FindFirstChild("collectchest") then
-                events.collectchest:FireServer(chest)
-            end
-        end
-    end)
-end
-
--- Initialize module
-local function InitializeFunctions()
-    -- Set up character added handler with error checking
-    if LocalPlayer then
-        pcall(function()
-            LocalPlayer.CharacterAdded:Connect(function(character)
-                if getgenv().Options and getgenv().Options.AutoEquipBestRod then
-                    task.wait(1)
-                    Functions.equipBestRod()
-                end
-            end)
-        end)
+function Functions.StopAutoFishing()
+    if Functions._connections.fishing then
+        Functions._connections.fishing:Disconnect()
+        Functions._connections.fishing = nil
     end
+end
+
+-- Initialize functions system
+function Functions.Initialize()
+    if Functions._initialized then return true end
+    
+    -- Set up character handling
+    Player.CharacterAdded:Connect(function(char)
+        Character = char
+    end)
+    
+    -- Start auto fishing if enabled
+    Functions.StartAutoFishing()
+    
+    Functions._initialized = true
     
     if getgenv().Config and getgenv().Config.Debug then
         print("✓ Functions module initialized successfully")
@@ -225,10 +146,28 @@ local function InitializeFunctions()
     return true
 end
 
--- Run initialization
-if InitializeFunctions() then
-    return Functions
-else
-    warn("⚠️ Failed to initialize Functions module")
-    return false
+-- Cleanup function
+function Functions.Cleanup()
+    Functions.StopAutoFishing()
+    
+    for _, connection in pairs(Functions._connections) do
+        if typeof(connection) == "RBXScriptConnection" then
+            connection:Disconnect()
+        end
+    end
+    Functions._connections = {}
 end
+
+-- Run initialization
+local success = Functions.Initialize()
+
+if not success and getgenv().Config and getgenv().Config.Debug then
+    warn("⚠️ Failed to initialize Functions module")
+end
+
+-- Setup cleanup on teleport
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+    Functions.Cleanup()
+end)
+
+return Functions
