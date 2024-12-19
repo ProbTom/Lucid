@@ -21,19 +21,28 @@ local LocalPlayer = Players.LocalPlayer
 -- Initialize Options table if it doesn't exist
 if not getgenv().Options then
     getgenv().Options = {
+        -- Main Features
         autoCast = { Value = false },
         autoShake = { Value = false },
         autoReel = { Value = false },
+        CastMode = { Value = "Legit" },
+        ReelMode = { Value = "Blatant" },
+        
+        -- Character Features
         FreezeCharacter = { Value = false },
         ZoneCast = { Value = false },
-        CountShadows = { Value = false },
-        RodDupe = { Value = false },
         WalkOnWater = { Value = false },
         ToggleNoclip = { Value = false },
+        
+        -- Game Features
+        CountShadows = { Value = false },
+        RodDupe = { Value = false },
         BypassRadar = { Value = false },
         BypassGPS = { Value = false },
         RemoveFog = { Value = false },
         DayOnly = { Value = false },
+        
+        -- Other Settings
         HoldDuration = { Value = false },
         DisableOxygen = { Value = true },
         JustUI = { Value = true },
@@ -138,17 +147,30 @@ local function setupAntiCheat()
         local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local method = getnamecallmethod()
+            local args = {...}
+            
             if method == "FireServer" or method == "InvokeServer" then
-                local args = {...}
                 if typeof(args[1]) == "string" and args[1]:match("exploit") then
                     return
                 end
             end
+            
             return oldNamecall(self, ...)
+        end)
+        
+        -- Hook index metamethod for additional protection
+        local oldIndex
+        oldIndex = hookmetamethod(game, "__index", function(self, key)
+            if checkcaller() then return oldIndex(self, key) end
+            
+            if key == "Name" and self:IsA("RemoteEvent") then
+                return "Event"
+            end
+            
+            return oldIndex(self, key)
         end)
     end)
 end
 
 setupAntiCheat()
-
 return true
