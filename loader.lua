@@ -1,3 +1,9 @@
+-- Check if already executed first, before doing anything else
+if getgenv().LucidHubLoaded then
+    warn("Lucid Hub: Already executed!")
+    return
+end
+
 -- Function to clean up existing instances
 local function cleanupExisting()
     local CoreGui = game:GetService("CoreGui")
@@ -7,25 +13,16 @@ local function cleanupExisting()
         CoreGui:FindFirstChild("ClickButton"):Destroy()
     end
     
-    -- Clear existing states but check if it was previously loaded
-    local wasLoaded = getgenv().LucidHubLoaded
-    
     -- Clear all states
     getgenv().Fluent = nil
     getgenv().SaveManager = nil
     getgenv().InterfaceManager = nil
     getgenv().Config = nil
     getgenv().Tabs = nil
-    
-    return wasLoaded
 end
 
--- Check for re-execution
-local wasLoaded = cleanupExisting()
-if wasLoaded then
-    warn("Lucid Hub: Already executed! Cleaning up previous instance...")
-    task.wait(0.5) -- Give time for cleanup
-end
+-- Clean up any existing instances
+cleanupExisting()
 
 -- Wait for game load
 if not game:IsLoaded() then
@@ -90,7 +87,7 @@ getgenv().LucidHubLoaded = true
 if getgenv().Fluent then
     getgenv().Fluent:Notify({
         Title = "Lucid Hub",
-        Content = wasLoaded and "Successfully reloaded!" or "Successfully loaded!",
+        Content = "Successfully loaded!",
         Duration = 5
     })
 end
