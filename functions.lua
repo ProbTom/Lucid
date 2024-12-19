@@ -5,10 +5,14 @@ local LocalPlayer = Players.LocalPlayer
 getgenv().Functions = {
     autoShake = function(gui)
         if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
-            gui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
-            VirtualUser:Button1Down(Vector2.new(1, 1))
-            task.wait(0.1)
-            VirtualUser:Button1Up(Vector2.new(1, 1))
+            -- Fix for the safezone button
+            local safezone = gui.shakeui:FindFirstChild("safezone")
+            if safezone then
+                safezone.Size = UDim2.new(1001, 0, 1001, 0)
+                VirtualUser:Button1Down(Vector2.new(1, 1))
+                task.wait(0.1)
+                VirtualUser:Button1Up(Vector2.new(1, 1))
+            end
         end
     end,
     
