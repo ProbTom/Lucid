@@ -71,6 +71,10 @@ getgenv().Config = {
             "Epic",
             "Legendary",
             "Mythical"
+            "Enchant Relics"
+            "Exotic"
+            "Limited"
+            "Gemstones"
         }
     },
     Debug = true
