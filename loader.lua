@@ -22,7 +22,7 @@ getgenv().Config = {
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
         Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/",
-        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/src/main.lua"
+        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/main.lua"
     },
     MaxRetries = 3,
     RetryDelay = 1
@@ -42,10 +42,14 @@ local function loadScript(name, maxRetries)
     while retryCount < maxRetries do
         local success, result = pcall(function()
             local source = game:HttpGet(getgenv().Config.URLs.Main .. name)
-            return loadstring(source)()
+            local loaded = loadstring(source)
+            if loaded then
+                return loaded()
+            end
+            return false
         end)
         
-        if success then
+        if success and result then
             debugPrint("Successfully loaded:", name)
             return true
         end
@@ -53,10 +57,14 @@ local function loadScript(name, maxRetries)
         -- If main fails, try backup
         success, result = pcall(function()
             local source = game:HttpGet(getgenv().Config.URLs.Backup .. name)
-            return loadstring(source)()
+            local loaded = loadstring(source)
+            if loaded then
+                return loaded()
+            end
+            return false
         end)
         
-        if success then
+        if success and result then
             debugPrint("Successfully loaded from backup:", name)
             return true
         else
@@ -82,31 +90,48 @@ end
 
 -- Load Fluent UI with compatibility wrapper
 local function loadFluentUI()
+    debugPrint("Fetching Fluent UI source...")
     local success, content = pcall(function()
         return game:HttpGet(getgenv().Config.URLs.Fluent)
     end)
 
     if not success then
-        warn("Failed to fetch Fluent UI:", content)
+        debugPrint("Failed to fetch Fluent UI source:", content)
         return false
     end
 
-    local success, fluentLib = pcall(function()
-        return loadstring(content)()
-    end)
-
+    debugPrint("Loading Fluent UI source...")
+    local success, fluentLoaded = pcall(loadstring, content)
     if not success then
-        warn("Failed to initialize Fluent UI:", fluentLib)
+        debugPrint("Failed to load Fluent UI source:", fluentLoaded)
+        return false
+    end
+
+    debugPrint("Executing Fluent UI...")
+    local success, fluentLib = pcall(fluentLoaded)
+    if not success then
+        debugPrint("Failed to execute Fluent UI:", fluentLib)
+        return false
+    end
+
+    if type(fluentLib) ~= "table" then
+        debugPrint("Fluent UI did not return a valid library table")
         return false
     end
 
     -- Apply compatibility wrapper
-    if getgenv().CompatibilityLayer then
+    if getgenv().CompatibilityLayer and type(getgenv().CompatibilityLayer.wrapFluentUI) == "function" then
         debugPrint("Applying compatibility wrapper to Fluent UI")
-        getgenv().Fluent = getgenv().CompatibilityLayer.wrapFluentUI(fluentLib)
-        return true
+        local wrapped = getgenv().CompatibilityLayer.wrapFluentUI(fluentLib)
+        if type(wrapped) == "table" then
+            getgenv().Fluent = wrapped
+            return true
+        else
+            debugPrint("Compatibility wrapper failed to return a valid table")
+            return false
+        end
     else
-        warn("Compatibility layer not found")
+        debugPrint("Compatibility layer not found or invalid")
         return false
     end
 end
