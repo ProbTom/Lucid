@@ -6,28 +6,14 @@ local VirtualUser = game:GetService("VirtualUser")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Anti AFK
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-    task.wait(1)
-    VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-end)
-
 getgenv().Functions = {
     autoShake = function(gui)
-        if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
-            local safezone = gui.shakeui:FindFirstChild("safezone")
+        if gui and gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
+            local safezone = gui.shakeui.safezone
             if safezone then
-                -- Find any button within safezone
-                for _, child in pairs(safezone:GetChildren()) do
-                    if child:IsA("TextButton") or child:IsA("ImageButton") then
-                        child.Size = UDim2.new(1001, 0, 1001, 0)
-                        VirtualUser:Button1Down(Vector2.new(1, 1))
-                        task.wait(0.1)
-                        VirtualUser:Button1Up(Vector2.new(1, 1))
-                        break
-                    end
-                end
+                VirtualUser:Button1Down(Vector2.new(1, 1))
+                task.wait(0.1)
+                VirtualUser:Button1Up(Vector2.new(1, 1))
             end
         end
     end,
