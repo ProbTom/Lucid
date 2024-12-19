@@ -1,8 +1,12 @@
+-- Clear any existing states first
 if getgenv().LucidHubLoaded then
-    warn("Lucid Hub: Already executed!")
-    return
+    getgenv().LucidHubLoaded = false
+end
+if getgenv().cuppink then
+    getgenv().cuppink = false
 end
 
+-- Wait for game load
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
