@@ -21,10 +21,12 @@ local HttpService = getService("HttpService")
 local UserInputService = getService("UserInputService")
 local CoreGui = getService("CoreGui")
 
--- Clean up existing UI
-if CoreGui:FindFirstChild("ClickButton") then
-    CoreGui:FindFirstChild("ClickButton"):Destroy()
-end
+-- Clean up any existing UI
+pcall(function()
+    if CoreGui:FindFirstChild("ClickButton") then
+        CoreGui:FindFirstChild("ClickButton"):Destroy()
+    end
+end)
 
 -- Initialize globals
 local Config = getgenv().Config
@@ -38,45 +40,43 @@ end
 -- Create mobile interface if needed
 local DeviceType = UserInputService.TouchEnabled and "Mobile" or "PC"
 if DeviceType == "Mobile" then
-    local ClickButton = Instance.new("ScreenGui")
-    ClickButton.Name = "ClickButton"
-    ClickButton.Parent = CoreGui
-    ClickButton.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    pcall(function()
+        local ClickButton = Instance.new("ScreenGui")
+        ClickButton.Name = "ClickButton"
+        ClickButton.Parent = CoreGui
+        ClickButton.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = "MainFrame"
-    MainFrame.Parent = ClickButton
-    MainFrame.AnchorPoint = Vector2.new(1, 0)
-    MainFrame.BackgroundTransparency = 0.8
-    MainFrame.BackgroundColor3 = Config.UI.MainColor
-    MainFrame.BorderSizePixel = 0
-    MainFrame.Position = UDim2.new(1, -60, 0, 10)
-    MainFrame.Size = UDim2.new(0, 45, 0, 45)
+        local MainFrame = Instance.new("Frame")
+        MainFrame.Name = "MainFrame"
+        MainFrame.Parent = ClickButton
+        MainFrame.AnchorPoint = Vector2.new(1, 0)
+        MainFrame.BackgroundTransparency = 0.8
+        MainFrame.BackgroundColor3 = Config.UI.MainColor
+        MainFrame.BorderSizePixel = 0
+        MainFrame.Position = UDim2.new(1, -60, 0, 10)
+        MainFrame.Size = UDim2.new(0, 45, 0, 45)
 
-    local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(1, 0)
-    UICorner.Parent = MainFrame
+        local UICorner = Instance.new("UICorner")
+        UICorner.CornerRadius = UDim.new(1, 0)
+        UICorner.Parent = MainFrame
 
-    local TextButton = Instance.new("TextButton")
-    TextButton.Parent = MainFrame
-    TextButton.BackgroundTransparency = 1
-    TextButton.Size = UDim2.new(1, 0, 1, 0)
-    TextButton.Font = Enum.Font.SourceSans
-    TextButton.Text = "Open"
-    TextButton.TextColor3 = Config.UI.ButtonColor
-    TextButton.TextSize = 20
+        local TextButton = Instance.new("TextButton")
+        TextButton.Parent = MainFrame
+        TextButton.BackgroundTransparency = 1
+        TextButton.Size = UDim2.new(1, 0, 1, 0)
+        TextButton.Font = Enum.Font.SourceSans
+        TextButton.Text = "Open"
+        TextButton.TextColor3 = Config.UI.ButtonColor
+        TextButton.TextSize = 20
 
-    -- Safe click handler
-    TextButton.MouseButton1Click:Connect(function()
-        local VirtualInputManager = getService("VirtualInputManager")
-        if VirtualInputManager then
-            VirtualInputManager:SendKeyEvent(true, Config.UI.MinimizeKey, false, game)
-            VirtualInputManager:SendKeyEvent(false, Config.UI.MinimizeKey, false, game)
-        end
+        TextButton.MouseButton1Click:Connect(function()
+            local VirtualInputManager = getService("VirtualInputManager")
+            if VirtualInputManager then
+                VirtualInputManager:SendKeyEvent(true, Config.UI.MinimizeKey, false, game)
+                VirtualInputManager:SendKeyEvent(false, Config.UI.MinimizeKey, false, game)
+            end
+        end)
     end)
 end
-
--- Mark as loaded
-getgenv().cuppink = true
 
 return true
