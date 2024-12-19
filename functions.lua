@@ -1,114 +1,66 @@
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
+-- Update functions.lua - Add these new functions at the end before the return statement
 
-local Functions = {}
-
--- Get required services
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local GuiService = game:GetService("GuiService")
-local RunService = game:GetService("RunService")
-
-Functions.ShowNotification = function(String)
-    if getgenv().Fluent then
-        getgenv().Fluent:Notify({
-            Title = "Lucid Hub",
-            Content = String,
-            Duration = 5
-        })
-    end
-end
-
-Functions.autoCast = function(CastMode, LocalCharacter, HumanoidRootPart)
+-- Add these new functions to the Functions table
+Functions.sellFish = function(rarity)
     pcall(function()
-        if LocalCharacter then
-            local tool = LocalCharacter:FindFirstChildOfClass("Tool")
-            if tool then
-                local hasBobber = tool:FindFirstChild("bobber")
-                if not hasBobber then
-                    if CastMode == "Legit" then
-                        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                        
-                        local powerBarConnection
-                        powerBarConnection = HumanoidRootPart.ChildAdded:Connect(function()
-                            if HumanoidRootPart:FindFirstChild("power") then
-                                local powerBar = HumanoidRootPart.power:FindFirstChild("powerbar")
-                                if powerBar and powerBar:FindFirstChild("bar") then
-                                    powerBar.bar.Changed:Connect(function(property)
-                                        if property == "Size" and 
-                                           powerBar.bar.Size == UDim2.new(1, 0, 1, 0) then
-                                            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                                            if powerBarConnection then
-                                                powerBarConnection:Disconnect()
-                                            end
-                                        end
-                                    end)
-                                end
-                            end
-                        end)
-                    elseif CastMode == "Blatant" then
-                        local rod = LocalCharacter:FindFirstChildOfClass("Tool")
-                        if rod and rod:FindFirstChild("values") and string.find(rod.Name, "Rod") then
-                            task.wait(0.5)
-                            local Random = math.random(90, 99)
-                            pcall(function()
-                                rod.events.cast:FireServer(Random)
-                            end)
-                        end
-                    end
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if backpack then
+            for _, item in pairs(backpack:GetChildren()) do
+                if item:FindFirstChild("values") and 
+                   item.values:FindFirstChild("rarity") and 
+                   item.values.rarity.Value == rarity then
+                    game:GetService("ReplicatedStorage").events.character:FireServer("sell", item.Name)
                 end
             end
         end
     end)
 end
 
-Functions.autoShake = function(gui)
+Functions.collectChest = function(chest, range)
     pcall(function()
-        if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
-            gui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-            task.wait(0.1)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-        end
-    end)
-end
-
-Functions.autoReel = function(PlayerGui, ReelMode)
-    pcall(function()
-        local reel = PlayerGui:FindFirstChild("reel")
-        if reel then
-            local bar = reel:FindFirstChild("bar")
-            if bar then
-                local playerbar = bar:FindFirstChild("playerbar")
-                local fish = bar:FindFirstChild("fish")
-                if playerbar and fish then
-                    if ReelMode == "Legit" then
-                        playerbar.Position = fish.Position
-                    elseif ReelMode == "Blatant" then
-                        game:GetService("ReplicatedStorage").events.reelfinished:FireServer(100, false)
-                    end
+        local character = LocalPlayer.Character
+        if character and chest then
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            local chestPart = chest:FindFirstChild("Hitbox") or chest:FindFirstChild("HumanoidRootPart")
+            
+            if humanoidRootPart and chestPart then
+                local distance = (humanoidRootPart.Position - chestPart.Position).Magnitude
+                if distance <= (range or 50) then
+                    game:GetService("ReplicatedStorage").events.character:FireServer("collect", chest)
                 end
             end
         end
     end)
 end
 
-Functions.handleZoneCast = function(ZoneCast, Zone, FishingZonesFolder, HumanoidRootPart)
-    if ZoneCast and Zone then
-        local fishingSpot = FishingZonesFolder and FishingZonesFolder:FindFirstChild(Zone)
-        if fishingSpot then
-            local spotCFrame = fishingSpot.CFrame
-            local targetPosition = spotCFrame.Position + Vector3.new(0, 2, 0)
-            if HumanoidRootPart then
-                HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position, targetPosition)
+Functions.equipBestRod = function()
+    pcall(function()
+        local rodRanking = {
+            "Rod Of The Eternal King",
+            "Rod Of The Depths",
+            "Celestial Rod",
+            "Phoenix Rod",
+            "Astral Rod",
+            "Magma Rod",
+            "Frost Warden Rod",
+            "North-Star Rod",
+            "Aurora Rod",
+            "Destiny Rod",
+            "Mythical Rod",
+            "Kings Rod",
+            "Lucky Rod",
+            "Fortune Rod"
+        }
+        
+        local character = LocalPlayer.Character
+        if character then
+            for _, rodName in ipairs(rodRanking) do
+                local rod = character:FindFirstChild(rodName)
+                if rod then
+                    game:GetService("ReplicatedStorage").events.character:FireServer("equip", rodName)
+                    break
+                end
             end
         end
-    end
+    end)
 end
-
--- Set global Functions table
-getgenv().Functions = Functions
-
-return true
