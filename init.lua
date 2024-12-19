@@ -11,20 +11,14 @@ local function getService(serviceName)
     end
 end
 
--- Initialize required services
+-- Initialize required services with error handling
 local ReplicatedStorage = getService("ReplicatedStorage")
 local Players = getService("Players")
 local RunService = getService("RunService")
 local VirtualUser = getService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
--- Check critical services
-if not RunService or not VirtualUser then
-    warn("Critical services not found")
-    return
-end
-
--- Initialize Options table
+-- Initialize Options table if it doesn't exist
 if not getgenv().Options then
     getgenv().Options = {
         autoCast = { Value = false },
@@ -47,6 +41,11 @@ if not getgenv().Options then
     }
 end
 
+-- Wait for game load
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
 -- Wait for LocalPlayer if not loaded
 if not LocalPlayer then
     Players.PlayerAdded:Wait()
@@ -59,19 +58,97 @@ if not playerStats then
     warn("playerstats not found in ReplicatedStorage")
 end
 
--- Cleanup function
-local function cleanup()
-    pcall(function()
-        RunService:UnbindFromRenderStep("AutoShake")
-        RunService:UnbindFromRenderStep("AutoCast")
-        RunService:UnbindFromRenderStep("AutoReel")
-    end)
+-- Connection handling
+local connections = {}
+local function addConnection(connection)
+    if typeof(connection) == "RBXScriptConnection" then
+        table.insert(connections, connection)
+        return connection
+    end
+    return nil
 end
 
--- Export variables and functions safely
+-- Cleanup function
+local function cleanup()
+    -- Disconnect all connections
+    for _, connection in ipairs(connections) do
+        if typeof(connection) == "RBXScriptConnection" and connection.Connected then
+            connection:Disconnect()
+        end
+    end
+    table.clear(connections)
+
+    -- Unbind from RunService
+    pcall(function()
+        RunService:UnbindFromRenderStep("AutoCast")
+        RunService:UnbindFromRenderStep("AutoShake")
+        RunService:UnbindFromRenderStep("AutoReel")
+    end)
+
+    -- Reset character state
+    if LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = 16
+            humanoid.JumpPower = 50
+        end
+        
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.Anchored = false
+        end
+    end
+
+    -- Clear global variables
+    for _, option in pairs(getgenv().Options) do
+        option.Value = false
+    end
+end
+
+-- Add cleanup connection for player removal
+addConnection(Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        cleanup()
+    end
+end))
+
+-- Add cleanup connection for script termination
+addConnection(game:GetService("ScriptContext").Error:Connect(function(message, trace, script)
+    if script and script:IsDescendantOf(game:GetService("CoreGui")) then
+        warn("Lucid Hub Runtime Error:", message, "\nStack:", trace)
+    end
+end))
+
+-- Export variables and functions
 getgenv().ReplicatedStorage = ReplicatedStorage
 getgenv().LocalPlayer = LocalPlayer
 getgenv().playerStats = playerStats
+getgenv().addConnection = addConnection
 getgenv().cleanup = cleanup
+
+-- Initialize anti-cheat protection
+local function setupAntiCheat()
+    pcall(function()
+        -- Disable error reporting
+        for _, connection in pairs(getconnections(game:GetService("ScriptContext").Error)) do
+            connection:Disable()
+        end
+
+        -- Protect against remote detection
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if method == "FireServer" or method == "InvokeServer" then
+                local args = {...}
+                if typeof(args[1]) == "string" and args[1]:match("exploit") then
+                    return
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+    end)
+end
+
+setupAntiCheat()
 
 return true
