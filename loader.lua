@@ -1,10 +1,8 @@
--- Check if already executed
 if getgenv().LucidHubLoaded then
     warn("Lucid Hub: Already executed!")
     return
 end
 
--- Function to clean up existing instances
 local function cleanupExisting()
     local CoreGui = game:GetService("CoreGui")
     if CoreGui:FindFirstChild("ClickButton") then
@@ -12,15 +10,12 @@ local function cleanupExisting()
     end
 end
 
--- Clean up any existing instances
 cleanupExisting()
 
--- Wait for game load
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Define config globally
 getgenv().Config = {
     Version = "1.0.0",
     URLs = {
@@ -28,7 +23,6 @@ getgenv().Config = {
     }
 }
 
--- Load Fluent UI
 local function loadFluent()
     local success, result = pcall(function()
         return loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
@@ -43,13 +37,11 @@ local function loadFluent()
     end
 end
 
--- Load Fluent
 if not loadFluent() then
     warn("Failed to initialize Fluent UI")
     return
 end
 
--- Function to load scripts
 local function loadScript(name, maxRetries)
     maxRetries = maxRetries or 3
     local retryCount = 0
@@ -63,7 +55,7 @@ local function loadScript(name, maxRetries)
         if success then
             return true
         else
-            warn(string.format("Failed to load %s (Attempt %d/%d): %s", name, retryCount, maxRetries, tostring(result)))
+            warn(string.format("Failed to load %s (Attempt %d/%d): %s", name, retryCount + 1, maxRetries, tostring(result)))
             task.wait(1)
         end
         retryCount = retryCount + 1
@@ -71,7 +63,6 @@ local function loadScript(name, maxRetries)
     return false
 end
 
--- Load required scripts
 local loadOrder = {
     {name = "init.lua", required = true},
     {name = "Tab.lua", required = true},
@@ -86,7 +77,5 @@ for _, script in ipairs(loadOrder) do
     task.wait(0.1)
 end
 
--- Mark as loaded
 getgenv().LucidHubLoaded = true
-
 return true
