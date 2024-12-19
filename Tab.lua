@@ -1,169 +1,135 @@
 -- Tab.lua
--- Dependency check and initialization
+-- Ensure game is loaded
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Verify required global states
-assert(type(getgenv().Fluent) == "table", "Fluent UI library not initialized")
-assert(type(getgenv().Functions) == "table", "Functions module not initialized")
-assert(type(getgenv().Options) == "table", "Options not initialized")
-
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-
--- Create window with error handling
-local function createWindow()
-    if getgenv().LucidWindow then
-        return {
-            Success = true,
-            Window = getgenv().LucidWindow,
-            Tabs = getgenv().Tabs
-        }
-    end
-
-    local success, window = pcall(function()
-        return getgenv().Fluent:CreateWindow({
-            Title = "Lucid Hub",
-            SubTitle = "by ProbTom",
-            TabWidth = 160,
-            Size = UDim2.fromOffset(580, 460),
-            Acrylic = true,
-            Theme = "Dark"
-        })
-    end)
-
-    if not success or not window then
-        warn("Failed to create window:", window)
-        return {
-            Success = false,
-            Error = window
-        }
-    end
-
-    -- Store window reference
-    getgenv().LucidWindow = window
-
-    -- Initialize tabs with error handling
-    local Tabs = {}
+-- Initialize local variables
+local success, result = pcall(function()
+    -- Service initialization
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
     
-    local function createTab(name, config)
-        local tabSuccess, tab = pcall(function()
-            return window:AddTab(config)
-        end)
-        
-        if tabSuccess and tab then
-            Tabs[name] = tab
-            return tab
-        else
-            warn("Failed to create tab:", name, tab)
-            return nil
-        end
+    -- Verify required global states with informative errors
+    if type(getgenv().Fluent) ~= "table" then
+        error("Fluent UI library not initialized")
+    end
+    
+    if type(getgenv().Functions) ~= "table" then
+        error("Functions module not initialized")
+    end
+    
+    if type(getgenv().Options) ~= "table" then
+        error("Options not initialized")
     end
 
-    -- Create main tabs
-    createTab("Main", {
+    -- Window creation with proper error handling
+    local window = getgenv().Fluent:CreateWindow({
+        Title = "Lucid Hub",
+        SubTitle = "by ProbTom",
+        TabWidth = 160,
+        Size = UDim2.fromOffset(580, 460),
+        Acrylic = true,
+        Theme = "Dark",
+        MinimizeConfig = {
+            Side = "Left",
+            Position = UDim2.new(0, 0, 0.5, 0)
+        }
+    })
+
+    -- Initialize tabs table if it doesn't exist
+    if not getgenv().Tabs then
+        getgenv().Tabs = {}
+    end
+
+    -- Create and store main tabs
+    getgenv().Tabs.Main = window:AddTab({
         Title = "Main",
         Icon = "rbxassetid://10723424505"
     })
 
-    createTab("Settings", {
+    getgenv().Tabs.Settings = window:AddTab({
         Title = "Settings",
         Icon = "rbxassetid://10734949203"
     })
 
-    createTab("Credits", {
+    getgenv().Tabs.Credits = window:AddTab({
         Title = "Credits",
         Icon = "rbxassetid://10723346959"
     })
 
-    -- Store tabs reference
-    getgenv().Tabs = Tabs
+    -- Store window reference
+    getgenv().LucidWindow = window
 
     -- Initialize Settings tab
-    if Tabs.Settings then
-        local settingsSuccess, settingsSection = pcall(function()
-            return Tabs.Settings:AddSection("Theme")
-        end)
+    if getgenv().Tabs.Settings then
+        local settingsSection = getgenv().Tabs.Settings:AddSection("Theme")
+        
+        settingsSection:AddDropdown("ThemeDropdown", {
+            Title = "Theme",
+            Values = {"Light", "Dark", "Darker", "Discord", "Aqua"},
+            Multi = false,
+            Default = "Dark",
+            Callback = function(value)
+                pcall(function()
+                    window:SetTheme(value)
+                    getgenv().Functions.ShowNotification("Theme changed to " .. value)
+                end)
+            end
+        })
 
-        if settingsSuccess and settingsSection then
-            pcall(function()
-                settingsSection:AddDropdown("ThemeDropdown", {
-                    Title = "Theme",
-                    Values = {"Light", "Dark", "Darker", "Discord", "Aqua"},
-                    Multi = false,
-                    Default = "Dark",
-                    Callback = function(value)
-                        pcall(function()
-                            window:SetTheme(value)
-                            getgenv().Functions.ShowNotification("Theme changed to " .. value)
-                        end)
-                    end
-                })
+        settingsSection:AddToggle("SaveWindowToggle", {
+            Title = "Save Window Position",
+            Default = false,
+            Callback = function(value)
+                pcall(function()
+                    window:SaveConfig(value)
+                    getgenv().Functions.ShowNotification("Window position saving " .. (value and "enabled" or "disabled"))
+                end)
+            end
+        })
 
-                settingsSection:AddToggle("SaveWindowToggle", {
-                    Title = "Save Window Position",
-                    Default = false,
-                    Callback = function(value)
-                        pcall(function()
-                            window:SaveConfig(value)
-                            getgenv().Functions.ShowNotification("Window position saving " .. (value and "enabled" or "disabled"))
-                        end)
-                    end
-                })
+        settingsSection:AddToggle("AcrylicToggle", {
+            Title = "Acrylic",
+            Default = true,
+            Callback = function(value)
+                pcall(function()
+                    window:ToggleAcrylic(value)
+                    getgenv().Functions.ShowNotification("Acrylic effect " .. (value and "enabled" or "disabled"))
+                end)
+            end
+        })
 
-                settingsSection:AddToggle("AcrylicToggle", {
-                    Title = "Acrylic",
-                    Default = true,
-                    Callback = function(value)
-                        pcall(function()
-                            window:ToggleAcrylic(value)
-                            getgenv().Functions.ShowNotification("Acrylic effect " .. (value and "enabled" or "disabled"))
-                        end)
-                    end
-                })
-
-                settingsSection:AddSlider("TransparencySlider", {
-                    Title = "Transparency",
-                    Default = 0,
-                    Min = 0,
-                    Max = 100,
-                    Callback = function(value)
-                        pcall(function()
-                            window:SetBackgroundTransparency(value / 100)
-                            getgenv().Functions.ShowNotification("Transparency set to " .. value .. "%")
-                        end)
-                    end
-                })
-            end)
-        end
+        settingsSection:AddSlider("TransparencySlider", {
+            Title = "Transparency",
+            Default = 0,
+            Min = 0,
+            Max = 100,
+            Callback = function(value)
+                pcall(function()
+                    window:SetBackgroundTransparency(value / 100)
+                    getgenv().Functions.ShowNotification("Transparency set to " .. value .. "%")
+                end)
+            end
+        })
     end
 
     -- Initialize Credits tab
-    if Tabs.Credits then
-        local creditsSuccess, creditsSection = pcall(function()
-            return Tabs.Credits:AddSection("Credits")
-        end)
+    if getgenv().Tabs.Credits then
+        local creditsSection = getgenv().Tabs.Credits:AddSection("Credits")
+        
+        creditsSection:AddParagraph({
+            Title = "Developer",
+            Content = "ProbTom"
+        })
 
-        if creditsSuccess and creditsSection then
-            pcall(function()
-                creditsSection:AddParagraph({
-                    Title = "Developer",
-                    Content = "ProbTom"
-                })
-
-                creditsSection:AddParagraph({
-                    Title = "UI Library",
-                    Content = "Fluent UI Library by dawid-scripts"
-                })
-            end)
-        end
+        creditsSection:AddParagraph({
+            Title = "UI Library",
+            Content = "Fluent UI Library by dawid-scripts"
+        })
     end
 
-    -- Apply saved settings if available
+    -- Apply saved settings
     local savedConfig = getgenv().CompatibilityLayer.getConfig()
     if savedConfig and savedConfig.windowState then
         pcall(function()
@@ -179,18 +145,12 @@ local function createWindow()
         end)
     end
 
-    return {
-        Success = true,
-        Window = window,
-        Tabs = Tabs
-    }
-end
+    return true
+end)
 
--- Create and return window
-local windowResult = createWindow()
-if not windowResult.Success then
-    error("Failed to create window: " .. tostring(windowResult.Error))
+if not success then
+    warn("Failed to initialize Tab.lua:", result)
     return false
 end
 
-return true
+return result
