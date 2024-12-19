@@ -16,18 +16,13 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- Define configuration
 getgenv().Config = {
     Version = "1.0.0",
+    Debug = true,
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
         Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/",
-        Fluent = {
-            -- Changed order and updated URLs
-            Primary = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/src/main.lua",
-            SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
-            InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
-        }
+        Fluent = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/src/main.lua"
     },
     MaxRetries = 3,
     RetryDelay = 1
@@ -35,72 +30,9 @@ getgenv().Config = {
 
 local function debugPrint(...)
     if getgenv().Config.Debug then
-        print(...)
+        print("[Lucid Debug]", ...)
     end
 end
-
-local function loadFluent()
-    local function tryLoadUrl(url)
-        local success, content = pcall(game.HttpGet, game, url)
-        if not success then
-            debugPrint("Failed to fetch from URL:", url, "Error:", content)
-            return false, content
-        end
-
-        local loadSuccess, result = pcall(loadstring, content)
-        if not loadSuccess then
-            debugPrint("Failed to loadstring content from:", url, "Error:", result)
-            return false, result
-        end
-
-        local execSuccess, lib = pcall(result)
-        if not execSuccess then
-            debugPrint("Failed to execute Fluent library from:", url, "Error:", lib)
-            return false, lib
-        end
-
-        return true, lib
-    end
-
-    -- Try loading from primary URL
-    debugPrint("Attempting to load Fluent from primary URL...")
-    local success, result = tryLoadUrl(getgenv().Config.URLs.Fluent.Primary)
-    
-    if success then
-        getgenv().Fluent = result
-        return true
-    end
-    
-    -- If primary fails, wait a bit and try again
-    task.wait(1)
-    
-    debugPrint("Primary URL failed, attempting backup...")
-    -- Try loading SaveManager
-    success, result = tryLoadUrl(getgenv().Config.URLs.Fluent.SaveManager)
-    if not success then
-        debugPrint("Failed to load SaveManager")
-        return false
-    end
-
-    -- Try loading InterfaceManager
-    success, result = tryLoadUrl(getgenv().Config.URLs.Fluent.InterfaceManager)
-    if not success then
-        debugPrint("Failed to load InterfaceManager")
-        return false
-    end
-
-    -- Set debug mode for better error reporting
-    getgenv().Config.Debug = true
-
-    return success
-end
-
-debugPrint("Starting Fluent UI initialization...")
-if not loadFluent() then
-    error("Failed to initialize Fluent UI - Check debug prints for details")
-    return
-end
-debugPrint("Fluent UI initialized successfully")
 
 local function loadScript(name, maxRetries)
     maxRetries = maxRetries or getgenv().Config.MaxRetries
@@ -108,10 +40,8 @@ local function loadScript(name, maxRetries)
     local lastError
     
     while retryCount < maxRetries do
-        -- Try main URL first
         local success, result = pcall(function()
             local source = game:HttpGet(getgenv().Config.URLs.Main .. name)
-            debugPrint("Loading script:", name)
             return loadstring(source)()
         end)
         
@@ -120,7 +50,7 @@ local function loadScript(name, maxRetries)
             return true
         end
         
-        -- If main fails, try backup URL
+        -- If main fails, try backup
         success, result = pcall(function()
             local source = game:HttpGet(getgenv().Config.URLs.Backup .. name)
             return loadstring(source)()
@@ -143,6 +73,51 @@ local function loadScript(name, maxRetries)
     return false
 end
 
+-- Load compatibility layer first
+debugPrint("Loading compatibility layer...")
+if not loadScript("compatibility.lua") then
+    error("Failed to load compatibility layer")
+    return
+end
+
+-- Load Fluent UI with compatibility wrapper
+local function loadFluentUI()
+    local success, content = pcall(function()
+        return game:HttpGet(getgenv().Config.URLs.Fluent)
+    end)
+
+    if not success then
+        warn("Failed to fetch Fluent UI:", content)
+        return false
+    end
+
+    local success, fluentLib = pcall(function()
+        return loadstring(content)()
+    end)
+
+    if not success then
+        warn("Failed to initialize Fluent UI:", fluentLib)
+        return false
+    end
+
+    -- Apply compatibility wrapper
+    if getgenv().CompatibilityLayer then
+        debugPrint("Applying compatibility wrapper to Fluent UI")
+        getgenv().Fluent = getgenv().CompatibilityLayer.wrapFluentUI(fluentLib)
+        return true
+    else
+        warn("Compatibility layer not found")
+        return false
+    end
+end
+
+debugPrint("Initializing Fluent UI...")
+if not loadFluentUI() then
+    error("Failed to initialize Fluent UI")
+    return
+end
+
+-- Load remaining scripts in order
 local loadOrder = {
     {name = "init.lua", required = true},
     {name = "functions.lua", required = true},
