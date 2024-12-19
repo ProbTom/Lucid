@@ -5,31 +5,93 @@ local LocalPlayer = Players.LocalPlayer
 getgenv().Functions = {
     autoShake = function(gui)
         if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
-            -- Fix for the safezone button
-            local safezone = gui.shakeui:FindFirstChild("safezone")
-            if safezone then
-                safezone.Size = UDim2.new(1001, 0, 1001, 0)
-                VirtualUser:Button1Down(Vector2.new(1, 1))
-                task.wait(0.1)
-                VirtualUser:Button1Up(Vector2.new(1, 1))
-            end
+            gui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
+            VirtualUser:Button1Down(Vector2.new(1, 1))
+            task.wait(0.1)
+            VirtualUser:Button1Up(Vector2.new(1, 1))
         end
     end,
     
     autoCast = function(mode, character, hrp)
         if mode == "Legit" then
-            -- Legit casting logic
+            if character and hrp then
+                local rod = character:FindFirstChild("Rod")
+                if rod then
+                    VirtualUser:Button1Down(Vector2.new(1, 1))
+                    task.wait(0.1)
+                    VirtualUser:Button1Up(Vector2.new(1, 1))
+                end
+            end
         elseif mode == "Blatant" then
-            -- Blatant casting logic
+            if character and hrp then
+                local rod = character:FindFirstChild("Rod")
+                if rod then
+                    VirtualUser:Button1Down(Vector2.new(1, 1))
+                    VirtualUser:Button1Up(Vector2.new(1, 1))
+                end
+            end
         end
     end,
     
     autoReel = function(gui, mode)
         if gui:FindFirstChild("ReelMeterUI") and gui.ReelMeterUI.Enabled then
             if mode == "Legit" then
-                -- Legit reeling logic
+                local bar = gui.ReelMeterUI:FindFirstChild("Bar")
+                if bar then
+                    local arrow = bar:FindFirstChild("Arrow")
+                    local safe = bar:FindFirstChild("Safe")
+                    if arrow and safe then
+                        local arrowPos = arrow.Position.X.Scale
+                        local safeStart = safe.Position.X.Scale
+                        local safeEnd = safeStart + safe.Size.X.Scale
+                        
+                        if arrowPos >= safeStart and arrowPos <= safeEnd then
+                            VirtualUser:Button1Down(Vector2.new(1, 1))
+                            task.wait(0.1)
+                            VirtualUser:Button1Up(Vector2.new(1, 1))
+                        end
+                    end
+                end
             elseif mode == "Blatant" then
-                -- Blatant reeling logic
+                VirtualUser:Button1Down(Vector2.new(1, 1))
+                VirtualUser:Button1Up(Vector2.new(1, 1))
+            end
+        end
+    end,
+    
+    walkSpeed = function(speed)
+        if LocalPlayer.Character then
+            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = speed
+            end
+        end
+    end,
+    
+    jumpPower = function(power)
+        if LocalPlayer.Character then
+            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.JumpPower = power
+            end
+        end
+    end,
+    
+    toggleNoclip = function(enabled)
+        if LocalPlayer.Character then
+            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = not enabled
+                end
+            end
+        end
+    end,
+    
+    teleportTo = function(position)
+        if LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = CFrame.new(position)
             end
         end
     end
