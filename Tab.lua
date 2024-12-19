@@ -29,7 +29,6 @@ end)
 
 local Window = Fluent:CreateWindow({
     Title = productInfo .. " | Lucid Hub",
-    SubTitle = "Luminescence",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = false,
