@@ -54,11 +54,6 @@ if DeviceType == "Mobile" then
         -- Handle ResetOnSpawn
         ClickButton.ResetOnSpawn = false
         
-        -- Try to use Synapse X's protect_gui or secure the GUI using other methods
-        if syn and syn.protect_gui then
-            syn.protect_gui(ClickButton)
-        end
-        
         -- Parent the GUI safely
         pcall(function()
             ClickButton.Parent = CoreGui
