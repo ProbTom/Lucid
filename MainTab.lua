@@ -36,8 +36,10 @@ autoCast:OnChanged(function()
         if autoCast.Value then
             RunService:BindToRenderStep("AutoCast", 1, function()
                 if LocalPlayer.Character then
-                    Functions.autoCast(LocalPlayer.Character, 
-                        LocalPlayer.Character:FindFirstChild("HumanoidRootPart"))
+                    Functions.autoCast(
+                        LocalPlayer.Character, 
+                        LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    )
                 end
             end)
         else
