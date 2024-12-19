@@ -1,122 +1,78 @@
 -- Tab.lua
--- Ensure game is loaded
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
-
--- Initialize local variables
 local success, result = pcall(function()
-    -- Service initialization
+    -- Wait for game load
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+    end
+
+    -- Get services
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
-    
-    -- Verify required global states with informative errors
-    if type(getgenv().Fluent) ~= "table" then
-        error("Fluent UI library not initialized")
-    end
-    
-    if type(getgenv().Functions) ~= "table" then
-        error("Functions module not initialized")
-    end
-    
-    if type(getgenv().Options) ~= "table" then
-        error("Options not initialized")
+
+    -- Check dependencies
+    if not getgenv().Fluent then return "Fluent UI library not initialized" end
+    if not getgenv().Functions then return "Functions module not initialized" end
+    if not getgenv().Options then return "Options not initialized" end
+
+    -- Create window if it doesn't exist
+    if not getgenv().LucidWindow then
+        getgenv().LucidWindow = getgenv().Fluent:CreateWindow({
+            Title = "Lucid Hub",
+            SubTitle = "by ProbTom",
+            TabWidth = 160,
+            Size = UDim2.fromOffset(580, 460),
+            Acrylic = true,
+            Theme = "Dark"
+        })
     end
 
-    -- Window creation with proper error handling
-    local window = getgenv().Fluent:CreateWindow({
-        Title = "Lucid Hub",
-        SubTitle = "by ProbTom",
-        TabWidth = 160,
-        Size = UDim2.fromOffset(580, 460),
-        Acrylic = true,
-        Theme = "Dark",
-        MinimizeConfig = {
-            Side = "Left",
-            Position = UDim2.new(0, 0, 0.5, 0)
-        }
-    })
+    local window = getgenv().LucidWindow
 
-    -- Initialize tabs table if it doesn't exist
+    -- Initialize Tabs table
     if not getgenv().Tabs then
         getgenv().Tabs = {}
     end
 
-    -- Create and store main tabs
-    getgenv().Tabs.Main = window:AddTab({
-        Title = "Main",
-        Icon = "rbxassetid://10723424505"
-    })
+    -- Create main tabs
+    getgenv().Tabs.Main = window:AddTab({Title = "Main"})
+    getgenv().Tabs.Settings = window:AddTab({Title = "Settings"})
+    getgenv().Tabs.Credits = window:AddTab({Title = "Credits"})
 
-    getgenv().Tabs.Settings = window:AddTab({
-        Title = "Settings",
-        Icon = "rbxassetid://10734949203"
-    })
-
-    getgenv().Tabs.Credits = window:AddTab({
-        Title = "Credits",
-        Icon = "rbxassetid://10723346959"
-    })
-
-    -- Store window reference
-    getgenv().LucidWindow = window
-
-    -- Initialize Settings tab
-    if getgenv().Tabs.Settings then
-        local settingsSection = getgenv().Tabs.Settings:AddSection("Theme")
+    -- Add Settings sections
+    local settingsTab = getgenv().Tabs.Settings
+    if settingsTab then
+        local themeSection = settingsTab:AddSection("Theme")
         
-        settingsSection:AddDropdown("ThemeDropdown", {
+        themeSection:AddDropdown("ThemeDropdown", {
             Title = "Theme",
             Values = {"Light", "Dark", "Darker", "Discord", "Aqua"},
-            Multi = false,
             Default = "Dark",
             Callback = function(value)
-                pcall(function()
-                    window:SetTheme(value)
-                    getgenv().Functions.ShowNotification("Theme changed to " .. value)
-                end)
+                window:SetTheme(value)
             end
         })
 
-        settingsSection:AddToggle("SaveWindowToggle", {
+        themeSection:AddToggle("SaveWindow", {
             Title = "Save Window Position",
             Default = false,
             Callback = function(value)
-                pcall(function()
-                    window:SaveConfig(value)
-                    getgenv().Functions.ShowNotification("Window position saving " .. (value and "enabled" or "disabled"))
-                end)
+                window:SaveConfig(value)
             end
         })
 
-        settingsSection:AddToggle("AcrylicToggle", {
-            Title = "Acrylic",
+        themeSection:AddToggle("Acrylic", {
+            Title = "Acrylic Effect",
             Default = true,
             Callback = function(value)
-                pcall(function()
-                    window:ToggleAcrylic(value)
-                    getgenv().Functions.ShowNotification("Acrylic effect " .. (value and "enabled" or "disabled"))
-                end)
-            end
-        })
-
-        settingsSection:AddSlider("TransparencySlider", {
-            Title = "Transparency",
-            Default = 0,
-            Min = 0,
-            Max = 100,
-            Callback = function(value)
-                pcall(function()
-                    window:SetBackgroundTransparency(value / 100)
-                    getgenv().Functions.ShowNotification("Transparency set to " .. value .. "%")
-                end)
+                window:ToggleAcrylic(value)
             end
         })
     end
 
-    -- Initialize Credits tab
-    if getgenv().Tabs.Credits then
-        local creditsSection = getgenv().Tabs.Credits:AddSection("Credits")
+    -- Add Credits sections
+    local creditsTab = getgenv().Tabs.Credits
+    if creditsTab then
+        local creditsSection = creditsTab:AddSection("Credits")
         
         creditsSection:AddParagraph({
             Title = "Developer",
@@ -129,20 +85,17 @@ local success, result = pcall(function()
         })
     end
 
-    -- Apply saved settings
-    local savedConfig = getgenv().CompatibilityLayer.getConfig()
-    if savedConfig and savedConfig.windowState then
-        pcall(function()
-            if savedConfig.windowState.theme then
-                window:SetTheme(savedConfig.windowState.theme)
+    -- Load saved settings
+    if getgenv().CompatibilityLayer then
+        local config = getgenv().CompatibilityLayer.getConfig()
+        if config and config.windowState then
+            if config.windowState.theme then
+                window:SetTheme(config.windowState.theme)
             end
-            if savedConfig.windowState.transparency then
-                window:SetBackgroundTransparency(savedConfig.windowState.transparency)
+            if config.windowState.acrylic ~= nil then
+                window:ToggleAcrylic(config.windowState.acrylic)
             end
-            if savedConfig.windowState.acrylic ~= nil then
-                window:ToggleAcrylic(savedConfig.windowState.acrylic)
-            end
-        end)
+        end
     end
 
     return true
