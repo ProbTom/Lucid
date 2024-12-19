@@ -1,202 +1,133 @@
-local function waitForDependency(name, path)
-    local startTime = tick()
-    while not (getgenv()[name] and (not path or path(getgenv()[name]))) do
-        if tick() - startTime > 10 then
-            error(string.format("Failed to load dependency: %s after 10 seconds", name))
-            return false
-        end
-        task.wait(0.1)
-    end
-    return true
-end
-
--- Wait for critical dependencies
-if not waitForDependency("Tabs", function(t) return t.Main end) then return false end
-if not waitForDependency("Functions") then return false end
-if not waitForDependency("Options") then return false end
-
-local RunService = game:GetService("RunService")
+-- MainTab.lua
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualUser = game:GetService("VirtualUser")
 
--- Cache MainTab reference
+-- Verify dependencies
+if not getgenv().Tabs or not getgenv().Tabs.Main then
+    error("MainTab: Missing UI dependencies")
+    return false
+end
+
 local MainTab = getgenv().Tabs.Main
 
--- Create main section
-local mainSection = MainTab:AddSection("Auto Fishing")
+-- Create sections
+local FishingSection = MainTab:AddSection("Fishing Controls")
+local AutomationSection = MainTab:AddSection("Automation")
+local StatsSection = MainTab:AddSection("Stats Tracking")
 
--- Auto Reel Toggle (First)
-local autoReel = MainTab:AddToggle("autoReel", {
-    Title = "Auto Reel",
-    Default = false
-})
-
-local lastReelTime = 0
-local REEL_COOLDOWN = 0.05
-local reelEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("reelfinished")
-
-autoReel:OnChanged(function()
-    pcall(function()
-        if autoReel.Value then
-            RunService:BindToRenderStep("AutoReel", Enum.RenderPriority.First.Value, function()
-                if LocalPlayer.PlayerGui and tick() - lastReelTime > REEL_COOLDOWN then
-                    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-                    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
-                    
-                    if rod then
-                        Functions.autoReel(LocalPlayer.PlayerGui)
-                        
-                        task.spawn(function()
-                            pcall(function()
-                                reelEvent:FireServer(100, true)
-                            end)
-                        end)
-                        
-                        lastReelTime = tick()
-                    end
-                end
-            end)
+-- Fishing Controls
+local autoFishToggle = FishingSection:AddToggle("AutoFish", {
+    Title = "Auto Fish",
+    Default = false,
+    Callback = function(value)
+        getgenv().Options.AutoFish = value
+        if value then
+            getgenv().Events.StartAutoFishing()
         else
-            RunService:UnbindFromRenderStep("AutoReel")
+            getgenv().Events.StopAutoFishing()
         end
-    end)
-end)
-
--- Auto Shake Toggle (Second)
-local autoShake = MainTab:AddToggle("autoShake", {
-    Title = "Auto Shake",
-    Default = false
-})
-
-local lastShakeClick = 0
-local lureGui = nil
-local SHAKE_COOLDOWN = 0.05
-
-local function ExportValue(arg1, arg2)
-    return tonumber(string.format("%."..(arg2 or 1)..'f', arg1))
-end
-
-autoShake:OnChanged(function()
-    pcall(function()
-        if autoShake.Value then
-            if not lureGui then
-                lureGui = ReplicatedStorage.resources.items.items.GPS.GPS.gpsMain.xyz:Clone()
-                lureGui.Parent = LocalPlayer.PlayerGui:WaitForChild("hud"):WaitForChild("safezone"):WaitForChild("backpack")
-                lureGui.Name = "Lure"
-                lureGui.Text = "<font color='#ff4949'>Lure </font>: 0%"
-            end
-
-            RunService:BindToRenderStep("AutoShake", Enum.RenderPriority.First.Value, function()
-                if LocalPlayer.PlayerGui and tick() - lastShakeClick > SHAKE_COOLDOWN then
-                    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-                    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
-                    if rod and rod:FindFirstChild("values") and rod.values:FindFirstChild("lure") then
-                        lureGui.Text = "<font color='#ff4949'>Lure </font>: "..tostring(ExportValue(tostring(rod.values.lure.Value), 2)).."%"
-                    end
-
-                    local shakeui = LocalPlayer.PlayerGui:FindFirstChild("shakeui")
-                    if shakeui and shakeui.Enabled then
-                        local button = shakeui.safezone:FindFirstChild("button")
-                        if button and button.Visible then
-                            button.Size = UDim2.new(1001, 0, 1001, 0)
-                            lastShakeClick = tick()
-                            VirtualUser:Button1Down(Vector2.new(1, 1))
-                            task.spawn(function()
-                                task.wait(0.01)
-                                VirtualUser:Button1Up(Vector2.new(1, 1))
-                            end)
-                        end
-                    end
-                end
-            end)
-        else
-            RunService:UnbindFromRenderStep("AutoShake")
-            if lureGui then
-                lureGui:Destroy()
-                lureGui = nil
-            end
-        end
-    end)
-end)
-
--- Auto Cast Toggle (Last)
-local autoCast = MainTab:AddToggle("autoCast", {
-    Title = "Auto Cast",
-    Default = false
-})
-
-local lastCastTime = 0
-local CAST_COOLDOWN = 0.1 -- Reduced from 2.0 to 0.1 for faster casting
-
-local function performCast()
-    local character = LocalPlayer.Character
-    if not character then return end
-
-    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-    if not rodName or rodName == "" then return end
-
-    local rod = character:FindFirstChild(rodName)
-    if not rod then return end
-
-    -- Try direct cast method with immediate execution
-    if rod:FindFirstChild("events") and rod.events:FindFirstChild("cast") then
-        rod.events.cast:FireServer(97.4, 1)
-    end
-
-    -- Immediate key simulation
-    local vim = game:GetService("VirtualInputManager")
-    vim:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-    vim:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-end
-
-autoCast:OnChanged(function()
-    pcall(function()
-        if autoCast.Value then
-            RunService:BindToRenderStep("AutoCast", Enum.RenderPriority.First.Value, function()
-                if tick() - lastCastTime > CAST_COOLDOWN then
-                    local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
-                    local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
-                    
-                    if rod then
-                        performCast()
-                        lastCastTime = tick()
-                    end
-                end
-            end)
-        else
-            RunService:UnbindFromRenderStep("AutoCast")
-        end
-    end)
-end)
-
--- Add cleanup handler
-local function cleanupTab()
-    pcall(function()
-        RunService:UnbindFromRenderStep("AutoCast")
-        RunService:UnbindFromRenderStep("AutoShake")
-        RunService:UnbindFromRenderStep("AutoReel")
         
-        -- Reset toggles
-        if autoCast then autoCast:SetValue(false) end
-        if autoShake then autoShake:SetValue(false) end
-        if autoReel then autoReel:SetValue(false) end
+        getgenv().Functions.ShowNotification(
+            "Auto Fish",
+            value and "Enabled" or "Disabled"
+        )
+    end
+})
 
-        if lureGui then
-            lureGui:Destroy()
-            lureGui = nil
+local autoReelToggle = FishingSection:AddToggle("AutoReel", {
+    Title = "Auto Reel",
+    Default = false,
+    Callback = function(value)
+        getgenv().Options.AutoReel = value
+        getgenv().Functions.ShowNotification(
+            "Auto Reel",
+            value and "Enabled" or "Disabled"
+        )
+    end
+})
+
+local autoShakeToggle = FishingSection:AddToggle("AutoShake", {
+    Title = "Auto Shake",
+    Default = false,
+    Callback = function(value)
+        getgenv().Options.AutoShake = value
+        getgenv().Functions.ShowNotification(
+            "Auto Shake",
+            value and "Enabled" or "Disabled"
+        )
+    end
+})
+
+-- Automation Controls
+local autoEquipToggle = AutomationSection:AddToggle("AutoEquip", {
+    Title = "Auto Equip Best Rod",
+    Default = false,
+    Callback = function(value)
+        getgenv().Options.AutoEquipBestRod = value
+        if value and getgenv().Functions then
+            getgenv().Functions.equipBestRod()
+        end
+    end
+})
+
+-- Stats Display
+local function updateStats()
+    if not LocalPlayer or not ReplicatedStorage.playerstats:FindFirstChild(LocalPlayer.Name) then
+        return
+    end
+    
+    local stats = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats
+    local fishCaught = stats:FindFirstChild("fishcaught") and stats.fishcaught.Value or 0
+    local coins = stats:FindFirstChild("coins") and stats.coins.Value or 0
+    
+    StatsSection:AddLabel(string.format("Fish Caught: %d", fishCaught))
+    StatsSection:AddLabel(string.format("Coins: %d", coins))
+end
+
+-- Stats update loop
+local function startStatsLoop()
+    task.spawn(function()
+        while task.wait(1) do
+            pcall(updateStats)
         end
     end)
 end
 
--- Add cleanup to global cleanup function
-if getgenv().cleanup then
-    local oldCleanup = getgenv().cleanup
-    getgenv().cleanup = function()
-        cleanupTab()
-        oldCleanup()
+-- Initialize stats display
+updateStats()
+startStatsLoop()
+
+-- Add keybinds
+MainTab:AddKeybind({
+    Title = "Toggle Auto Fish",
+    Default = Enum.KeyCode.F,
+    Callback = function()
+        autoFishToggle:Set(not autoFishToggle.Value)
     end
-end
+})
+
+MainTab:AddKeybind({
+    Title = "Toggle Auto Reel",
+    Default = Enum.KeyCode.R,
+    Callback = function()
+        autoReelToggle:Set(not autoReelToggle.Value)
+    end
+})
+
+-- Add quick actions
+local QuickActionsSection = MainTab:AddSection("Quick Actions")
+
+QuickActionsSection:AddButton({
+    Title = "Stop All Actions",
+    Callback = function()
+        autoFishToggle:Set(false)
+        autoReelToggle:Set(false)
+        autoShakeToggle:Set(false)
+        autoEquipToggle:Set(false)
+        getgenv().Events.CleanupAllConnections()
+        getgenv().Functions.ShowNotification("Quick Actions", "All actions stopped")
+    end
+})
 
 return true
