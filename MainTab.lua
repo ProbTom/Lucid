@@ -27,14 +27,19 @@ local MainTab = getgenv().Tabs.Main
 -- Create main section
 local mainSection = MainTab:AddSection("Auto Fishing")
 
+-- Shared state management
+local lastReelTime = 0
+local lastCastTime = 0
+local REEL_COOLDOWN = 0.05
+local CAST_COOLDOWN = 0.5 -- Reduced from 2.0 to 0.5
+local CAST_AFTER_REEL_DELAY = 0.2 -- Quick delay after reeling
+
 -- Auto Reel Toggle (First)
 local autoReel = MainTab:AddToggle("autoReel", {
     Title = "Auto Reel",
     Default = false
 })
 
-local lastReelTime = 0
-local REEL_COOLDOWN = 0.05
 local reelEvent = ReplicatedStorage:WaitForChild("events"):WaitForChild("reelfinished")
 
 autoReel:OnChanged(function()
@@ -51,10 +56,10 @@ autoReel:OnChanged(function()
                         task.spawn(function()
                             pcall(function()
                                 reelEvent:FireServer(100, true)
+                                -- Update last reel time for cast synchronization
+                                lastReelTime = tick()
                             end)
                         end)
-                        
-                        lastReelTime = tick()
                     end
                 end
             end)
@@ -127,13 +132,6 @@ local autoCast = MainTab:AddToggle("autoCast", {
     Default = false
 })
 
-local lastCastTime = 0
-local CAST_COOLDOWN = 2
-
--- Remote event for casting
-local castRemote = Instance.new("RemoteEvent")
-castRemote.Name = "cast"
-
 local function performCast()
     local character = LocalPlayer.Character
     if not character then return end
@@ -144,21 +142,21 @@ local function performCast()
     local rod = character:FindFirstChild(rodName)
     if not rod then return end
 
-    -- Try direct cast method first
-    if rod:FindFirstChild("events") and rod.events:FindFirstChild("cast") then
-        task.spawn(function()
-            pcall(function()
+    -- Try direct cast method
+    task.spawn(function()
+        pcall(function()
+            if rod:FindFirstChild("events") and rod.events:FindFirstChild("cast") then
                 rod.events.cast:FireServer(97.4, 1)
-            end)
+            end
         end)
-    end
+    end)
 
-    -- Backup method using key simulation
+    -- Backup cast method
     task.spawn(function()
         pcall(function()
             local vim = game:GetService("VirtualInputManager")
             vim:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-            task.wait(0.1)
+            task.wait(0.05) -- Reduced key press duration
             vim:SendKeyEvent(false, Enum.KeyCode.F, false, game)
         end)
     end)
@@ -168,13 +166,16 @@ autoCast:OnChanged(function()
     pcall(function()
         if autoCast.Value then
             RunService:BindToRenderStep("AutoCast", Enum.RenderPriority.First.Value, function()
-                if tick() - lastCastTime > CAST_COOLDOWN then
+                local currentTime = tick()
+                -- Check if enough time has passed since last reel and cast
+                if currentTime - lastReelTime > CAST_AFTER_REEL_DELAY and 
+                   currentTime - lastCastTime > CAST_COOLDOWN then
                     local rodName = ReplicatedStorage.playerstats[LocalPlayer.Name].Stats.rod.Value
                     local rod = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(rodName)
                     
                     if rod then
                         performCast()
-                        lastCastTime = tick()
+                        lastCastTime = currentTime
                     end
                 end
             end)
