@@ -4,14 +4,14 @@ local Config = {
     Debug = true,
     UI = {
         MainColor = Color3.fromRGB(38, 38, 38),
-        ButtonColor = Color3.new(220, 125, 255),
+        ButtonColor = Color3.fromRGB(220, 125, 255),
         MinimizeKey = Enum.KeyCode.RightControl,
         Theme = "Rose"
     },
     GameID = 16732694052,
     URLs = {
         Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Fluent = "https://github.com/dawid-scripts/Fluent/releases/download/1.1.0/main.lua",
+        Fluent = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
         SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
         InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
     },
@@ -79,8 +79,15 @@ local Config = {
             "Limited",
             "Gemstones"
         }
-    }
+    },
+    MaxRetries = 3,
+    RetryDelay = 1
 }
+
+if not getgenv then
+    error("getgenv is not available - environment not supported")
+    return
+end
 
 getgenv().Config = Config
 return Config
