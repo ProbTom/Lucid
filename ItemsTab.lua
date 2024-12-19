@@ -1,131 +1,246 @@
 -- ItemsTab.lua
-local function waitForDependency(name, path)
-    local startTime = tick()
-    while not (getgenv()[name] and (not path or path(getgenv()[name]))) do
-        if tick() - startTime > 10 then
-            error(string.format("Failed to load dependency: %s after 10 seconds", name))
-            return false
-        end
-        task.wait(0.1)
-    end
-    return true
-end
-
--- Wait for critical dependencies
-if not waitForDependency("Tabs", function(t) return t.Items end) then return false end
-if not waitForDependency("Functions") then return false end
-if not waitForDependency("Options") then return false end
-
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 
--- Cache ItemsTab reference
+-- Verify dependencies
+if not getgenv().Tabs or not getgenv().Tabs.Items then
+    error("ItemsTab: Missing UI dependencies")
+    return false
+end
+
 local ItemsTab = getgenv().Tabs.Items
 
 -- Create sections
-local ChestSection = ItemsTab:AddSection("Chest Management")
-local FishSection = ItemsTab:AddSection("Fish Management")
-local RodSection = ItemsTab:AddSection("Rod Management")
+local AutoSellSection = ItemsTab:AddSection("Auto Sell")
+local RaritySection = ItemsTab:AddSection("Rarity Selection") 
+local ChestSection = ItemsTab:AddSection("Chest Collection")
+local InventorySection = ItemsTab:AddSection("Inventory Management")
 
--- Chest Management
-local autoCollectChest = ChestSection:AddToggle("autoCollectChest", {
-    Title = "Auto Collect Chests",
-    Default = false
+-- Auto Sell Configuration
+local autoSellToggle = AutoSellSection:AddToggle("AutoSell", {
+    Title = "Auto Sell",
+    Default = false,
+    Callback = function(value)
+        getgenv().Options.AutoSell = value
+        if value then
+            getgenv().Events.StartAutoSell()
+        else
+            getgenv().Events.StopAutoSell()
+        end
+        
+        getgenv().Functions.ShowNotification(
+            "Auto Sell",
+            value and "Enabled" or "Disabled"
+        )
+    end
 })
 
-local chestRange = ChestSection:AddSlider("chestRange", {
-    Title = "Chest Collection Range",
+-- Rarity Selection
+local rarityToggles = {}
+for _, rarity in ipairs(getgenv().Config.Items.FishRarities) do
+    local toggle = RaritySection:AddToggle(rarity, {
+        Title = rarity,
+        Default = false,
+        Callback = function(value)
+            getgenv().State.SelectedRarities[rarity] = value
+        end
+    })
+    rarityToggles[rarity] = toggle
+end
+
+-- Quick Rarity Selection Buttons
+RaritySection:AddButton({
+    Title = "Select All",
+    Callback = function()
+        for rarity, toggle in pairs(rarityToggles) do
+            toggle:Set(true)
+            getgenv().State.SelectedRarities[rarity] = true
+        end
+    end
+})
+
+RaritySection:AddButton({
+    Title = "Select None",
+    Callback = function()
+        for rarity, toggle in pairs(rarityToggles) do
+            toggle:Set(false)
+            getgenv().State.SelectedRarities[rarity] = false
+        end
+    end
+})
+
+-- Chest Collection Configuration
+local autoChestToggle = ChestSection:AddToggle("AutoChest", {
+    Title = "Auto Collect Chests",
+    Default = false,
+    Callback = function(value)
+        getgenv().Options.AutoCollectChests = value
+        if value then
+            getgenv().Events.StartAutoCollectChests()
+        else
+            getgenv().Events.StopAutoCollectChests()
+        end
+    end
+})
+
+ChestSection:AddSlider("ChestRange", {
+    Title = "Collection Range",
     Default = getgenv().Config.Items.ChestRange.Default,
     Min = getgenv().Config.Items.ChestRange.Min,
     Max = getgenv().Config.Items.ChestRange.Max,
     Rounding = 0,
+    Callback = function(value)
+        getgenv().Options.ChestRange = value
+    end
 })
 
--- Fish Management
-local autoSellFish = FishSection:AddToggle("autoSellFish", {
-    Title = "Auto Sell Fish",
-    Default = false
-})
-
-local selectedRarities = FishSection:AddDropdown("fishRarities", {
-    Title = "Fish Rarities to Sell",
-    Values = getgenv().Config.Items.FishRarities,
-    Default = {"Common"},
-    Multi = true,
-})
-
--- Rod Management
-local autoEquipBestRod = RodSection:AddToggle("autoEquipBestRod", {
-    Title = "Auto Equip Best Rod",
-    Default = false
-})
-
--- Handlers
-autoCollectChest:OnChanged(function()
-    pcall(function()
-        if autoCollectChest.Value then
-            RunService:BindToRenderStep("AutoCollectChests", Enum.RenderPriority.Character.Value, function()
-                for _, chest in pairs(workspace:GetChildren()) do
-                    if chest:IsA("Model") and chest.Name:find("Chest") then
-                        Functions.collectChest(chest, chestRange.Value)
-                    end
-                end
-            end)
-        else
-            RunService:UnbindFromRenderStep("AutoCollectChests")
+-- Inventory Management
+InventorySection:AddButton({
+    Title = "Sell All Selected Rarities",
+    Callback = function()
+        for rarity, selected in pairs(getgenv().State.SelectedRarities) do
+            if selected and getgenv().Functions then
+                getgenv().Functions.sellFish(rarity)
+            end
         end
-    end)
-end)
+        getgenv().Functions.ShowNotification("Inventory", "Selling all selected rarities...")
+    end
+})
 
-autoSellFish:OnChanged(function()
-    pcall(function()
-        if autoSellFish.Value then
-            RunService:BindToRenderStep("AutoSellFish", Enum.RenderPriority.Character.Value, function()
-                for _, rarity in pairs(selectedRarities:GetValue()) do
-                    Functions.sellFish(rarity)
-                end
-            end)
-        else
-            RunService:UnbindFromRenderStep("AutoSellFish")
+-- Inventory Stats Display
+local function updateInventoryStats()
+    local backpack = LocalPlayer:WaitForChild("Backpack")
+    local rarityCount = {}
+    
+    -- Initialize counts
+    for _, rarity in ipairs(getgenv().Config.Items.FishRarities) do
+        rarityCount[rarity] = 0
+    end
+    
+    -- Count items by rarity
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:FindFirstChild("values") and item.values:FindFirstChild("rarity") then
+            local rarity = item.values.rarity.Value
+            if rarityCount[rarity] then
+                rarityCount[rarity] = rarityCount[rarity] + 1
+            end
         end
-    end)
-end)
-
-autoEquipBestRod:OnChanged(function()
-    pcall(function()
-        if autoEquipBestRod.Value then
-            RunService:BindToRenderStep("AutoEquipBestRod", Enum.RenderPriority.Character.Value, function()
-                Functions.equipBestRod()
-            end)
-        else
-            RunService:UnbindFromRenderStep("AutoEquipBestRod")
+    end
+    
+    -- Update display labels
+    InventorySection:AddLabel("Inventory Contents:")
+    for rarity, count in pairs(rarityCount) do
+        if count > 0 then
+            InventorySection:AddLabel(string.format("%s: %d", rarity, count))
         end
-    end)
-end)
-
--- Add cleanup handler
-local function cleanupTab()
-    pcall(function()
-        RunService:UnbindFromRenderStep("AutoCollectChests")
-        RunService:UnbindFromRenderStep("AutoSellFish")
-        RunService:UnbindFromRenderStep("AutoEquipBestRod")
-        
-        -- Reset toggles
-        if autoCollectChest then autoCollectChest:SetValue(false) end
-        if autoSellFish then autoSellFish:SetValue(false) end
-        if autoEquipBestRod then autoEquipBestRod:SetValue(false) end
-    end)
-end
-
--- Add cleanup to global cleanup function
-if getgenv().cleanup then
-    local oldCleanup = getgenv().cleanup
-    getgenv().cleanup = function()
-        cleanupTab()
-        oldCleanup()
     end
 end
+
+-- Rod Management
+local RodSection = ItemsTab:AddSection("Rod Management")
+
+-- Rod Selection Display
+local function updateRodDisplay()
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local equippedRod = nil
+    for _, rodName in ipairs(getgenv().Config.Items.RodRanking) do
+        if character:FindFirstChild(rodName) then
+            equippedRod = rodName
+            break
+        end
+    end
+    
+    if equippedRod then
+        RodSection:AddLabel("Equipped Rod: " .. equippedRod)
+    end
+end
+
+RodSection:AddButton({
+    Title = "Equip Best Rod",
+    Callback = function()
+        if getgenv().Functions then
+            getgenv().Functions.equipBestRod()
+            task.wait(0.5)
+            updateRodDisplay()
+        end
+    end
+})
+
+-- Auto-refresh displays
+local function startAutoRefresh()
+    task.spawn(function()
+        while task.wait(5) do -- Update every 5 seconds
+            pcall(function()
+                updateInventoryStats()
+                updateRodDisplay()
+            end)
+        end
+    end)
+end
+
+-- Initialize displays
+updateInventoryStats()
+updateRodDisplay()
+startAutoRefresh()
+
+-- Add keybinds
+ItemsTab:AddKeybind({
+    Title = "Toggle Auto Sell",
+    Default = Enum.KeyCode.X,
+    Callback = function()
+        autoSellToggle:Set(not autoSellToggle.Value)
+    end
+})
+
+ItemsTab:AddKeybind({
+    Title = "Toggle Chest Collection",
+    Default = Enum.KeyCode.C,
+    Callback = function()
+        autoChestToggle:Set(not autoChestToggle.Value)
+    end
+})
+
+-- Save/Load Configuration
+local SaveSection = ItemsTab:AddSection("Save Configuration")
+
+SaveSection:AddButton({
+    Title = "Save Current Settings",
+    Callback = function()
+        if getgenv().SaveManager then
+            local config = {
+                AutoSell = autoSellToggle.Value,
+                SelectedRarities = getgenv().State.SelectedRarities,
+                ChestRange = getgenv().Options.ChestRange,
+                AutoCollectChests = autoChestToggle.Value
+            }
+            getgenv().SaveManager:Save("ItemSettings", config)
+            getgenv().Functions.ShowNotification("Settings", "Item settings saved!")
+        end
+    end
+})
+
+SaveSection:AddButton({
+    Title = "Load Saved Settings",
+    Callback = function()
+        if getgenv().SaveManager then
+            local config = getgenv().SaveManager:Load("ItemSettings")
+            if config then
+                -- Apply saved settings
+                autoSellToggle:Set(config.AutoSell)
+                for rarity, value in pairs(config.SelectedRarities) do
+                    if rarityToggles[rarity] then
+                        rarityToggles[rarity]:Set(value)
+                    end
+                end
+                getgenv().Options.ChestRange = config.ChestRange
+                autoChestToggle:Set(config.AutoCollectChests)
+                getgenv().Functions.ShowNotification("Settings", "Item settings loaded!")
+            end
+        end
+    end
+})
 
 return true
