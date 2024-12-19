@@ -4,205 +4,113 @@ if getgenv().LucidHubLoaded then
     return
 end
 
--- Initialize Config first
-getgenv().Config = {
-    Version = "1.0.0",
-    Debug = false,
-    URLs = {
-        Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/"
-    },
-    
-    Items = {
-        FishRarities = {
-            "Common",
-            "Uncommon",
-            "Rare",
-            "Epic",
-            "Legendary",
-            "Mythical",
-            "Enchant Relics",
-            "Exotic",
-            "Limited",
-            "Gemstones"
-        },
-        
-        RodRanking = {
-            "Rod Of The Forgotten Fang",
-            "Rod Of The Eternal King",
-            "Rod Of The Depth",
-            "No-Life Rod",
-            "Krampus's Rod",
-            "Trident Rod",
-            "Kings Rod",
-            "Aurora Rod",
-            "Mythical Rod",
-            "Destiny Rod",
-            "Celestial Rod",
-            "Voyager Rod",
-            "Riptide Rod",
-            "Seasons Rod",
-            "Resourceful Rod",
-            "Precision Rod",
-            "Steady Rod",
-            "Nocturnal Rod",
-            "Reinforced Rod",
-            "Magnet Rod",
-            "Rapid Rod",
-            "Fortune Rod",
-            "Phoenix Rod",
-            "Scurvy Rod",
-            "Midas Rod",
-            "Buddy Bond Rod",
-            "Haunted Rod",
-            "Relic Rod",
-            "Antler Rod",
-            "North-Star Rod",
-            "Astral Rod",
-            "Event Horizon Rod",
-            "Candy Cane Rod",
-            "Fungal Rod",
-            "Magma Rod",
-            "Long Rod",
-            "Lucky Rod",
-            "Fast Rod",
-            "Stone Rod",
-            "Carbon Rod",
-            "Plastic Rod",
-            "Training Rod",
-            "Fischer's Rod",
-            "Flimsy Rod"
-        },
-        
-        ChestSettings = {
-            MinRange = 10,
-            MaxRange = 100,
-            DefaultRange = 50
-        }
-    },
-    
-    Options = {
-        AutoFish = false,
-        AutoReel = false,
-        AutoShake = false,
-        AutoSell = false,
-        AutoEquipBestRod = false,
-        AutoCollectChests = false,
-        ChestRange = 50
-    }
-}
-
--- Core Services
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local CoreGui = game:GetService("CoreGui")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
--- Initialize environment
-local function initializeEnvironment()
+-- Core initialization with error handling
+local function initializeCore()
     if not game:IsLoaded() then
         game.Loaded:Wait()
     end
-    
-    -- Clean up existing UI elements
-    pcall(function()
-        if CoreGui:FindFirstChild("ClickButton") then
-            CoreGui:FindFirstChild("ClickButton"):Destroy()
-        end
+
+    -- Initialize global state
+    getgenv().State = {
+        AutoFishing = false,
+        AutoSelling = false,
+        SelectedRarities = {},
+        LastReelTime = 0,
+        LastShakeTime = 0,
+        Events = {
+            Available = {}
+        },
+        Initialized = false
+    }
+
+    -- Load Fluent UI with error handling
+    local success, Fluent = pcall(function()
+        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
     end)
-end
 
--- Initialize global state
-getgenv().State = {
-    AutoFishing = false,
-    AutoSelling = false,
-    SelectedRarities = {},
-    LastReelTime = 0,
-    LastShakeTime = 0
-}
-
--- Initialize Fluent UI
-local function initializeFluentUI()
-    if not getgenv().Fluent then
-        local success, fluentLib = pcall(function()
-            return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-        end)
-        
-        if not success or not fluentLib then
-            error("Failed to initialize Fluent UI")
-            return false
-        end
-        
-        getgenv().Fluent = fluentLib
+    if not success then
+        warn("Failed to load Fluent UI:", Fluent)
+        return false
     end
+
+    -- Initialize global references
+    getgenv().Fluent = Fluent
+    getgenv().SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+    getgenv().InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
     return true
 end
 
--- Initialize tabs structure
-local function initializeTabs()
-    if not getgenv().Tabs then
-        getgenv().Tabs = {
-            Main = nil,
-            Items = nil,
-            Settings = nil
-        }
-    end
-end
+-- Module loading with error handling
+local function loadModule(moduleName)
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(string.format(
+            "https://raw.githubusercontent.com/ProbTom/Lucid/main/%s.lua",
+            moduleName
+        )))()
+    end)
 
--- Initialize options
-local function initializeOptions()
-    if not getgenv().Options then
-        getgenv().Options = Config.Options
-    end
-end
-
--- Main initialization
-local function initialize()
-    initializeEnvironment()
-    
-    if not initializeFluentUI() then
+    if not success then
+        warn("Failed to load module:", moduleName, result)
         return false
     end
-    
-    initializeTabs()
-    initializeOptions()
-    
-    -- Load core modules
+
+    return true
+end
+
+-- Main initialization sequence
+local function initialize()
+    if not initializeCore() then
+        warn("Failed to initialize core components")
+        return false
+    end
+
+    -- Load modules in order with dependency checking
     local modules = {
-        "compatibility",
-        "functions",
-        "events",
-        "ui",
-        "MainTab",
-        "ItemsTab"
+        {name = "config", required = true},
+        {name = "compatibility", required = true},
+        {name = "functions", required = true},
+        {name = "events", required = true},
+        {name = "Tab", required = true},
+        {name = "MainTab", required = false},
+        {name = "ItemsTab", required = false},
+        {name = "ui", required = false}
     }
-    
+
     for _, module in ipairs(modules) do
-        local success, result = pcall(function()
-            return loadstring(game:HttpGet(Config.URLs.Main .. module .. ".lua"))()
-        end)
-        
-        if not success then
-            warn("Failed to load module:", module, result)
+        local success = loadModule(module.name)
+        if not success and module.required then
+            warn("Failed to load required module:", module.name)
             return false
         end
-        
-        task.wait(0.1) -- Small delay between module loads
     end
-    
+
+    -- Initialize SaveManager
+    if getgenv().SaveManager then
+        getgenv().SaveManager:SetLibrary(getgenv().Fluent)
+        getgenv().SaveManager:SetFolder("LucidHub")
+        getgenv().SaveManager:Load("LucidHub")
+    end
+
+    -- Set initialization flag
+    getgenv().State.Initialized = true
+    getgenv().LucidHubLoaded = true
+
+    if getgenv().Config and getgenv().Config.Debug then
+        print("✓ Lucid Hub loaded successfully!")
+    end
+
     return true
 end
 
 -- Execute initialization
-if initialize() then
-    getgenv().LucidHubLoaded = true
-    if Config.Debug then
-        print("Lucid Hub loaded successfully!")
+if not initialize() then
+    warn("⚠️ Lucid Hub failed to initialize completely")
+    -- Attempt to clean up if initialization failed
+    if getgenv().State then
+        getgenv().State.Initialized = false
     end
-else
-    warn("Failed to initialize Lucid Hub")
+    return false
 end
 
 return true
