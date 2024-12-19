@@ -1,203 +1,152 @@
 -- compatibility.lua
 local Compatibility = {
     _version = "1.0.1",
-    _initialized = false
+    _initialized = false,
+    _connections = {},
+    _eventChecks = {},
+    _eventRetries = {}
 }
 
 -- Core services
 local Services = {
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Players = game:GetService("Players")
+    Players = game:GetService("Players"),
+    RunService = game:GetService("RunService")
 }
 
--- Service validation
-Compatibility.ValidateServices = function()
-    for name, service in pairs(Services) do
-        if not service then
-            return false
-        end
-    end
-    return true
-end
+-- Event retry configuration
+local RETRY_DELAY = 1
+local MAX_RETRIES = 10
 
--- Game Events Setup with centralized event handling
-Compatibility.SetupGameEvents = function()
-    -- Initialize state if needed
-    if not getgenv().State then
-        getgenv().State = {}
-    end
-    
-    if not getgenv().State.Events then
-        getgenv().State.Events = {
-            Available = {}
+-- Silent event check
+function Compatibility.CheckEvent(eventName)
+    if not Compatibility._eventChecks[eventName] then
+        Compatibility._eventChecks[eventName] = {
+            exists = false,
+            lastCheck = 0
         }
     end
 
-    -- Check for events container
+    local currentTime = tick()
+    if currentTime - Compatibility._eventChecks[eventName].lastCheck < RETRY_DELAY then
+        return Compatibility._eventChecks[eventName].exists
+    end
+
+    local events = Services.ReplicatedStorage:FindFirstChild("events")
+    if events then
+        local eventExists = events:FindFirstChild(eventName) ~= nil
+        Compatibility._eventChecks[eventName] = {
+            exists = eventExists,
+            lastCheck = currentTime
+        }
+        return eventExists
+    end
+
+    Compatibility._eventChecks[eventName] = {
+        exists = false,
+        lastCheck = currentTime
+    }
+    return false
+end
+
+-- Setup event monitoring
+function Compatibility.MonitorEvents()
     local events = Services.ReplicatedStorage:FindFirstChild("events")
     if not events then
-        if getgenv().Config and getgenv().Config.Debug then
-            warn("Events container not found")
-        end
-        -- Set all events as unavailable
-        getgenv().State.Events.Available = {
-            castrod = false,
-            reelfinished = false,
-            character = false
-        }
-        return true
+        events = Instance.new("Folder")
+        events.Name = "events"
+        events.Parent = Services.ReplicatedStorage
     end
 
-    -- Check required events
-    local requiredEvents = {
-        "castrod",
-        "reelfinished",
-        "character"
-    }
-
-    -- Check each event and store availability
-    for _, eventName in ipairs(requiredEvents) do
-        local eventExists = events:FindFirstChild(eventName) ~= nil
-        getgenv().State.Events.Available[eventName] = eventExists
-        
-        if not eventExists and getgenv().Config and getgenv().Config.Debug then
-            warn("⚠️ Event not found:", eventName)
-        end
-    end
-
-    return true
-end
-
--- Script environment validation
-Compatibility.ValidateEnvironment = function()
-    local required = {
-        ["getgenv"] = type(getgenv) == "function",
-        ["hookfunction"] = type(hookfunction) == "function",
-        ["newcclosure"] = type(newcclosure) == "function",
-        ["setreadonly"] = type(setreadonly) == "function",
-        ["getrawmetatable"] = type(getrawmetatable) == "function"
-    }
-    
-    local missing = {}
-    for name, available in pairs(required) do
-        if not available then
-            table.insert(missing, name)
-        end
-    end
-    
-    return #missing == 0, missing
-end
-
--- Enhanced Anti-cheat bypass
-Compatibility.SetupAntiCheatBypass = function()
-    pcall(function()
-        local mt = getrawmetatable(game)
-        if not mt then return end
-        
-        local old = mt.__namecall
-        setreadonly(mt, false)
-        
-        mt.__namecall = newcclosure(function(self, ...)
-            local args = {...}
-            local method = getnamecallmethod()
-            
-            if method == "FireServer" or method == "InvokeServer" then
-                local remoteName = self.Name:lower()
-                if remoteName:match("cheat") or remoteName:match("detect") or remoteName:match("violation") then
-                    return
-                end
-            end
-            
-            return old(self, ...)
-        end)
-        
-        setreadonly(mt, true)
-    end)
-    
-    return true
-end
-
--- Feature availability check
-Compatibility.IsFeatureAvailable = function(featureName)
-    if not getgenv().State or not getgenv().State.Events or not getgenv().State.Events.Available then
-        return false
-    end
-
-    if featureName:match("auto") then
-        local requiredEvents = {
-            autofish = {"castrod"},
-            autoreel = {"reelfinished"},
-            autoshake = {"character"}
+    -- Monitor event creation
+    Compatibility._connections.eventAdded = events.ChildAdded:Connect(function(child)
+        Compatibility._eventChecks[child.Name] = {
+            exists = true,
+            lastCheck = tick()
         }
         
-        local events = requiredEvents[featureName:lower()]
-        if events then
-            for _, event in ipairs(events) do
-                if not getgenv().State.Events.Available[event] then
-                    return false
-                end
-            end
-        end
-    end
-    return true
-end
-
--- Memory cleanup function
-Compatibility.Cleanup = function()
-    pcall(function()
-        -- Clear metatable modifications
-        local mt = getrawmetatable(game)
-        if mt and mt.__namecall then
-            setreadonly(mt, false)
-            mt.__namecall = nil
-            setreadonly(mt, true)
-        end
-        
-        -- Clear event handlers
         if getgenv().State and getgenv().State.Events then
-            getgenv().State.Events = {
-                Available = {}
-            }
+            getgenv().State.Events.Available[child.Name] = true
+        end
+    end)
+
+    -- Monitor event removal
+    Compatibility._connections.eventRemoved = events.ChildRemoved:Connect(function(child)
+        Compatibility._eventChecks[child.Name] = {
+            exists = false,
+            lastCheck = tick()
+        }
+        
+        if getgenv().State and getgenv().State.Events then
+            getgenv().State.Events.Available[child.Name] = false
         end
     end)
 end
 
--- Initialize compatibility checks
-local function InitializeCompatibility()
+-- Setup periodic event checking
+function Compatibility.StartEventRetrySystem()
+    Compatibility._connections.eventRetry = Services.RunService.Heartbeat:Connect(function()
+        for eventName, retries in pairs(Compatibility._eventRetries) do
+            if retries < MAX_RETRIES then
+                if Compatibility.CheckEvent(eventName) then
+                    Compatibility._eventRetries[eventName] = nil
+                else
+                    Compatibility._eventRetries[eventName] = retries + 1
+                end
+            end
+        end
+    end)
+end
+
+-- Initialize compatibility layer
+function Compatibility.Initialize()
     if Compatibility._initialized then
         return true
     end
 
-    local status = {
-        services = Compatibility.ValidateServices(),
-        environment = Compatibility.ValidateEnvironment(),
-        anticheat = Compatibility.SetupAntiCheatBypass(),
-        events = Compatibility.SetupGameEvents()
+    -- Setup event monitoring
+    Compatibility.MonitorEvents()
+
+    -- Initialize event retry system
+    Compatibility._eventRetries = {
+        castrod = 0,
+        character = 0
     }
     
-    -- Log initialization results if debug is enabled
-    if getgenv().Config and getgenv().Config.Debug then
-        for check, result in pairs(status) do
-            if not result then
-                warn(string.format("⚠️ Compatibility initialization failed for: %s", check))
-            end
-        end
-    end
-    
+    -- Start event retry system
+    Compatibility.StartEventRetrySystem()
+
     Compatibility._initialized = true
+    
+    if getgenv().Config and getgenv().Config.Debug then
+        print("✓ Compatibility layer initialized successfully")
+    end
+
     return true
 end
 
--- Setup cleanup on script end
+-- Cleanup function
+function Compatibility.Cleanup()
+    for _, connection in pairs(Compatibility._connections) do
+        if typeof(connection) == "RBXScriptConnection" then
+            connection:Disconnect()
+        end
+    end
+    Compatibility._connections = {}
+    Compatibility._eventChecks = {}
+    Compatibility._eventRetries = {}
+end
+
+-- Run initialization
+local success = Compatibility.Initialize()
+
+if not success and getgenv().Config and getgenv().Config.Debug then
+    warn("⚠️ Failed to initialize Compatibility layer")
+end
+
+-- Setup cleanup on teleport
 game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
     Compatibility.Cleanup()
 end)
-
--- Run initialization
-local success = InitializeCompatibility()
-
-if success and getgenv().Config and getgenv().Config.Debug then
-    print("✓ Compatibility layer initialized successfully")
-end
 
 return Compatibility
