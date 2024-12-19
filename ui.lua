@@ -4,7 +4,8 @@ local UI = {
     _loaded = false,
     _components = {},
     _cache = {},
-    _initialized = false
+    _initialized = false,
+    _version = "1.0.1"
 }
 
 -- Protection against re-initialization
@@ -27,40 +28,35 @@ local Services = {
     RunService = getService("RunService")
 }
 
--- Window Configuration - Updated with all required fields
+-- Window Configuration based on Fluent documentation
 local Config = {
-    WINDOW = {
-        Title = "Lucid Hub", -- Required field
-        SubTitle = "v1.0.1", -- Required field
+    Window = {
+        -- Required fields per Fluent documentation
+        Title = "Lucid Hub",
+        SubTitle = "v1.0.1",
+        Icon = "rbxassetid://10723424505", -- Default icon
+        ButtonColor = Color3.fromRGB(0, 120, 215),
         TabWidth = 160,
-        Size = Vector2.new(550, 350),
         UseAcrylic = true,
-        Theme = "Dark",
-        MinimizeKey = Enum.KeyCode.RightShift,
-        MinimizeKeybind = "RightShift", -- Backup format
-        ConfigurationSaving = {
-            Enabled = true,
-            FolderName = "LucidHub",
-            FileName = "Config"
-        },
-        Discord = {
-            Enabled = false,
-            Invite = "discord.gg/example"
-        },
-        KeySystem = false
+        MinimizeKey = Enum.KeyCode.RightControl
     },
-    TABS = {
-        Main = {
+    SaveConfig = {
+        Enabled = true,
+        FolderName = "LucidHub",
+        FileName = "Config"
+    },
+    Tabs = {
+        {
             Title = "Main",
-            Icon = "rbxassetid://4483345998"
+            Icon = "rbxassetid://10723424505"
         },
-        Items = {
+        {
             Title = "Items",
-            Icon = "rbxassetid://4483345998"
+            Icon = "rbxassetid://10723406110"
         },
-        Settings = {
+        {
             Title = "Settings",
-            Icon = "rbxassetid://4483345998"
+            Icon = "rbxassetid://10734898962"
         }
     }
 }
@@ -79,67 +75,53 @@ local function verifyDependencies()
         end
     end
 
-    if not Services.Players.LocalPlayer then
-        warn("LocalPlayer not available")
-        return false
-    end
-
     return true
 end
 
--- Safe window creation with all required parameters
+-- Create window with correct parameters
 local function createWindow()
-    if not getgenv().Fluent then
-        return nil
-    end
-
+    if not getgenv().Fluent then return nil end
+    
     local success, window = pcall(function()
+        -- Create window using exact parameter structure from Fluent docs
         return getgenv().Fluent:CreateWindow({
-            -- Required parameters
-            Title = Config.WINDOW.Title,
-            SubTitle = Config.WINDOW.SubTitle,
-            TabWidth = Config.WINDOW.TabWidth,
-            Size = Config.WINDOW.Size,
-            
-            -- Window configuration
-            Acrylic = Config.WINDOW.UseAcrylic,
-            Theme = Config.WINDOW.Theme,
-            MinimizeKey = Config.WINDOW.MinimizeKey,
-            MinimizeKeybind = Config.WINDOW.MinimizeKeybind,
-            
-            -- Additional configurations
-            ConfigurationSaving = Config.WINDOW.ConfigurationSaving,
-            Discord = Config.WINDOW.Discord,
-            KeySystem = Config.WINDOW.KeySystem
+            Title = Config.Window.Title,
+            SubTitle = Config.Window.SubTitle,
+            Icon = Config.Window.Icon,
+            ButtonColor = Config.Window.ButtonColor,
+            TabWidth = Config.Window.TabWidth,
+            UseAcrylic = Config.Window.UseAcrylic,
+            MinimizeKey = Config.Window.MinimizeKey,
+            SaveConfiguration = Config.SaveConfig
         })
     end)
 
     if not success or not window then
-        warn("Failed to create window:", tostring(window))
+        warn("Window creation failed:", tostring(window))
         return nil
     end
 
     return window
 end
 
--- Tab creation with error handling
+-- Create tabs with proper parameters
 local function createTabs(window)
     if not window then return false end
     
     UI._components.Tabs = {}
     
-    for id, info in pairs(Config.TABS) do
+    for _, tabInfo in ipairs(Config.Tabs) do
         local success, tab = pcall(function()
-            return window:CreateTab({
-                Title = info.Title,
-                Icon = info.Icon
+            return window:AddTab({
+                Title = tabInfo.Title,
+                Icon = tabInfo.Icon
             })
         end)
         
         if success and tab then
-            UI._components.Tabs[id] = tab
+            UI._components.Tabs[tabInfo.Title] = tab
         else
-            warn("Failed to create tab:", id)
+            warn("Failed to create tab:", tabInfo.Title)
         end
     end
     
@@ -159,18 +141,16 @@ function UI.ShowNotification(title, content, duration)
     end)
 end
 
-function UI.CreateSection(tabName, sectionName)
-    local tab = UI._components.Tabs and UI._components.Tabs[tabName]
+function UI.CreateSection(tab, name)
     if not tab then return nil end
     
     local success, section = pcall(function()
-        return tab:CreateSection(sectionName)
+        return tab:AddSection(name)
     end)
     
     return success and section or nil
 end
 
--- Window control functions
 function UI.Minimize()
     if UI._components.Window then
         pcall(function()
@@ -187,7 +167,7 @@ function UI.Maximize()
     end
 end
 
--- Core initialization
+-- Initialize UI system
 local function initialize()
     if not verifyDependencies() then
         return false
@@ -204,18 +184,20 @@ local function initialize()
         return false
     end
     
+    -- Set up SaveManager if available
     if getgenv().SaveManager then
         pcall(function()
             getgenv().SaveManager:SetLibrary(getgenv().Fluent)
             getgenv().SaveManager:SetWindow(window)
-            getgenv().SaveManager:Load(Config.WINDOW.ConfigurationSaving.FileName)
+            getgenv().SaveManager:Load(Config.SaveConfig.FileName)
         end)
     end
     
+    -- Set up cleanup
     Services.Players.LocalPlayer.OnTeleport:Connect(function()
         pcall(function()
             if getgenv().SaveManager then
-                getgenv().SaveManager:Save(Config.WINDOW.ConfigurationSaving.FileName)
+                getgenv().SaveManager:Save(Config.SaveConfig.FileName)
             end
             if UI._components.Window then
                 UI._components.Window:Destroy()
@@ -228,14 +210,11 @@ local function initialize()
     return true
 end
 
--- Run initialization with error handling
+-- Run initialization with proper error handling
 local success, result = pcall(initialize)
 
 if success and result then
     getgenv().LucidUI = UI
-    if getgenv().Config and getgenv().Config.Debug then
-        print("✓ UI system initialized successfully")
-    end
     return UI
 else
     warn("⚠️ Failed to initialize UI system:", tostring(result))
