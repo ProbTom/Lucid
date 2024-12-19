@@ -33,12 +33,28 @@ local autoReel = MainTab:AddToggle("autoReel", {
     Default = false
 })
 
+local lastReelTime = 0
+local REEL_COOLDOWN = 0.1  -- Add a small cooldown to prevent spam
+
 autoReel:OnChanged(function()
     pcall(function()
         if autoReel.Value then
             RunService:BindToRenderStep("AutoReel", 1, function()
-                if LocalPlayer.PlayerGui then
+                if LocalPlayer.PlayerGui and tick() - lastReelTime > REEL_COOLDOWN then
+                    -- Original auto reel function
                     Functions.autoReel(LocalPlayer.PlayerGui)
+                    
+                    -- New reel finish event
+                    local args = {
+                        [1] = 100,
+                        [2] = true
+                    }
+                    
+                    pcall(function()
+                        game:GetService("ReplicatedStorage"):WaitForChild("events"):WaitForChild("reelfinished"):FireServer(unpack(args))
+                    end)
+                    
+                    lastReelTime = tick()
                 end
             end)
         else
