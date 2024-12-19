@@ -22,12 +22,6 @@ end
 
 -- Game Events Setup with centralized event handling
 Compatibility.SetupGameEvents = function()
-    -- Check if Events module is loaded
-    if not getgenv().Events then
-        warn("Events module not loaded")
-        return false
-    end
-
     -- Initialize state if needed
     if not getgenv().State then
         getgenv().State = {}
@@ -39,9 +33,36 @@ Compatibility.SetupGameEvents = function()
         }
     end
 
-    -- Use centralized event checking from Events module
-    for _, eventName in ipairs(getgenv().Events.REQUIRED_EVENTS) do
-        getgenv().State.Events.Available[eventName] = getgenv().Events.IsAvailable(eventName)
+    -- Check for events container
+    local events = Services.ReplicatedStorage:FindFirstChild("events")
+    if not events then
+        if getgenv().Config and getgenv().Config.Debug then
+            warn("Events container not found")
+        end
+        -- Set all events as unavailable
+        getgenv().State.Events.Available = {
+            castrod = false,
+            reelfinished = false,
+            character = false
+        }
+        return true
+    end
+
+    -- Check required events
+    local requiredEvents = {
+        "castrod",
+        "reelfinished",
+        "character"
+    }
+
+    -- Check each event and store availability
+    for _, eventName in ipairs(requiredEvents) do
+        local eventExists = events:FindFirstChild(eventName) ~= nil
+        getgenv().State.Events.Available[eventName] = eventExists
+        
+        if not eventExists and getgenv().Config and getgenv().Config.Debug then
+            warn("⚠️ Event not found:", eventName)
+        end
     end
 
     return true
@@ -150,11 +171,9 @@ local function InitializeCompatibility()
     local status = {
         services = Compatibility.ValidateServices(),
         environment = Compatibility.ValidateEnvironment(),
-        anticheat = Compatibility.SetupAntiCheatBypass()
+        anticheat = Compatibility.SetupAntiCheatBypass(),
+        events = Compatibility.SetupGameEvents()
     }
-    
-    -- Setup events last to ensure all dependencies are ready
-    status.events = Compatibility.SetupGameEvents()
     
     -- Log initialization results if debug is enabled
     if getgenv().Config and getgenv().Config.Debug then
@@ -170,21 +189,15 @@ local function InitializeCompatibility()
 end
 
 -- Setup cleanup on script end
-if getgenv().Config then
-    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-        Compatibility.Cleanup()
-    end)
-end
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+    Compatibility.Cleanup()
+end)
 
 -- Run initialization
 local success = InitializeCompatibility()
 
-if success then
-    if getgenv().Config and getgenv().Config.Debug then
-        print("✓ Compatibility layer initialized successfully")
-    end
-else
-    warn("Failed to initialize compatibility layer")
+if success and getgenv().Config and getgenv().Config.Debug then
+    print("✓ Compatibility layer initialized successfully")
 end
 
 return Compatibility
