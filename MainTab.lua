@@ -1,3 +1,16 @@
+-- Check for required dependencies first
+if not getgenv().Tabs or not getgenv().Tabs.Main then
+    warn("Waiting for Tabs to initialize...")
+    local startTime = tick()
+    while not getgenv().Tabs or not getgenv().Tabs.Main do
+        if tick() - startTime > 10 then
+            error("Tabs failed to initialize after 10 seconds")
+            return
+        end
+        task.wait(0.1)
+    end
+end
+
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -19,15 +32,25 @@ local ReelMode = getgenv().Options.ReelMode.Value
 
 -- Ensure Functions table exists
 if not getgenv().Functions then
-    error("Functions table not loaded!")
-    return
+    warn("Waiting for Functions to initialize...")
+    local startTime = tick()
+    while not getgenv().Functions do
+        if tick() - startTime > 10 then
+            error("Functions failed to initialize after 10 seconds")
+            return
+        end
+        task.wait(0.1)
+    end
 end
 
+-- Cache Tabs reference
+local MainTab = getgenv().Tabs.Main
+
 -- Main Section
-local mainSection = Tabs.Main:AddSection("Auto Fishing")
+local mainSection = MainTab:AddSection("Auto Fishing")
 
 -- Auto Cast Toggle
-local autoCast = Tabs.Main:AddToggle("autoCast", {Title = "Auto Cast", Default = false})
+local autoCast = MainTab:AddToggle("autoCast", {Title = "Auto Cast", Default = false})
 autoCast:OnChanged(function()
     pcall(function()
         if autoCast.Value then
@@ -43,7 +66,7 @@ autoCast:OnChanged(function()
 end)
 
 -- Auto Shake Toggle
-local autoShake = Tabs.Main:AddToggle("autoShake", {Title = "Auto Shake", Default = false})
+local autoShake = MainTab:AddToggle("autoShake", {Title = "Auto Shake", Default = false})
 autoShake:OnChanged(function()
     pcall(function()
         if autoShake.Value then
@@ -59,7 +82,7 @@ autoShake:OnChanged(function()
 end)
 
 -- Auto Reel Toggle
-local autoReel = Tabs.Main:AddToggle("autoReel", {Title = "Auto Reel", Default = false})
+local autoReel = MainTab:AddToggle("autoReel", {Title = "Auto Reel", Default = false})
 autoReel:OnChanged(function()
     pcall(function()
         if autoReel.Value then
@@ -75,7 +98,7 @@ autoReel:OnChanged(function()
 end)
 
 -- Cast Mode Dropdown
-local castModeDropdown = Tabs.Main:AddDropdown("CastMode", {
+local castModeDropdown = MainTab:AddDropdown("CastMode", {
     Title = "Cast Mode",
     Values = {"Legit", "Blatant"},
     Multi = false,
@@ -88,7 +111,7 @@ castModeDropdown:OnChanged(function(Value)
 end)
 
 -- Reel Mode Dropdown
-local reelModeDropdown = Tabs.Main:AddDropdown("ReelMode", {
+local reelModeDropdown = MainTab:AddDropdown("ReelMode", {
     Title = "Reel Mode",
     Values = {"Legit", "Blatant"},
     Multi = false,
@@ -108,13 +131,15 @@ local function cleanupTab()
         RunService:UnbindFromRenderStep("AutoReel")
         
         -- Reset toggles
-        autoCast:SetValue(false)
-        autoShake:SetValue(false)
-        autoReel:SetValue(false)
+        if autoCast then autoCast:SetValue(false) end
+        if autoShake then autoShake:SetValue(false) end
+        if autoReel then autoReel:SetValue(false) end
         
         -- Save current modes
-        getgenv().Options.CastMode.Value = CastMode
-        getgenv().Options.ReelMode.Value = ReelMode
+        if getgenv().Options then
+            getgenv().Options.CastMode.Value = CastMode
+            getgenv().Options.ReelMode.Value = ReelMode
+        end
     end)
 end
 
