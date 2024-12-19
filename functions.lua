@@ -5,10 +5,27 @@ local LocalPlayer = Players.LocalPlayer
 getgenv().Functions = {
     autoShake = function(gui)
         if gui:FindFirstChild("shakeui") and gui.shakeui.Enabled then
-            gui.shakeui.safezone.button.Size = UDim2.new(1001, 0, 1001, 0)
-            VirtualUser:Button1Down(Vector2.new(1, 1))
-            task.wait(0.1)
-            VirtualUser:Button1Up(Vector2.new(1, 1))
+            -- Safely find the button by recursively searching through the shakeui
+            local function findButton(parent)
+                for _, child in ipairs(parent:GetChildren()) do
+                    if child:IsA("TextButton") or child:IsA("ImageButton") then
+                        return child
+                    end
+                    local found = findButton(child)
+                    if found then
+                        return found
+                    end
+                end
+                return nil
+            end
+            
+            local button = findButton(gui.shakeui)
+            if button then
+                button.Size = UDim2.new(1001, 0, 1001, 0)
+                VirtualUser:Button1Down(Vector2.new(1, 1))
+                task.wait(0.1)
+                VirtualUser:Button1Up(Vector2.new(1, 1))
+            end
         end
     end,
     
