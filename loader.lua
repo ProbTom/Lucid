@@ -23,15 +23,16 @@ getgenv().Config = {
     }
 }
 
--- Load UI Libraries directly
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+-- Load Fluent UI directly
+getgenv().Fluent = loadstring(game:HttpGet(getgenv().Config.URLs.Fluent))()
+if not getgenv().Fluent then
+    warn("Failed to load Fluent UI library")
+    return
+end
 
--- Store in global
-getgenv().Fluent = Fluent
-getgenv().SaveManager = SaveManager
-getgenv().InterfaceManager = InterfaceManager
+-- Load managers after Fluent is loaded
+getgenv().SaveManager = loadstring(game:HttpGet(getgenv().Config.URLs.SaveManager))()
+getgenv().InterfaceManager = loadstring(game:HttpGet(getgenv().Config.URLs.InterfaceManager))()
 
 -- Load the rest of your scripts
 local files = {
@@ -53,8 +54,8 @@ end
 
 getgenv().LucidHubLoaded = true
 
-if Fluent then
-    Fluent:Notify({
+if getgenv().Fluent then
+    getgenv().Fluent:Notify({
         Title = "Lucid Hub",
         Content = "Successfully loaded!",
         Duration = 5
