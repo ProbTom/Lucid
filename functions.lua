@@ -57,43 +57,6 @@ getgenv().Functions = {
                 VirtualUser:Button1Up(Vector2.new(1, 1))
             end
         end
-    end,
-    
-    walkSpeed = function(speed)
-        if LocalPlayer.Character then
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.WalkSpeed = speed
-            end
-        end
-    end,
-    
-    jumpPower = function(power)
-        if LocalPlayer.Character then
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.JumpPower = power
-            end
-        end
-    end,
-    
-    toggleNoclip = function(enabled)
-        if LocalPlayer.Character then
-            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = not enabled
-                end
-            end
-        end
-    end,
-    
-    teleportTo = function(position)
-        if LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(position)
-            end
-        end
     end
 }
 
