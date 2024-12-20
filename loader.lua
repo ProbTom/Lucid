@@ -13,6 +13,20 @@ if not getgenv().State then
     }
 end
 
+-- Ensure Fluent library is loaded only once
+if not getgenv().Fluent then
+    local success, Fluent = pcall(function()
+        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+    end)
+
+    if success and Fluent then
+        getgenv().Fluent = Fluent
+    else
+        warn("Failed to load Fluent library")
+        return
+    end
+end
+
 -- Load Core Modules
 local success, UI = pcall(function()
     return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/ui.lua"))()
