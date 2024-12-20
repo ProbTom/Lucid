@@ -17,86 +17,55 @@ local Services = {
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
-
--- Check for existing instance and clean up
-local function cleanupExisting()
-    if getgenv().LucidWindow then
-        pcall(function()
-            getgenv().LucidWindow:Destroy()
-        end)
-        getgenv().LucidWindow = nil
-    end
-    
-    if getgenv().Fluent then
-        getgenv().Fluent = nil
-    end
-    
-    if getgenv().LucidState then
-        getgenv().LucidState = nil
-    end
-    
-    if getgenv().Tabs then
-        getgenv().Tabs = nil
-    end
-end
-
--- Load Debug module
-local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
-if not Debug then
-    warn("[CRITICAL ERROR]: Failed to load Debug module")
-    return false
-end
+local Debug = getgenv().LucidDebug
 
 -- Protected Call Function
 local function protectedCall(func, ...)
     if type(func) ~= "function" then
-        Debug.Error("Attempted to call a nil value or non-function")
+        Debug.Error("Protected call failed: not a function")
         return false
     end
     
     local success, result = pcall(func, ...)
     if not success then
-        Debug.Error(result)
+        Debug.Error("Protected call failed: " .. tostring(result))
         return false
     end
+    
     return true, result
 end
 
 -- Load Fluent UI Library
 local function loadFluentUI()
-    local success, Fluent = pcall(function()
-        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+    if getgenv().LucidState.UI then
+        return getgenv().LucidState.UI
+    end
+
+    local success, UI = pcall(function()
+        return loadstring(game:HttpGet(getgenv().LucidState.Config.URLs.FluentUI))()
     end)
 
-    if not success or not Fluent then
+    if not success or not UI then
         Debug.Error("Failed to load Fluent UI library")
         return false
     end
 
-    getgenv().Fluent = Fluent
-    return Fluent
+    getgenv().LucidState.UI = UI
+    return UI
 end
 
--- Create window
+-- Create window (only if none exists)
 local function createWindow()
     if getgenv().LucidWindow then
         return getgenv().LucidWindow
     end
 
-    if not getgenv().Fluent then
-        Debug.Error("Fluent UI library not loaded")
+    if not getgenv().LucidState.UI then
+        Debug.Error("UI library not loaded")
         return false
     end
 
-    local window = getgenv().Fluent:CreateWindow({
-        Title = "Lucid Hub",
-        SubTitle = "by ProbTom",
-        TabWidth = 160,
-        Size = UDim2.fromOffset(580, 460),
-        Theme = "Dark",
-        MinimizeKeybind = Enum.KeyCode.RightControl
-    })
-
+    local window = getgenv().LucidState.UI:CreateWindow(getgenv().LucidState.Config.UI.Window)
     if not window then
         Debug.Error("Failed to create window")
         return false
@@ -111,31 +80,22 @@ local function initializeTabs()
     local window = getgenv().LucidWindow
     if not window then return false end
 
-    local tabs = {
-        {Name = "Home", Icon = "home"},
-        {Name = "Main", Icon = "list"},
-        {Name = "Items", Icon = "package"},
-        {Name = "Teleports", Icon = "map-pin"},
-        {Name = "Misc", Icon = "file-text"},
-        {Name = "Settings", Icon = "settings"},
-        {Name = "Credits", Icon = "heart"}
-    }
+    getgenv().LucidState.Tabs = {}
+    local tabs = getgenv().LucidState.Config.UI.Tabs
 
-    getgenv().Tabs = {}
-
-    for _, tabInfo in ipairs(tabs) do
+    for tabName, tabConfig in pairs(tabs) do
         local success, tab = protectedCall(function()
             return window:AddTab({
-                Title = tabInfo.Name,
-                Icon = tabInfo.Icon
+                Title = tabConfig.Name,
+                Icon = tabConfig.Icon
             })
         end)
 
         if success and tab then
-            getgenv().Tabs[tabInfo.Name] = tab
-            Debug.Log("Created tab: " .. tabInfo.Name)
+            getgenv().LucidState.Tabs[tabName] = tab
+            Debug.Log("Created tab: " .. tabName)
         else
-            Debug.Error("Failed to create tab: " .. tabInfo.Name)
+            Debug.Error("Failed to create tab: " .. tabName)
             return false
         end
     end
@@ -145,47 +105,42 @@ end
 
 -- Initialize features
 local function initializeFeatures()
-    local mainTab = getgenv().Tabs.Main
+    local mainTab = getgenv().LucidState.Tabs.Main
     if not mainTab then
         Debug.Error("Main tab not found")
         return false
     end
 
     local section = mainTab:AddSection("Fishing Controls")
+    local features = getgenv().LucidState.Config.Features
 
     -- Auto Cast
     section:AddToggle({
         Title = "Auto Cast",
-        Default = false,
+        Default = features.AutoCast.Enabled,
         Callback = function(value)
-            if getgenv().LucidState then
-                getgenv().LucidState.AutoCasting = value
-                Debug.Log("Auto Cast: " .. tostring(value))
-            end
+            getgenv().LucidState.AutoCasting = value
+            Debug.Log("Auto Cast: " .. tostring(value))
         end
     })
 
     -- Auto Reel
     section:AddToggle({
         Title = "Auto Reel",
-        Default = false,
+        Default = features.AutoReel.Enabled,
         Callback = function(value)
-            if getgenv().LucidState then
-                getgenv().LucidState.AutoReeling = value
-                Debug.Log("Auto Reel: " .. tostring(value))
-            end
+            getgenv().LucidState.AutoReeling = value
+            Debug.Log("Auto Reel: " .. tostring(value))
         end
     })
 
     -- Auto Shake
     section:AddToggle({
         Title = "Auto Shake",
-        Default = false,
+        Default = features.AutoShake.Enabled,
         Callback = function(value)
-            if getgenv().LucidState then
-                getgenv().LucidState.AutoShaking = value
-                Debug.Log("Auto Shake: " .. tostring(value))
-            end
+            getgenv().LucidState.AutoShaking = value
+            Debug.Log("Auto Shake: " .. tostring(value))
         end
     })
 
@@ -194,7 +149,7 @@ end
 
 -- Initialize credits
 local function initializeCredits()
-    local creditsTab = getgenv().Tabs.Credits
+    local creditsTab = getgenv().LucidState.Tabs.Credits
     if not creditsTab then return false end
 
     local section = creditsTab:AddSection("Credits")
@@ -222,25 +177,6 @@ function Loader.Initialize()
     if Loader._initialized then
         return true
     end
-
-    -- Clean up any existing instances
-    cleanupExisting()
-
-    -- Initialize global state
-    if not getgenv then
-        Debug.Error("getgenv is not available")
-        return false
-    end
-
-    getgenv().LucidState = {
-        Version = Loader._version,
-        AutoCasting = false,
-        AutoReeling = false,
-        AutoShaking = false,
-        Events = { Available = {} },
-        UI = { Initialized = false },
-        initialized = false
-    }
 
     -- Load UI Library
     if not loadFluentUI() then
@@ -273,8 +209,7 @@ function Loader.Initialize()
     end
 
     Loader._initialized = true
-    getgenv().LucidState.initialized = true
-    Debug.Log("Initialization complete")
+    Debug.Log("Loader initialization complete")
     return true
 end
 
@@ -286,18 +221,20 @@ function Loader.Cleanup()
         end
     end
     
-    cleanupExisting()
+    if getgenv().LucidWindow then
+        pcall(function()
+            getgenv().LucidWindow:Destroy()
+        end)
+        getgenv().LucidWindow = nil
+    end
+    
     Loader._initialized = false
+    Debug.Log("Loader cleanup complete")
 end
 
 -- Register cleanup on teleport
 LocalPlayer.OnTeleport:Connect(function()
     Loader.Cleanup()
 end)
-
--- Run initialization
-if not Loader.Initialize() then
-    Debug.Error("Failed to initialize Lucid Hub")
-end
 
 return Loader
