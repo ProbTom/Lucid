@@ -165,10 +165,16 @@ function UI.Initialize()
 
     Debug.Log("Creating UI window.")
     UI.CreateWindow()
-    Debug.Log("Creating UI tabs.")
-    UI.CreateTabs()
-    Debug.Log("Creating UI sections.")
-    UI.CreateMainSections()
+
+    if UI._window then
+        Debug.Log("Creating UI tabs.")
+        UI.CreateTabs()
+        Debug.Log("Creating UI sections.")
+        UI.CreateMainSections()
+    else
+        Debug.Error("Failed to create UI window, skipping tab and section creation.")
+        return false
+    end
 
     UI._initialized = true
     Debug.Log("UI module initialized successfully.")
