@@ -1,7 +1,6 @@
 -- debug.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 15:06:45 UTC
 
 local Debug = {
     _VERSION = "1.0.1",
@@ -30,10 +29,10 @@ local config = {
 -- Log history
 local logHistory = {}
 
--- Format timestamp
+-- Format timestamp using Roblox's time
 local function formatTimestamp()
-    local date = os.date("*t")
-    return string.format("[%02d:%02d:%02d]", date.hour, date.min, date.sec)
+    local t = os.date("*t")
+    return string.format("[%02d:%02d:%02d]", t.hour, t.min, t.sec)
 end
 
 -- Format message
@@ -84,7 +83,7 @@ function Debug.Debug(msg)
 end
 
 function Debug.Warn(msg)
-    return log(Debug.LEVELS.WARN, "WARNING", msg)
+    return log(Debug.LEVELS.WARN, "WARN", msg)
 end
 
 function Debug.Error(msg)
@@ -108,12 +107,6 @@ function Debug.SetLogLevel(level)
     end
 end
 
-function Debug.SetMaxHistory(max)
-    config.maxHistory = max
-    Debug.Info(string.format("Max history set to %d", max))
-end
-
--- History functions
 function Debug.GetHistory()
     return table.clone(logHistory)
 end
@@ -129,16 +122,18 @@ function Debug.init()
         return true
     end
     
+    -- Basic initialization check
+    local success, err = pcall(function()
+        Debug.Info("Initializing debug module...")
+    end)
+    
+    if not success then
+        warn("[LUCID DEBUG] Failed to initialize:", err)
+        return false
+    end
+    
     Debug._initialized = true
-    Debug.Info("Debug module initialized")
     return true
-end
-
--- Module shutdown
-function Debug.shutdown()
-    Debug.Info("Debug module shutting down")
-    Debug.ClearHistory()
-    Debug._initialized = false
 end
 
 return Debug
