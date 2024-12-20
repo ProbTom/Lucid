@@ -6,7 +6,7 @@ local Events = {
 }
 
 -- Storage for modules
-local debug
+local debug = nil
 local storage = {
     events = {},
     history = {},
@@ -17,22 +17,18 @@ local storage = {
 local Event = {}
 Event.__index = Event
 
-local function safeLog(level, msg)
-    if debug and type(debug[level]) == "function" then
-        debug[level](msg)
-    end
+-- Safe logging function that doesn't require debug module
+local function safeLog(msg, level)
+    print(string.format("[LUCID %s] %s", level or "INFO", tostring(msg)))
 end
 
 function Event.new(name)
-    local self = setmetatable({
+    return setmetatable({
         name = name,
         handlers = {},
         lastFired = 0,
         fireCount = 0
     }, Event)
-    
-    safeLog("Info", "Created new event: " .. name)
-    return self
 end
 
 function Event:Fire(...)
@@ -43,7 +39,7 @@ function Event:Fire(...)
         task.spawn(function()
             local success, err = pcall(handler, ...)
             if not success then
-                safeLog("Error", string.format("Event '%s' handler error: %s", self.name, tostring(err)))
+                safeLog(string.format("Event '%s' handler error: %s", self.name, tostring(err)), "ERROR")
             end
         end)
     end
@@ -51,13 +47,13 @@ end
 
 function Event:Connect(fn)
     if type(fn) ~= "function" then
-        safeLog("Error", "Attempted to connect non-function to event: " .. self.name)
+        safeLog("Attempted to connect non-function to event: " .. self.name, "ERROR")
         return nil
     end
     
     table.insert(self.handlers, fn)
     
-    local connection = {
+    return {
         Connected = true,
         Disconnect = function(self)
             if not self.Connected then return end
@@ -66,25 +62,22 @@ function Event:Connect(fn)
                 if handler == fn then
                     table.remove(self.handlers, i)
                     self.Connected = false
-                    safeLog("Debug", string.format("Disconnected handler from event '%s'", self.name))
                     break
                 end
             end
         end
     }
-    
-    safeLog("Debug", string.format("Connected handler to event '%s'", self.name))
-    return connection
 end
 
+-- Public API
 function Events.Create(name)
     if type(name) ~= "string" then
-        safeLog("Error", "Event name must be a string")
+        safeLog("Event name must be a string", "ERROR")
         return nil
     end
     
     if storage.events[name] then
-        safeLog("Warn", string.format("Event '%s' already exists", name))
+        safeLog(string.format("Event '%s' already exists", name), "WARN")
         return storage.events[name]
     end
     
@@ -94,17 +87,13 @@ function Events.Create(name)
 end
 
 function Events.Get(name)
-    local event = storage.events[name]
-    if not event then
-        safeLog("Warn", string.format("Event '%s' not found", name))
-    end
-    return event
+    return storage.events[name]
 end
 
 function Events.Fire(name, ...)
     local event = storage.events[name]
     if not event then
-        safeLog("Warn", string.format("Cannot fire non-existent event '%s'", name))
+        safeLog(string.format("Cannot fire non-existent event '%s'", name), "WARN")
         return false
     end
     
@@ -115,11 +104,20 @@ end
 function Events.Connect(name, fn)
     local event = storage.events[name]
     if not event then
-        safeLog("Warn", string.format("Cannot connect to non-existent event '%s'", name))
+        safeLog(string.format("Cannot connect to non-existent event '%s'", name), "WARN")
         return nil
     end
     
     return event:Connect(fn)
+end
+
+function Events.GetHistory()
+    return table.clone(storage.history)
+end
+
+function Events.ClearHistory()
+    storage.history = {}
+    safeLog("Event history cleared")
 end
 
 function Events.init(modules)
@@ -127,17 +125,11 @@ function Events.init(modules)
         return true
     end
     
-    if type(modules) ~= "table" then
-        error("Events.init requires modules table")
-    end
-    
+    -- Save debug module for later use
     debug = modules.debug
-    if not debug then
-        error("Events module requires debug module")
-    end
     
     Events._initialized = true
-    debug.Info("Events module initialized")
+    safeLog("Events module initialized")
     return true
 end
 
