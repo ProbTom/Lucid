@@ -1,12 +1,11 @@
 -- main.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 19:23:12 UTC
+-- Created: 2024-12-20 19:28:59 UTC
 
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
 
 -- Constants
 local VERSION = "1.0.1"
@@ -17,66 +16,70 @@ local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("F
 lucidFolder.Name = "Lucid"
 lucidFolder.Parent = ReplicatedStorage
 
--- Function to load a module from URL
+-- Module loading system
+local modules = {}
+
 local function loadModuleFromURL(name)
     local success, content = pcall(function()
         return game:HttpGet(BASE_URL .. name .. ".lua")
     end)
     
     if not success then
-        warn("Failed to fetch module:", name)
+        warn("Failed to fetch module:", name, content)
         return nil
     end
     
-    local moduleScript = Instance.new("ModuleScript")
-    moduleScript.Name = name
+    -- Create or get existing ModuleScript
+    local moduleScript = lucidFolder:FindFirstChild(name)
+    if not moduleScript then
+        moduleScript = Instance.new("ModuleScript")
+        moduleScript.Name = name
+        moduleScript.Parent = lucidFolder
+    end
     moduleScript.Source = content
-    moduleScript.Parent = lucidFolder
     
-    return require(moduleScript)
+    -- Load the module
+    local success, result = pcall(require, moduleScript)
+    if not success then
+        warn("Failed to load module:", name, result)
+        return nil
+    end
+    
+    modules[name] = result
+    return result
 end
 
--- Load core modules
-local Debug = loadModuleFromURL("debug")
-local Utils = loadModuleFromURL("utils")
-local UI = loadModuleFromURL("ui")
-
-if not Debug or not Utils or not UI then
-    warn("Failed to load core modules")
-    return
+-- Load modules in correct order
+local function loadModules()
+    -- Load debug first since other modules depend on it
+    local Debug = loadModuleFromURL("debug")
+    if not Debug then return false end
+    Debug.init()
+    
+    -- Load utils next since UI depends on it
+    local Utils = loadModuleFromURL("utils")
+    if not Utils then return false end
+    Utils.init({ debug = Debug })
+    
+    -- Load UI last
+    local UI = loadModuleFromURL("ui")
+    if not UI then return false end
+    UI.init({ debug = Debug, utils = Utils })
+    
+    return true
 end
 
--- State
-local initialized = false
-
--- Local Functions
-local function initializeModules()
-    Debug.Info("Starting module initialization")
-    
-    -- Initialize Debug first
-    Debug.Info("Loading debug")
-    if not Debug.init() then
+-- Initialize the system
+local function init()
+    if not loadModules() then
+        warn("Failed to initialize Lucid")
         return false
     end
     
-    -- Set system version
-    Debug.Info("System Version: " .. VERSION)
+    local Debug = modules.debug
+    local UI = modules.ui
     
-    -- Initialize Utils
-    Debug.Info("Loading utils")
-    if not Utils.init({ debug = Debug }) then
-        Debug.Error("Failed to initialize utils")
-        return false
-    end
-    
-    -- Initialize UI
-    Debug.Info("Loading ui")
-    if not UI.init({ debug = Debug, utils = Utils }) then
-        Debug.Error("Failed to initialize ui")
-        return false
-    end
-
-    -- Create the main window
+    -- Create main window
     local window = UI.CreateWindow({
         Title = "Lucid",
         SubTitle = "v" .. VERSION,
@@ -84,23 +87,23 @@ local function initializeModules()
         Size = UDim2.new(0, 600, 0, 400),
         Position = UDim2.new(0.5, -300, 0.5, -200)
     })
-
+    
     if not window then
         Debug.Error("Failed to create main window")
         return false
     end
-
-    -- Create main tab
+    
+    -- Create tabs
     local mainTab = UI.CreateTab(window, {
         Title = "Main",
         Icon = "rbxassetid://3926305904"
     })
-
-    if not mainTab then
-        Debug.Error("Failed to create main tab")
-        return false
-    end
-
+    
+    local settingsTab = UI.CreateTab(window, {
+        Title = "Settings",
+        Icon = "rbxassetid://3926307971"
+    })
+    
     -- Add test button
     UI.CreateButton(mainTab, {
         Title = "Test Button",
@@ -114,14 +117,8 @@ local function initializeModules()
             })
         end
     })
-
-    -- Add settings tab
-    local settingsTab = UI.CreateTab(window, {
-        Title = "Settings",
-        Icon = "rbxassetid://3926307971"
-    })
-
-    -- Add some settings controls
+    
+    -- Add debug toggle
     UI.CreateToggle(settingsTab, {
         Title = "Debug Mode",
         Description = "Enable debug logging",
@@ -136,77 +133,20 @@ local function initializeModules()
             })
         end
     })
-
-    Debug.Info("All modules loaded successfully")
+    
+    Debug.Info("Lucid initialized successfully")
     return true
 end
 
--- Main Functions
-local function start()
-    if initialized then
-        Debug.Warn("System already initialized")
-        return
-    end
-    
-    if not initializeModules() then
-        Debug.Error("Failed to initialize modules")
-        return
-    end
-    
-    initialized = true
-    Debug.Info("System initialization complete")
+-- Start initialization when player is ready
+if Players.LocalPlayer then
+    init()
+else
+    Players.PlayerAdded:Connect(init)
 end
 
-local function stop()
-    if not initialized then
-        return
-    end
-    
-    -- Cleanup UI
-    UI.CloseAll()
-    
-    initialized = false
-    Debug.Info("System stopped")
-end
-
--- Event Handlers
-local function onPlayerAdded(player)
-    if player == Players.LocalPlayer then
-        start()
-    end
-end
-
-local function onPlayerRemoving(player)
-    if player == Players.LocalPlayer then
-        stop()
-    end
-end
-
--- Initialize
-do
-    -- Set up player events
-    Players.PlayerAdded:Connect(onPlayerAdded)
-    Players.PlayerRemoving:Connect(onPlayerRemoving)
-    
-    -- Start if player is already in game
-    if Players.LocalPlayer then
-        start()
-    end
-end
-
--- Return API
+-- Return public API
 return {
     Version = VERSION,
-    Debug = Debug,
-    Utils = Utils,
-    UI = UI,
-    
-    -- Methods
-    Start = start,
-    Stop = stop,
-    
-    -- Properties
-    Initialized = function()
-        return initialized
-    end
+    Modules = modules
 }
