@@ -1,7 +1,7 @@
 -- main.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:40:15 UTC
+-- Created: 2024-12-20 16:13:11 UTC
 
 -- Global namespace protection
 if getgenv().LucidLoaded then
@@ -14,36 +14,55 @@ getgenv().LucidLoaded = true
 getgenv().LucidState = {
     Version = "1.0.1",
     User = "ProbTom",
-    StartTime = "2024-12-20 14:40:15",
+    StartTime = os.date("!%Y-%m-%d %H:%M:%S"),
     Debug = true,
-    Loaded = false
+    Loaded = false,
+    Modules = {} -- Store loaded modules globally
 }
 
 -- Configuration
 local Config = {
     BaseURL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
     ModuleOrder = {
-        "debug",
-        "config",
-        "utils",
-        "state",
-        "events",
-        "ui",
-        "loader"
+        "debug",    -- Must be first
+        "utils",    -- Basic utilities
+        "state",    -- State management
+        "events",   -- Event system
+        "ui",       -- UI components
+        "loader"    -- Module loader
     }
 }
 
+-- Basic logging before debug module
+local function earlyLog(msg, type)
+    print(string.format("[LUCID %s] %s", type or "INFO", tostring(msg)))
+end
+
 -- Module loader
 local function loadModule(name)
-    local success, module = pcall(function()
-        return loadstring(game:HttpGet(Config.BaseURL .. name .. ".lua"))()
+    local success, content = pcall(function()
+        return game:HttpGet(Config.BaseURL .. name .. ".lua")
     end)
     
     if not success then
-        warn(string.format("[LUCID] Failed to load %s module: %s", name, tostring(module)))
+        earlyLog("Failed to fetch " .. name .. ": " .. tostring(content), "ERROR")
         return false
     end
     
+    local success, module = pcall(loadstring, content)
+    if not success then
+        earlyLog("Failed to parse " .. name .. ": " .. tostring(module), "ERROR")
+        return false
+    end
+    
+    success, module = pcall(module)
+    if not success then
+        earlyLog("Failed to execute " .. name .. ": " .. tostring(module), "ERROR")
+        return false
+    end
+    
+    -- Store module globally
+    getgenv().LucidState.Modules[name] = module
     return module
 end
 
@@ -54,31 +73,33 @@ local function init()
         game.Loaded:Wait()
     end
     
+    earlyLog("Starting initialization sequence")
+    
     -- Load modules in sequence
-    local modules = {}
     for _, moduleName in ipairs(Config.ModuleOrder) do
+        earlyLog("Loading " .. moduleName)
         local module = loadModule(moduleName)
         if not module then
             return false
         end
-        modules[moduleName] = module
     end
     
-    -- Initialize modules
+    -- Initialize modules with access to all loaded modules
     for _, moduleName in ipairs(Config.ModuleOrder) do
-        if modules[moduleName].init then
-            local success, err = pcall(modules[moduleName].init, modules)
+        local module = getgenv().LucidState.Modules[moduleName]
+        if module and type(module.init) == "function" then
+            local success, err = pcall(function()
+                return module.init(getgenv().LucidState.Modules)
+            end)
             if not success then
-                warn(string.format("[LUCID] Failed to initialize %s: %s", moduleName, tostring(err)))
+                earlyLog("Failed to initialize " .. moduleName .. ": " .. tostring(err), "ERROR")
                 return false
             end
         end
     end
     
     getgenv().LucidState.Loaded = true
-    if modules.debug then
-        modules.debug.Log("Lucid system fully loaded!")
-    end
+    earlyLog("System fully loaded!")
     
     return true
 end
