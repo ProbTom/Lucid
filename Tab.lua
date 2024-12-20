@@ -12,6 +12,7 @@ local success, result = pcall(function()
     if not getgenv().Options then return "Options not initialized" end
     if not getgenv().Config then return "Config not initialized" end
 
+    -- Ensure window is created only once
     if not getgenv().LucidWindow then
         getgenv().LucidWindow = getgenv().Fluent:CreateWindow({
             Title = "Lucid Hub",
@@ -48,10 +49,12 @@ local success, result = pcall(function()
     }
 
     for _, tabInfo in ipairs(TabOrder) do
-        getgenv().Tabs[tabInfo.Name] = window:AddTab({
-            Title = tabInfo.Name,
-            Icon = tabInfo.Icon
-        })
+        if not getgenv().Tabs[tabInfo.Name] then
+            getgenv().Tabs[tabInfo.Name] = window:AddTab({
+                Title = tabInfo.Name,
+                Icon = tabInfo.Icon
+            })
+        end
     end
 
     -- Add Credits content
