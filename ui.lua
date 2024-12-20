@@ -25,7 +25,7 @@ local UIConfig = {
     SubTitle = "by ProbTom",
     TabWidth = 160,
     Size = UDim2.fromOffset(600, 400),
-    Theme = "Dark",
+    Theme = "Rose",
     MinimizeKeybind = Enum.KeyCode.LeftControl
 }
 
@@ -68,8 +68,8 @@ function UI.CreateWindow()
             MinimizeKeybind = UIConfig.MinimizeKeybind
         })
         Debug.Log("UI window created successfully.")
-    else
-        Debug.Error("UI window already exists.")
+    elseif not UI._window then
+        Debug.Error("UI window creation failed.")
     end
     return UI._window
 end
@@ -164,17 +164,15 @@ function UI.Initialize()
     end
 
     Debug.Log("Creating UI window.")
-    UI.CreateWindow()
-
-    if UI._window then
-        Debug.Log("Creating UI tabs.")
-        UI.CreateTabs()
-        Debug.Log("Creating UI sections.")
-        UI.CreateMainSections()
-    else
+    if not UI.CreateWindow() then
         Debug.Error("Failed to create UI window, skipping tab and section creation.")
         return false
     end
+
+    Debug.Log("Creating UI tabs.")
+    UI.CreateTabs()
+    Debug.Log("Creating UI sections.")
+    UI.CreateMainSections()
 
     UI._initialized = true
     Debug.Log("UI module initialized successfully.")
