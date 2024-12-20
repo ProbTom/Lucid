@@ -1,6 +1,7 @@
 -- loader.lua
 -- Version: 2024.12.20
 -- Author: ProbTom
+-- Last Updated: 2024-12-20
 
 local Loader = {
     _initialized = false,
@@ -16,6 +17,28 @@ local Services = {
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
+
+-- Check for existing instance and clean up
+local function cleanupExisting()
+    if getgenv().LucidWindow then
+        pcall(function()
+            getgenv().LucidWindow:Destroy()
+        end)
+        getgenv().LucidWindow = nil
+    end
+    
+    if getgenv().Fluent then
+        getgenv().Fluent = nil
+    end
+    
+    if getgenv().LucidState then
+        getgenv().LucidState = nil
+    end
+    
+    if getgenv().Tabs then
+        getgenv().Tabs = nil
+    end
+end
 
 -- Load Debug module
 local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
@@ -41,10 +64,6 @@ end
 
 -- Load Fluent UI Library
 local function loadFluentUI()
-    if getgenv().Fluent then
-        return getgenv().Fluent
-    end
-
     local success, Fluent = pcall(function()
         return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
     end)
@@ -60,6 +79,10 @@ end
 
 -- Create window
 local function createWindow()
+    if getgenv().LucidWindow then
+        return getgenv().LucidWindow
+    end
+
     if not getgenv().Fluent then
         Debug.Error("Fluent UI library not loaded")
         return false
@@ -98,9 +121,7 @@ local function initializeTabs()
         {Name = "Credits", Icon = "heart"}
     }
 
-    if not getgenv().Tabs then
-        getgenv().Tabs = {}
-    end
+    getgenv().Tabs = {}
 
     for _, tabInfo in ipairs(tabs) do
         local success, tab = protectedCall(function()
@@ -202,26 +223,27 @@ function Loader.Initialize()
         return true
     end
 
+    -- Clean up any existing instances
+    cleanupExisting()
+
     -- Initialize global state
     if not getgenv then
         Debug.Error("getgenv is not available")
         return false
     end
 
-    if not getgenv().LucidState then
-        getgenv().LucidState = {
-            Version = Loader._version,
-            AutoCasting = false,
-            AutoReeling = false,
-            AutoShaking = false,
-            Events = { Available = {} },
-            UI = { Initialized = false }
-        }
-    end
+    getgenv().LucidState = {
+        Version = Loader._version,
+        AutoCasting = false,
+        AutoReeling = false,
+        AutoShaking = false,
+        Events = { Available = {} },
+        UI = { Initialized = false },
+        initialized = false
+    }
 
     -- Load UI Library
-    local Fluent = loadFluentUI()
-    if not Fluent then
+    if not loadFluentUI() then
         Debug.Error("Failed to load UI library")
         return false
     end
@@ -251,6 +273,7 @@ function Loader.Initialize()
     end
 
     Loader._initialized = true
+    getgenv().LucidState.initialized = true
     Debug.Log("Initialization complete")
     return true
 end
@@ -263,14 +286,7 @@ function Loader.Cleanup()
         end
     end
     
-    if getgenv().LucidWindow then
-        pcall(function()
-            getgenv().LucidWindow:Destroy()
-        end)
-        getgenv().LucidWindow = nil
-    end
-    
-    getgenv().LucidState = nil
+    cleanupExisting()
     Loader._initialized = false
 end
 
