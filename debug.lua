@@ -57,10 +57,9 @@ function Debug.Fatal(msg) return Debug.log("FATAL", msg) end
 -- System monitoring
 function Debug.GetSystemState()
     return {
-        version = getgenv().LucidState.Version,
-        startTime = getgenv().LucidState.StartTime,
+        version = Debug._VERSION,
+        startTime = Debug._startTime,
         uptime = os.time() - Debug._startTime,
-        moduleCount = #getgenv().LucidState.Modules,
         memoryUsage = gcinfo()
     }
 end
@@ -69,9 +68,13 @@ function Debug.GetLogHistory(level)
     if not level then
         return Debug._logHistory
     end
-    return table.filter(Debug._logHistory, function(entry)
-        return entry.level == level
-    end)
+    local filtered = {}
+    for _, entry in ipairs(Debug._logHistory) do
+        if entry.level == level then
+            table.insert(filtered, entry)
+        end
+    end
+    return filtered
 end
 
 function Debug.ClearLogs()
@@ -87,7 +90,7 @@ function Debug.init()
     
     Debug._initialized = true
     Debug.Info("Debug module initialized")
-    Debug.Info(string.format("System Version: %s", getgenv().LucidState.Version))
+    Debug.Info(string.format("System Version: %s", Debug._VERSION))
     
     return true
 end
