@@ -1,20 +1,23 @@
 -- state.lua
--- Version: 2024.12.20
+-- Version: 1.0.1
 -- Author: ProbTom
--- Last Updated: 2024-12-20 14:29:21
+-- Created: 2024-12-20 14:42:19 UTC
 
-local State = {
-    _version = "1.0.1",
-    _data = {},
-    _cache = {},
-    _connections = {},
-    _lastUpdate = os.time(),
-    _initialized = false
-}
+local State = {}
 
-local Debug = getgenv().LucidDebug
+-- Dependencies
+local Debug
 
--- Utility Functions
+-- State storage
+local states = {}
+local watchers = {}
+local history = {}
+local MAX_HISTORY = 100
+
+-- State change event
+local StateChanged = Instance.new("BindableEvent")
+
+-- Helper function to deep copy tables
 local function deepCopy(original)
     local copy = {}
     for k, v in pairs(original) do
@@ -27,203 +30,157 @@ local function deepCopy(original)
     return copy
 end
 
-local function isValidKey(key)
-    return type(key) == "string" and key:match("^[%w_]+$") ~= nil
-end
-
-local function validateValue(value)
-    local valueType = type(value)
-    return valueType == "string" or 
-           valueType == "number" or 
-           valueType == "boolean" or 
-           valueType == "table"
-end
-
--- Core State Management
-function State.Set(key, value, options)
-    if not isValidKey(key) then
-        Debug.Error("Invalid state key: " .. tostring(key))
+-- Create a new state
+function State.Create(name, initialValue)
+    if states[name] then
+        Debug.Warn("State '" .. name .. "' already exists")
         return false
     end
     
-    if not validateValue(value) then
-        Debug.Error("Invalid value type for key: " .. key)
-        return false
-    end
-    
-    options = options or {}
-    local oldValue = State._data[key]
-    
-    -- Deep copy for table values
-    if type(value) == "table" then
-        State._data[key] = deepCopy(value)
-    else
-        State._data[key] = value
-    end
-    
-    -- Update cache
-    State._cache[key] = {
-        value = State._data[key],
+    states[name] = {
+        value = initialValue,
         timestamp = os.time(),
-        type = type(value)
+        version = 1
     }
     
-    -- Update global state
-    if getgenv().LucidState then
-        getgenv().LucidState[key] = State._data[key]
-    end
+    watchers[name] = {}
+    history[name] = {}
     
-    -- Trigger change event
-    if options.notify ~= false and oldValue ~= value then
-        State.TriggerChange(key, value, oldValue)
-    end
-    
-    State._lastUpdate = os.time()
+    Debug.Info("Created state: " .. name)
     return true
 end
 
-function State.Get(key, defaultValue)
-    if not isValidKey(key) then
-        Debug.Error("Invalid state key: " .. tostring(key))
-        return defaultValue
+-- Get state value
+function State.Get(name)
+    if not states[name] then
+        Debug.Warn("State '" .. name .. "' does not exist")
+        return nil
     end
     
-    return State._data[key] ~= nil and State._data[key] or defaultValue
+    return deepCopy(states[name].value)
 end
 
-function State.Delete(key)
-    if not isValidKey(key) then
-        Debug.Error("Invalid state key: " .. tostring(key))
+-- Set state value
+function State.Set(name, value)
+    if not states[name] then
+        Debug.Warn("State '" .. name .. "' does not exist")
         return false
     end
     
-    State._data[key] = nil
-    State._cache[key] = nil
+    -- Store previous state in history
+    table.insert(history[name], 1, {
+        value = deepCopy(states[name].value),
+        timestamp = states[name].timestamp,
+        version = states[name].version
+    })
     
-    if getgenv().LucidState then
-        getgenv().LucidState[key] = nil
+    -- Trim history if needed
+    if #history[name] > MAX_HISTORY then
+        table.remove(history[name])
     end
     
-    return true
-end
-
--- Event Management
-function State.TriggerChange(key, newValue, oldValue)
-    if State._connections[key] then
-        for _, callback in ipairs(State._connections[key]) do
-            task.spawn(function()
-                pcall(callback, newValue, oldValue)
-            end)
-        end
-    end
-end
-
-function State.OnChange(key, callback)
-    if not isValidKey(key) or type(callback) ~= "function" then
-        Debug.Error("Invalid parameters for OnChange")
-        return false
-    end
+    -- Update state
+    states[name].value = deepCopy(value)
+    states[name].timestamp = os.time()
+    states[name].version = states[name].version + 1
     
-    State._connections[key] = State._connections[key] or {}
-    table.insert(State._connections[key], callback)
-    
-    return true
-end
-
--- State Persistence
-function State.Save()
-    local saveData = {
-        version = State._version,
-        timestamp = os.time(),
-        data = deepCopy(State._data)
-    }
-    
-    if writefile then
-        pcall(function()
-            writefile("LucidState.json", game:GetService("HttpService"):JSONEncode(saveData))
-        end)
-    end
-    
-    return true
-end
-
-function State.Load()
-    if not readfile then return false end
-    
-    local success, data = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(readfile("LucidState.json"))
-    end)
-    
-    if success and data then
-        for k, v in pairs(data.data) do
-            State.Set(k, v, {notify = false})
-        end
-        return true
-    end
-    
-    return false
-end
-
--- Cache Management
-function State.CleanCache()
-    local currentTime = os.time()
-    local cacheTimeout = getgenv().LucidState.Config.Performance.CacheTime
-    
-    for key, cache in pairs(State._cache) do
-        if currentTime - cache.timestamp > cacheTimeout then
-            State._cache[key] = nil
-        end
-    end
-end
-
--- Initialization
-function State.Initialize()
-    if State._initialized then
-        return true
-    end
-    
-    -- Load saved state if available
-    State.Load()
-    
-    -- Set default values from config
-    local config = getgenv().LucidState.Config
-    if config and config.Features then
-        for featureName, featureConfig in pairs(config.Features) do
-            State.Set(featureName .. "Enabled", featureConfig.Enabled, {notify = false})
-        end
-    end
-    
-    -- Setup auto-save
-    if config and config.Performance.AutoCleanup then
+    -- Notify watchers
+    for _, callback in ipairs(watchers[name]) do
         task.spawn(function()
-            while true do
-                State.CleanCache()
-                State.Save()
-                task.wait(30)
-            end
+            callback(value, name)
         end)
     end
     
-    State._initialized = true
-    Debug.Log("State system initialized")
+    -- Fire change event
+    StateChanged:Fire(name, value)
+    
+    Debug.Info("Updated state: " .. name)
     return true
 end
 
--- Cleanup
-function State.Cleanup()
-    State.Save()
-    
-    for _, connections in pairs(State._connections) do
-        for _, connection in ipairs(connections) do
-            if typeof(connection) == "RBXScriptConnection" then
-                connection:Disconnect()
-            end
-        end
+-- Watch state changes
+function State.Watch(name, callback)
+    if not states[name] then
+        Debug.Warn("State '" .. name .. "' does not exist")
+        return false
     end
     
-    State._connections = {}
-    State._cache = {}
-    Debug.Log("State system cleaned up")
+    table.insert(watchers[name], callback)
+    return #watchers[name]
+end
+
+-- Remove state watcher
+function State.Unwatch(name, watcherId)
+    if not states[name] then
+        Debug.Warn("State '" .. name .. "' does not exist")
+        return false
+    end
+    
+    table.remove(watchers[name], watcherId)
+    return true
+end
+
+-- Get state history
+function State.GetHistory(name)
+    if not states[name] then
+        Debug.Warn("State '" .. name .. "' does not exist")
+        return nil
+    end
+    
+    return deepCopy(history[name])
+end
+
+-- Revert state to previous value
+function State.Revert(name)
+    if not states[name] or #history[name] == 0 then
+        Debug.Warn("Cannot revert state '" .. name .. "'")
+        return false
+    end
+    
+    local previous = table.remove(history[name], 1)
+    states[name].value = deepCopy(previous.value)
+    states[name].timestamp = previous.timestamp
+    states[name].version = previous.version
+    
+    -- Notify watchers
+    for _, callback in ipairs(watchers[name]) do
+        task.spawn(function()
+            callback(states[name].value, name)
+        end)
+    end
+    
+    StateChanged:Fire(name, states[name].value)
+    
+    Debug.Info("Reverted state: " .. name)
+    return true
+end
+
+-- Get all states
+function State.GetAll()
+    local allStates = {}
+    for name, state in pairs(states) do
+        allStates[name] = deepCopy(state)
+    end
+    return allStates
+end
+
+-- Clear state history
+function State.ClearHistory(name)
+    if not states[name] then
+        Debug.Warn("State '" .. name .. "' does not exist")
+        return false
+    end
+    
+    history[name] = {}
+    Debug.Info("Cleared history for state: " .. name)
+    return true
+end
+
+-- Initialize module
+function State.init(modules)
+    Debug = modules.debug
+    Debug.Info("State module initialized")
+    return true
 end
 
 return State
