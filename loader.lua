@@ -1,12 +1,7 @@
 -- loader.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 17:00:58 UTC
-
-local Loader = {
-    Version = "1.0.1",
-    BaseURL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
-}
+-- Created: 2024-12-20 19:25:38 UTC
 
 -- Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,21 +11,24 @@ local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("F
 lucidFolder.Name = "Lucid"
 lucidFolder.Parent = ReplicatedStorage
 
--- Basic logging (uses debug module once loaded)
-local function log(msg, type)
-    print(string.format("[LUCID %s] %s", type or "INFO", tostring(msg)))
-end
+-- Module URLs
+local modules = {
+    debug = "https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua",
+    utils = "https://raw.githubusercontent.com/ProbTom/Lucid/main/utils.lua",
+    ui = "https://raw.githubusercontent.com/ProbTom/Lucid/main/ui.lua"
+}
 
--- Protected HTTP fetch and module creation
-local function loadModule(name)
-    log("Loading " .. name)
-    
+-- Load modules
+local loadedModules = {}
+
+-- Function to load a module
+local function loadModule(name, url)
     local success, content = pcall(function()
-        return game:HttpGet(Loader.BaseURL .. name .. ".lua")
+        return game:HttpGet(url)
     end)
     
     if not success then
-        log("Failed to fetch " .. name .. ": " .. tostring(content), "ERROR")
+        warn("Failed to fetch module", name, content)
         return nil
     end
     
@@ -41,38 +39,26 @@ local function loadModule(name)
     moduleScript.Parent = lucidFolder
     
     -- Require the module
-    local success, module = pcall(require, moduleScript)
-    if not success then
-        log("Failed to require " .. name .. ": " .. tostring(module), "ERROR")
-        return nil
-    end
-    
-    return module
+    local loaded = require(moduleScript)
+    loadedModules[name] = loaded
+    return loaded
 end
+
+-- Load core modules in order
+local debug = loadModule("debug", modules.debug)
+if not debug then return false end
+
+local utils = loadModule("utils", modules.utils)
+if not utils then return false end
+
+local ui = loadModule("ui", modules.ui)
+if not ui then return false end
 
 -- Initialize modules
-local function init()
-    log("Starting module initialization")
-    
-    -- Load core modules in order
-    local debug = loadModule("debug")
-    if not debug then return false end
-    
-    local utils = loadModule("utils")
-    if not utils then return false end
-    
-    local ui = loadModule("ui")
-    if not ui then return false end
-    
-    -- Initialize modules
-    if debug.init and utils.init and ui.init then
-        debug.init()
-        utils.init({debug = debug})
-        ui.init({debug = debug, utils = utils})
-    end
-    
-    log("All modules loaded successfully")
-    return true
+if debug.init and utils.init and ui.init then
+    debug.init()
+    utils.init({debug = debug})
+    ui.init({debug = debug, utils = utils})
 end
 
-return init()
+return loadedModules
