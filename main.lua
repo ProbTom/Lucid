@@ -1,7 +1,7 @@
 -- main.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 18:49:01 UTC
+-- Created: 2024-12-20 18:55:19 UTC
 
 -- Services
 local Players = game:GetService("Players")
@@ -11,21 +11,21 @@ local UserInputService = game:GetService("UserInputService")
 -- Constants
 local VERSION = "1.0.1"
 
--- Modules
-local Debug = require(script.Parent.modules.debug)
-local Utils = require(script.Parent.modules.utils)
-local UI = require(script.Parent.modules.ui)
+-- Modules - Using direct requires without path indexing
+local Debug = require(script:WaitForChild("debug"))  -- Changed from script.Parent.modules.debug
+local Utils = require(script:WaitForChild("utils"))  -- Changed from script.Parent.modules.utils
+local UI = require(script:WaitForChild("ui"))        -- Changed from script.Parent.modules.ui
 
 -- State
 local initialized = false
-local modules = {
-    debug = Debug,
-    utils = Utils,
-    ui = UI
-}
 
 -- Local Functions
 local function initializeModules()
+    if not Debug or not Utils or not UI then
+        warn("Failed to load one or more modules")
+        return false
+    end
+
     Debug.Info("Starting module initialization")
     
     -- Initialize Debug first
@@ -106,23 +106,6 @@ local function initializeModules()
             UI.Notify({
                 Title = "Settings",
                 Content = "Debug Mode: " .. (value and "Enabled" or "Disabled"),
-                Duration = 2,
-                Type = "Info"
-            })
-        end
-    })
-
-    UI.CreateSlider(settingsTab, {
-        Title = "UI Scale",
-        Description = "Adjust the UI size",
-        Range = {50, 150},
-        Increment = 10,
-        Default = 100,
-        Callback = function(value)
-            -- Add UI scaling logic here
-            UI.Notify({
-                Title = "Settings",
-                Content = "UI Scale: " .. value .. "%",
                 Duration = 2,
                 Type = "Info"
             })
