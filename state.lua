@@ -1,9 +1,12 @@
 -- state.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:42:19 UTC
+-- Created: 2024-12-20 19:47:58 UTC
 
-local State = {}
+local State = {
+    _VERSION = "1.0.1",
+    _initialized = false
+}
 
 -- Dependencies
 local Debug
@@ -12,13 +15,15 @@ local Debug
 local states = {}
 local watchers = {}
 local history = {}
-local MAX_HISTORY = 100
+local MAX_HISTORY = 50
 
 -- State change event
 local StateChanged = Instance.new("BindableEvent")
 
 -- Helper function to deep copy tables
 local function deepCopy(original)
+    if type(original) ~= "table" then return original end
+    
     local copy = {}
     for k, v in pairs(original) do
         if type(v) == "table" then
@@ -33,12 +38,12 @@ end
 -- Create a new state
 function State.Create(name, initialValue)
     if states[name] then
-        Debug.Warn("State '" .. name .. "' already exists")
+        Debug.Warn("State already exists: " .. name)
         return false
     end
     
     states[name] = {
-        value = initialValue,
+        value = deepCopy(initialValue),
         timestamp = os.time(),
         version = 1
     }
@@ -53,7 +58,7 @@ end
 -- Get state value
 function State.Get(name)
     if not states[name] then
-        Debug.Warn("State '" .. name .. "' does not exist")
+        Debug.Warn("State does not exist: " .. name)
         return nil
     end
     
@@ -63,18 +68,18 @@ end
 -- Set state value
 function State.Set(name, value)
     if not states[name] then
-        Debug.Warn("State '" .. name .. "' does not exist")
+        Debug.Warn("State does not exist: " .. name)
         return false
     end
     
-    -- Store previous state in history
+    -- Store previous state
     table.insert(history[name], 1, {
         value = deepCopy(states[name].value),
         timestamp = states[name].timestamp,
         version = states[name].version
     })
     
-    -- Trim history if needed
+    -- Trim history
     if #history[name] > MAX_HISTORY then
         table.remove(history[name])
     end
@@ -87,98 +92,25 @@ function State.Set(name, value)
     -- Notify watchers
     for _, callback in ipairs(watchers[name]) do
         task.spawn(function()
-            callback(value, name)
+            callback(deepCopy(value), name)
         end)
     end
     
-    -- Fire change event
     StateChanged:Fire(name, value)
-    
     Debug.Info("Updated state: " .. name)
-    return true
-end
-
--- Watch state changes
-function State.Watch(name, callback)
-    if not states[name] then
-        Debug.Warn("State '" .. name .. "' does not exist")
-        return false
-    end
-    
-    table.insert(watchers[name], callback)
-    return #watchers[name]
-end
-
--- Remove state watcher
-function State.Unwatch(name, watcherId)
-    if not states[name] then
-        Debug.Warn("State '" .. name .. "' does not exist")
-        return false
-    end
-    
-    table.remove(watchers[name], watcherId)
-    return true
-end
-
--- Get state history
-function State.GetHistory(name)
-    if not states[name] then
-        Debug.Warn("State '" .. name .. "' does not exist")
-        return nil
-    end
-    
-    return deepCopy(history[name])
-end
-
--- Revert state to previous value
-function State.Revert(name)
-    if not states[name] or #history[name] == 0 then
-        Debug.Warn("Cannot revert state '" .. name .. "'")
-        return false
-    end
-    
-    local previous = table.remove(history[name], 1)
-    states[name].value = deepCopy(previous.value)
-    states[name].timestamp = previous.timestamp
-    states[name].version = previous.version
-    
-    -- Notify watchers
-    for _, callback in ipairs(watchers[name]) do
-        task.spawn(function()
-            callback(states[name].value, name)
-        end)
-    end
-    
-    StateChanged:Fire(name, states[name].value)
-    
-    Debug.Info("Reverted state: " .. name)
-    return true
-end
-
--- Get all states
-function State.GetAll()
-    local allStates = {}
-    for name, state in pairs(states) do
-        allStates[name] = deepCopy(state)
-    end
-    return allStates
-end
-
--- Clear state history
-function State.ClearHistory(name)
-    if not states[name] then
-        Debug.Warn("State '" .. name .. "' does not exist")
-        return false
-    end
-    
-    history[name] = {}
-    Debug.Info("Cleared history for state: " .. name)
     return true
 end
 
 -- Initialize module
 function State.init(modules)
+    if State._initialized then return true end
+    
     Debug = modules.debug
+    if not Debug then
+        return false
+    end
+    
+    State._initialized = true
     Debug.Info("State module initialized")
     return true
 end
