@@ -1,13 +1,12 @@
 -- ui.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:43:50 UTC
+-- Created: 2024-12-20 17:17:01 UTC
 
 local UI = {}
 
 -- Dependencies
 local Debug
-local Config
 local Events
 
 -- Services
@@ -210,12 +209,11 @@ end
 -- Initialize module
 function UI.init(modules)
     Debug = modules.debug
-    Config = modules.config
     Events = modules.events
     
-    -- Load FluentUI
+    -- Load FluentUI with the correct URL
     local success, result = pcall(function()
-        return loadstring(game:HttpGet(Config.Get("dependencies.FluentUI")))()
+        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
     end)
     
     if not success then

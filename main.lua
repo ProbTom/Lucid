@@ -1,7 +1,7 @@
 -- main.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 17:00:58 UTC
+-- Created: 2024-12-20 17:17:01 UTC
 
 -- Global namespace protection
 if getgenv().LucidLoaded then
