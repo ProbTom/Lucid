@@ -1,107 +1,91 @@
 -- functions.lua
-local Functions = {
-    _version = "1.0.1",
-    _initialized = false,
-    _connections = {},
-    _cooldowns = {
-        cast = 0,
-        reel = 0
+local Functions = {}
+
+-- Services
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Cooldowns
+local Cooldowns = {
+    Cast = 1.5,
+    Reel = 0.1,
+    Shake = 0.1,
+    LastCast = 0,
+    LastReel = 0,
+    LastShake = 0
+}
+
+-- Initialize State
+if not getgenv().State then
+    getgenv().State = {
+        AutoCasting = false,
+        AutoReeling = false,
+        AutoShaking = false
     }
-}
+end
 
--- Core services
-local Services = {
-    Players = game:GetService("Players"),
-    ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    RunService = game:GetService("RunService")
-}
-
-local Player = Services.Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-
--- Core fishing functions
+-- Main Functions
 function Functions.Cast()
-    local events = Services.ReplicatedStorage:WaitForChild("events")
-    local castEvent = events:WaitForChild("castrod")
-    
-    if tick() - Functions._cooldowns.cast < 1 then return end
-    Functions._cooldowns.cast = tick()
-    
-    castEvent:FireServer()
+    if tick() - Cooldowns.LastCast < Cooldowns.Cast then return end
+    local events = ReplicatedStorage:WaitForChild("events")
+    if events and events:FindFirstChild("castrod") then
+        events.castrod:FireServer()
+        Cooldowns.LastCast = tick()
+    end
 end
 
 function Functions.Reel()
-    local events = Services.ReplicatedStorage:WaitForChild("events")
-    local reelEvent = events:WaitForChild("reelfinished")
-    
-    if tick() - Functions._cooldowns.reel < 1 then return end
-    Functions._cooldowns.reel = tick()
-    
-    reelEvent:FireServer()
-end
-
-function Functions.StartAutoFishing()
-    if Functions._connections.fishing then return end
-    
-    Functions._connections.fishing = Services.RunService.Heartbeat:Connect(function()
-        if not getgenv().State.AutoFishing then
-            Functions._connections.fishing:Disconnect()
-            Functions._connections.fishing = nil
-            return
-        end
-        
-        -- Auto fishing logic
-        Functions.Cast()
-        task.wait(2)
-        Functions.Reel()
-    end)
-end
-
-function Functions.StopAutoFishing()
-    if Functions._connections.fishing then
-        Functions._connections.fishing:Disconnect()
-        Functions._connections.fishing = nil
+    if tick() - Cooldowns.LastReel < Cooldowns.Reel then return end
+    local events = ReplicatedStorage:WaitForChild("events")
+    if events and events:FindFirstChild("reelfinished") then
+        events.reelfinished:FireServer()
+        Cooldowns.LastReel = tick()
     end
 end
 
--- Initialize functions system
-function Functions.Initialize()
-    if Functions._initialized then return true end
-    
-    -- Set up character handling
-    Player.CharacterAdded:Connect(function(char)
-        Character = char
-    end)
-    
-    Functions._initialized = true
-    
-    if getgenv().Config and getgenv().Config.Debug then
-        print("✓ Functions module initialized successfully")
+function Functions.Shake()
+    if tick() - Cooldowns.LastShake < Cooldowns.Shake then return end
+    local events = ReplicatedStorage:WaitForChild("events")
+    if events and events:FindFirstChild("character") then
+        events.character:FireServer("shake")
+        Cooldowns.LastShake = tick()
     end
-    
-    return true
 end
 
--- Cleanup function
-function Functions.Cleanup()
-    for _, connection in pairs(Functions._connections) do
-        if typeof(connection) == "RBXScriptConnection" then
-            connection:Disconnect()
+-- Main Loop
+Functions.Connection = RunService.Heartbeat:Connect(function()
+    if not LocalPlayer or not LocalPlayer.Character then return end
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    if not playerGui then return end
+    
+    local fishingGui = playerGui:FindFirstChild("FishingGui")
+    if not fishingGui then return end
+    
+    -- Auto Cast
+    if getgenv().State.AutoCasting then
+        local castingBar = fishingGui:FindFirstChild("CastingBar")
+        if not castingBar or not castingBar.Visible then
+            Functions.Cast()
         end
     end
-    Functions._connections = {}
-end
-
--- Run initialization
-local success = Functions.Initialize()
-
-if not success and getgenv().Config and getgenv().Config.Debug then
-    warn("⚠️ Failed to initialize Functions module")
-end
-
--- Setup cleanup on teleport
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-    Functions.Cleanup()
+    
+    -- Auto Reel
+    if getgenv().State.AutoReeling then
+        local reelButton = fishingGui:FindFirstChild("ReelButton")
+        if reelButton and reelButton.Visible then
+            Functions.Reel()
+        end
+    end
+    
+    -- Auto Shake
+    if getgenv().State.AutoShaking then
+        local shakeBar = fishingGui:FindFirstChild("ShakeBar")
+        if shakeBar and shakeBar.Visible then
+            Functions.Shake()
+        end
+    end
 end)
 
 return Functions
