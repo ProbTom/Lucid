@@ -1,16 +1,23 @@
 -- debug.lua
 local Debug = {}
 
-function Debug.Log(message)
-    print("[LOG]:", message)
+-- Ensure methods exist before use
+Debug.Log = function(msg)
+    if type(msg) == "string" then
+        print("[LUCID LOG]:", msg)
+    end
 end
 
-function Debug.Error(message)
-    warn("[ERROR]:", message)
+Debug.Error = function(msg)
+    if type(msg) == "string" then
+        warn("[LUCID ERROR]:", msg)
+    end
 end
 
-function Debug.Warning(message)
-    warn("[WARNING]:", message)
+Debug.Warn = function(msg)
+    if type(msg) == "string" then
+        warn("[LUCID WARN]:", msg)
+    end
 end
 
 return Debug
