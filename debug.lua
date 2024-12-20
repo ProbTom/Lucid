@@ -1,138 +1,181 @@
 -- debug.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:40:51 UTC
+-- Created: 2024-12-20 14:53:45 UTC
 
-local Debug = {}
+local Debug = {
+    _VERSION = "1.0.1",
+    _AUTHOR = "ProbTom",
+    _initialized = false
+}
+
+-- Log levels
+Debug.LEVELS = {
+    INFO = 1,
+    DEBUG = 2,
+    WARN = 3,
+    ERROR = 4,
+    FATAL = 5
+}
 
 -- Configuration
 local config = {
-    LogPrefix = "[LUCID]",
-    LogEnabled = true,
-    LogLevel = 1, -- 1: Info, 2: Warning, 3: Error, 4: Debug
-    LogToFile = false,
-    LogPath = "lucid_logs.txt",
-    MaxLogHistory = 1000
+    enabled = true,
+    logLevel = Debug.LEVELS.INFO,
+    maxHistory = 1000,
+    outputToConsole = true,
+    timestamp = true
 }
 
 -- Log history
 local logHistory = {}
 
--- Timestamp function
-local function getTimestamp()
-    return os.date("!%Y-%m-%d %H:%M:%S UTC")
+-- Format timestamp
+local function formatTimestamp()
+    return os.date("[%Y-%m-%d %H:%M:%S]")
 end
 
--- Base logging function
-function Debug.Log(message, level)
-    if not config.LogEnabled then return end
-    level = level or 1
+-- Format message
+local function formatMessage(level, msg)
+    local timestamp = config.timestamp and formatTimestamp() or ""
+    return string.format("%s [LUCID %s] %s", timestamp, level, tostring(msg))
+end
+
+-- Base log function
+local function log(level, levelName, msg)
+    if not config.enabled or level < config.logLevel then
+        return
+    end
+
+    local formattedMsg = formatMessage(levelName, msg)
     
-    if level >= config.LogLevel then
-        local timestamp = getTimestamp()
-        local logMessage = string.format("%s %s [%s] %s",
-            config.LogPrefix,
-            timestamp,
-            level == 1 and "INFO" or level == 2 and "WARN" or level == 3 and "ERROR" or "DEBUG",
-            tostring(message)
-        )
-        
-        -- Print to console
-        if level == 1 then
-            print(logMessage)
-        elseif level == 2 then
-            warn(logMessage)
-        elseif level == 3 then
-            error(logMessage)
+    -- Add to history
+    table.insert(logHistory, {
+        timestamp = os.time(),
+        level = level,
+        message = formattedMsg
+    })
+    
+    -- Trim history if needed
+    while #logHistory > config.maxHistory do
+        table.remove(logHistory, 1)
+    end
+    
+    -- Output to console if enabled
+    if config.outputToConsole then
+        if level >= Debug.LEVELS.ERROR then
+            warn(formattedMsg)
         else
-            print(logMessage)
+            print(formattedMsg)
         end
-        
-        -- Store in history
-        table.insert(logHistory, {
-            timestamp = timestamp,
-            level = level,
-            message = message
-        })
-        
-        -- Trim history if needed
-        if #logHistory > config.MaxLogHistory then
-            table.remove(logHistory, 1)
-        end
-        
-        -- Log to file if enabled
-        if config.LogToFile then
-            Debug.LogToFile(logMessage)
-        end
+    end
+    
+    return true
+end
+
+-- Public logging functions
+function Debug.Info(msg)
+    return log(Debug.LEVELS.INFO, "INFO", msg)
+end
+
+function Debug.Debug(msg)
+    return log(Debug.LEVELS.DEBUG, "DEBUG", msg)
+end
+
+function Debug.Warn(msg)
+    return log(Debug.LEVELS.WARN, "WARN", msg)
+end
+
+function Debug.Error(msg)
+    return log(Debug.LEVELS.ERROR, "ERROR", msg)
+end
+
+function Debug.Fatal(msg)
+    return log(Debug.LEVELS.FATAL, "FATAL", msg)
+end
+
+-- Configuration functions
+function Debug.SetEnabled(enabled)
+    config.enabled = enabled
+    Debug.Info(string.format("Debugging %s", enabled and "enabled" or "disabled"))
+end
+
+function Debug.SetLogLevel(level)
+    if Debug.LEVELS[level] then
+        config.logLevel = Debug.LEVELS[level]
+        Debug.Info(string.format("Log level set to %s", level))
     end
 end
 
--- Convenience logging methods
-function Debug.Info(message)
-    Debug.Log(message, 1)
+function Debug.SetMaxHistory(max)
+    config.maxHistory = max
+    Debug.Info(string.format("Max history set to %d", max))
 end
 
-function Debug.Warn(message)
-    Debug.Log(message, 2)
-end
-
-function Debug.Error(message)
-    Debug.Log(message, 3)
-end
-
-function Debug.Debug(message)
-    Debug.Log(message, 4)
-end
-
--- Get log history
+-- History functions
 function Debug.GetHistory()
-    return logHistory
+    return table.clone(logHistory)
 end
 
--- Clear log history
 function Debug.ClearHistory()
     logHistory = {}
     Debug.Info("Log history cleared")
 end
 
--- Configure debug settings
-function Debug.Configure(options)
-    for key, value in pairs(options) do
-        if config[key] ~= nil then
-            config[key] = value
+-- Debug utilities
+function Debug.Trace(...)
+    local args = {...}
+    local trace = ""
+    
+    for i, v in ipairs(args) do
+        if type(v) == "table" then
+            trace = trace .. Debug.TableToString(v, 0)
+        else
+            trace = trace .. tostring(v)
+        end
+        
+        if i < #args then
+            trace = trace .. " "
         end
     end
-    Debug.Info("Debug configuration updated")
+    
+    return Debug.Debug(trace)
 end
 
--- Performance monitoring
-local performanceStats = {}
-
-function Debug.StartPerfMeasure(label)
-    performanceStats[label] = {
-        startTime = os.clock(),
-        calls = (performanceStats[label] and performanceStats[label].calls or 0) + 1
-    }
-end
-
-function Debug.EndPerfMeasure(label)
-    if performanceStats[label] then
-        local duration = os.clock() - performanceStats[label].startTime
-        performanceStats[label].lastDuration = duration
-        performanceStats[label].totalDuration = (performanceStats[label].totalDuration or 0) + duration
-        Debug.Debug(string.format("Performance [%s]: %.3fms (Total: %.3fms, Calls: %d)", 
-            label,
-            duration * 1000,
-            performanceStats[label].totalDuration * 1000,
-            performanceStats[label].calls
-        ))
+function Debug.TableToString(tbl, depth)
+    if depth > 10 then return "..." end
+    
+    local str = "{"
+    for k, v in pairs(tbl) do
+        local key = type(k) == "string" and k or "[" .. tostring(k) .. "]"
+        str = str .. key .. "="
+        
+        if type(v) == "table" then
+            str = str .. Debug.TableToString(v, (depth or 0) + 1)
+        else
+            str = str .. tostring(v)
+        end
+        str = str .. ", "
     end
+    return str:sub(1, -3) .. "}"
 end
 
--- Initialize module
+-- Module initialization
 function Debug.init()
+    if Debug._initialized then
+        return true
+    end
+    
+    Debug._initialized = true
     Debug.Info("Debug module initialized")
     return true
+end
+
+-- Module shutdown
+function Debug.shutdown()
+    Debug.Info("Debug module shutting down")
+    Debug.ClearHistory()
+    Debug._initialized = false
 end
 
 return Debug
