@@ -1,5 +1,6 @@
 -- loader.lua
 local Loader = {}
+local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
 
 -- Initialize global state
 if not getgenv().State then
@@ -21,8 +22,9 @@ if not getgenv().Fluent then
 
     if success and Fluent then
         getgenv().Fluent = Fluent
+        Debug.Log("Fluent library loaded successfully.")
     else
-        warn("Failed to load Fluent library")
+        Debug.Error("Failed to load Fluent library")
         return
     end
 end
@@ -33,7 +35,7 @@ local success, UI = pcall(function()
 end)
 
 if not success then
-    warn("Failed to load UI module")
+    Debug.Error("Failed to load UI module")
     return
 end
 
@@ -42,25 +44,29 @@ local success, Functions = pcall(function()
 end)
 
 if not success then
-    warn("Failed to load Functions module")
+    Debug.Error("Failed to load Functions module")
     return
 end
 
 -- Initialize modules
 if type(UI.Initialize) == "function" then
+    Debug.Log("Initializing UI module.")
     UI.Initialize()
 end
 
 if type(Functions.Initialize) == "function" then
+    Debug.Log("Initializing Functions module.")
     Functions.Initialize()
 end
 
 -- Setup cleanup on teleport
 game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
     if type(UI.Cleanup) == "function" then
+        Debug.Log("Cleaning up UI module on teleport.")
         UI.Cleanup()
     end
     if type(Functions.Cleanup) == "function" then
+        Debug.Log("Cleaning up Functions module on teleport.")
         Functions.Cleanup()
     end
 end)
