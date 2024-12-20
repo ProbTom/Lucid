@@ -46,6 +46,11 @@ local function loadUILibraries()
 
     if not getgenv().Fluent then
         getgenv().Fluent = fetchLibrary("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", 3)
+        if getgenv().Fluent then
+            Debug.Log("Fluent UI library loaded successfully.")
+        else
+            Debug.Error("Failed to load Fluent UI library.")
+        end
     end
 
     return getgenv().Fluent ~= nil
@@ -71,6 +76,11 @@ end
 
 -- Create main tabs with proper icons
 function UI.CreateTabs()
+    if not UI._window then
+        Debug.Error("UI window not created. Cannot create tabs.")
+        return
+    end
+
     -- Main tab with fishing icon
     UI._tabs.Main = UI._window:AddTab({
         Title = "Main",
@@ -90,6 +100,11 @@ end
 
 -- Create main sections
 function UI.CreateMainSections()
+    if not UI._tabs.Main then
+        Debug.Error("Main tab not created. Cannot create sections.")
+        return
+    end
+
     local sections = {}
     
     -- Fishing Controls Section
@@ -142,13 +157,17 @@ function UI.Initialize()
         return true
     end
 
+    Debug.Log("Loading UI libraries.")
     if not loadUILibraries() then
-        Debug.Error("Failed to load UI libraries")
+        Debug.Error("Failed to load UI libraries.")
         return false
     end
 
+    Debug.Log("Creating UI window.")
     UI.CreateWindow()
+    Debug.Log("Creating UI tabs.")
     UI.CreateTabs()
+    Debug.Log("Creating UI sections.")
     UI.CreateMainSections()
 
     UI._initialized = true
