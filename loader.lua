@@ -5,21 +5,26 @@
 
 local Loader = {
     Version = "1.0.1",
-    BaseURL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-    Modules = {
-        "debug",    -- Debug system must be first
-        "utils",    -- Utility functions
-        "ui"        -- UI components if you have them
-    }
+    BaseURL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
 }
+
+-- Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Create or get the Lucid folder in ReplicatedStorage
+local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("Folder")
+lucidFolder.Name = "Lucid"
+lucidFolder.Parent = ReplicatedStorage
 
 -- Basic logging (uses debug module once loaded)
 local function log(msg, type)
     print(string.format("[LUCID %s] %s", type or "INFO", tostring(msg)))
 end
 
--- Protected HTTP fetch
-local function fetchModule(name)
+-- Protected HTTP fetch and module creation
+local function loadModule(name)
+    log("Loading " .. name)
+    
     local success, content = pcall(function()
         return game:HttpGet(Loader.BaseURL .. name .. ".lua")
     end)
@@ -29,20 +34,16 @@ local function fetchModule(name)
         return nil
     end
     
-    return content
-end
-
--- Protected module loading
-local function loadModule(content, name)
-    local func, err = loadstring(content)
-    if not func then
-        log("Failed to parse " .. name .. ": " .. tostring(err), "ERROR")
-        return nil
-    end
+    -- Create ModuleScript
+    local moduleScript = Instance.new("ModuleScript")
+    moduleScript.Name = name
+    moduleScript.Source = content
+    moduleScript.Parent = lucidFolder
     
-    local success, module = pcall(func)
+    -- Require the module
+    local success, module = pcall(require, moduleScript)
     if not success then
-        log("Failed to execute " .. name .. ": " .. tostring(module), "ERROR")
+        log("Failed to require " .. name .. ": " .. tostring(module), "ERROR")
         return nil
     end
     
@@ -53,36 +54,21 @@ end
 local function init()
     log("Starting module initialization")
     
-    -- Load each module
-    for _, moduleName in ipairs(Loader.Modules) do
-        log("Loading " .. moduleName)
-        
-        local content = fetchModule(moduleName)
-        if not content then
-            return false
-        end
-        
-        local module = loadModule(content, moduleName)
-        if not module then
-            return false
-        end
-        
-        getgenv().LucidState.Modules[moduleName] = module
-    end
+    -- Load core modules in order
+    local debug = loadModule("debug")
+    if not debug then return false end
     
-    -- Initialize modules in order
-    for _, moduleName in ipairs(Loader.Modules) do
-        local module = getgenv().LucidState.Modules[moduleName]
-        if type(module) == "table" and type(module.init) == "function" then
-            local success, err = pcall(function()
-                module.init(getgenv().LucidState.Modules)
-            end)
-            
-            if not success then
-                log("Failed to initialize " .. moduleName .. ": " .. tostring(err), "ERROR")
-                return false
-            end
-        end
+    local utils = loadModule("utils")
+    if not utils then return false end
+    
+    local ui = loadModule("ui")
+    if not ui then return false end
+    
+    -- Initialize modules
+    if debug.init and utils.init and ui.init then
+        debug.init()
+        utils.init({debug = debug})
+        ui.init({debug = debug, utils = utils})
     end
     
     log("All modules loaded successfully")
