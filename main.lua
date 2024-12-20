@@ -1,7 +1,7 @@
 -- main.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 18:55:19 UTC
+-- Created: 2024-12-20 19:23:12 UTC
 
 -- Services
 local Players = game:GetService("Players")
@@ -10,31 +10,47 @@ local UserInputService = game:GetService("UserInputService")
 
 -- Constants
 local VERSION = "1.0.1"
+local BASE_URL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
 
--- Modules
-local Debug = script:FindFirstChild("debug")
-local Utils = script:FindFirstChild("utils")
-local UI = script:FindFirstChild("ui")
+-- Create Lucid folder in ReplicatedStorage
+local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("Folder")
+lucidFolder.Name = "Lucid"
+lucidFolder.Parent = ReplicatedStorage
 
-if not Debug or not Utils or not UI then
-    warn("One or more modules are missing. Please ensure 'debug', 'utils', and 'ui' modules are correctly placed as children of the script.")
-    return
+-- Function to load a module from URL
+local function loadModuleFromURL(name)
+    local success, content = pcall(function()
+        return game:HttpGet(BASE_URL .. name .. ".lua")
+    end)
+    
+    if not success then
+        warn("Failed to fetch module:", name)
+        return nil
+    end
+    
+    local moduleScript = Instance.new("ModuleScript")
+    moduleScript.Name = name
+    moduleScript.Source = content
+    moduleScript.Parent = lucidFolder
+    
+    return require(moduleScript)
 end
 
-Debug = require(Debug)
-Utils = require(Utils)
-UI = require(UI)
+-- Load core modules
+local Debug = loadModuleFromURL("debug")
+local Utils = loadModuleFromURL("utils")
+local UI = loadModuleFromURL("ui")
+
+if not Debug or not Utils or not UI then
+    warn("Failed to load core modules")
+    return
+end
 
 -- State
 local initialized = false
 
 -- Local Functions
 local function initializeModules()
-    if not Debug or not Utils or not UI then
-        warn("Failed to load one or more modules")
-        return false
-    end
-
     Debug.Info("Starting module initialization")
     
     -- Initialize Debug first
