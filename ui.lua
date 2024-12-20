@@ -1,7 +1,7 @@
 -- ui.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 17:42:54 UTC
+-- Created: 2024-12-20 18:41:17 UTC
 
 local UI = {}
 
@@ -13,6 +13,7 @@ local Events
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 
 -- Constants
 local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -28,6 +29,11 @@ local Fluent
 
 -- Create base window
 function UI.CreateWindow(options)
+    if not Fluent then
+        Debug.Error("FluentUI not initialized")
+        return nil
+    end
+
     options = options or {}
     local window = Fluent:CreateWindow({
         Title = options.Title or "Lucid",
@@ -37,7 +43,10 @@ function UI.CreateWindow(options)
         Position = options.Position or UDim2.new(0.5, -300, 0.5, -200),
         ButtonColor = Color3.fromRGB(0, 120, 255),
         ButtonTransparency = 0,
-        TabPadding = options.TabPadding or 8
+        TabPadding = options.TabPadding or 8,
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        MinimizeKey = options.MinimizeKey or Enum.KeyCode.RightShift
     })
     
     -- Store window reference
@@ -48,6 +57,11 @@ end
 
 -- Create tab in window
 function UI.CreateTab(window, options)
+    if not window then
+        Debug.Error("Window is required to create a tab")
+        return nil
+    end
+
     options = options or {}
     local tab = window:CreateTab({
         Title = options.Title or "Tab",
@@ -59,6 +73,11 @@ end
 
 -- Create button
 function UI.CreateButton(tab, options)
+    if not tab then
+        Debug.Error("Tab is required to create a button")
+        return nil
+    end
+
     options = options or {}
     local button = tab:CreateButton({
         Title = options.Title or "Button",
@@ -76,6 +95,11 @@ end
 
 -- Create toggle
 function UI.CreateToggle(tab, options)
+    if not tab then
+        Debug.Error("Tab is required to create a toggle")
+        return nil
+    end
+
     options = options or {}
     local toggle = tab:CreateToggle({
         Title = options.Title or "Toggle",
@@ -94,6 +118,11 @@ end
 
 -- Create slider
 function UI.CreateSlider(tab, options)
+    if not tab then
+        Debug.Error("Tab is required to create a slider")
+        return nil
+    end
+
     options = options or {}
     local slider = tab:CreateSlider({
         Title = options.Title or "Slider",
@@ -114,6 +143,11 @@ end
 
 -- Create dropdown
 function UI.CreateDropdown(tab, options)
+    if not tab then
+        Debug.Error("Tab is required to create a dropdown")
+        return nil
+    end
+
     options = options or {}
     local dropdown = tab:CreateDropdown({
         Title = options.Title or "Dropdown",
@@ -133,6 +167,11 @@ end
 
 -- Create input field
 function UI.CreateInput(tab, options)
+    if not tab then
+        Debug.Error("Tab is required to create an input")
+        return nil
+    end
+
     options = options or {}
     local input = tab:CreateInput({
         Title = options.Title or "Input",
@@ -151,6 +190,11 @@ end
 
 -- Create label
 function UI.CreateLabel(tab, options)
+    if not tab then
+        Debug.Error("Tab is required to create a label")
+        return nil
+    end
+
     options = options or {}
     local label = tab:CreateLabel({
         Title = options.Title or "Label",
@@ -197,6 +241,11 @@ end
 
 -- Notification system
 function UI.Notify(options)
+    if not Fluent then
+        Debug.Error("FluentUI not initialized")
+        return
+    end
+
     options = options or {}
     Fluent:Notify({
         Title = options.Title or "Notification",
@@ -249,6 +298,37 @@ function UI.init(modules)
     
     Fluent = result
     Debug.Info("UI module initialized")
+
+    -- Create default window
+    local window = UI.CreateWindow({
+        Title = "Lucid",
+        SubTitle = "v1.0.1",
+        TabWidth = 160,
+        Size = UDim2.new(0, 600, 0, 400),
+        Position = UDim2.new(0.5, -300, 0.5, -200),
+        MinimizeKey = Enum.KeyCode.RightShift
+    })
+
+    -- Create a default tab
+    local mainTab = UI.CreateTab(window, {
+        Title = "Main",
+        Icon = "rbxassetid://3926305904"
+    })
+
+    -- Add a test button
+    UI.CreateButton(mainTab, {
+        Title = "Test Button",
+        Description = "Click me to test!",
+        Callback = function()
+            UI.Notify({
+                Title = "Button Clicked",
+                Content = "The UI is working!",
+                Duration = 3
+            })
+        end
+    })
+
+    Debug.Info("Default window created")
     return true
 end
 
