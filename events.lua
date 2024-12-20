@@ -23,12 +23,18 @@ local function safeLog(msg, level)
 end
 
 function Event.new(name)
-    return setmetatable({
+    if type(name) ~= "string" then
+        safeLog("Event name must be a string", "ERROR")
+        return nil
+    end
+    
+    local self = {
         name = name,
         handlers = {},
         lastFired = 0,
         fireCount = 0
-    }, Event)
+    }
+    return setmetatable(self, Event)
 end
 
 function Event:Fire(...)
@@ -82,12 +88,18 @@ function Events.Create(name)
     end
     
     local event = Event.new(name)
+    if not event then return nil end
+    
     storage.events[name] = event
     return event
 end
 
 function Events.Get(name)
-    return storage.events[name]
+    local event = storage.events[name]
+    if not event then
+        safeLog(string.format("Event '%s' not found", name), "WARN")
+    end
+    return event
 end
 
 function Events.Fire(name, ...)
@@ -112,7 +124,11 @@ function Events.Connect(name, fn)
 end
 
 function Events.GetHistory()
-    return table.clone(storage.history)
+    local historyCopy = {}
+    for k, v in pairs(storage.history) do
+        historyCopy[k] = v
+    end
+    return historyCopy
 end
 
 function Events.ClearHistory()
@@ -123,6 +139,11 @@ end
 function Events.init(modules)
     if Events._initialized then
         return true
+    end
+    
+    if type(modules) ~= "table" then
+        safeLog("Events.init requires modules table", "ERROR")
+        return false
     end
     
     -- Save debug module for later use
