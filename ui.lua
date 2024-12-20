@@ -1,7 +1,7 @@
 -- ui.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 18:41:17 UTC
+-- Created: 2024-12-20 18:47:46 UTC
 
 local UI = {}
 
@@ -43,10 +43,7 @@ function UI.CreateWindow(options)
         Position = options.Position or UDim2.new(0.5, -300, 0.5, -200),
         ButtonColor = Color3.fromRGB(0, 120, 255),
         ButtonTransparency = 0,
-        TabPadding = options.TabPadding or 8,
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        MinimizeKey = options.MinimizeKey or Enum.KeyCode.RightShift
+        TabPadding = options.TabPadding or 8
     })
     
     -- Store window reference
@@ -279,10 +276,17 @@ function UI.init(modules)
             return false
         end
         
-        local loadSuccess, result = pcall(loadstring(content))
+        -- Load the content
+        local func, err = loadstring(content)
+        if not func then
+            Debug.Error("Failed to parse FluentUI content: " .. tostring(err))
+            return false
+        end
         
-        if not loadSuccess then
-            Debug.Error("Failed to load FluentUI content: " .. tostring(result))
+        -- Execute the loaded function
+        local success, result = pcall(func)
+        if not success then
+            Debug.Error("Failed to execute FluentUI: " .. tostring(result))
             return false
         end
         
@@ -298,37 +302,6 @@ function UI.init(modules)
     
     Fluent = result
     Debug.Info("UI module initialized")
-
-    -- Create default window
-    local window = UI.CreateWindow({
-        Title = "Lucid",
-        SubTitle = "v1.0.1",
-        TabWidth = 160,
-        Size = UDim2.new(0, 600, 0, 400),
-        Position = UDim2.new(0.5, -300, 0.5, -200),
-        MinimizeKey = Enum.KeyCode.RightShift
-    })
-
-    -- Create a default tab
-    local mainTab = UI.CreateTab(window, {
-        Title = "Main",
-        Icon = "rbxassetid://3926305904"
-    })
-
-    -- Add a test button
-    UI.CreateButton(mainTab, {
-        Title = "Test Button",
-        Description = "Click me to test!",
-        Callback = function()
-            UI.Notify({
-                Title = "Button Clicked",
-                Content = "The UI is working!",
-                Duration = 3
-            })
-        end
-    })
-
-    Debug.Info("Default window created")
     return true
 end
 
