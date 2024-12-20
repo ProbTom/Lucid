@@ -14,7 +14,7 @@ local Config = {
             LoadingSubtitle = "by ProbTom",
             TabWidth = 160,
             Size = UDim2.fromOffset(580, 460),
-            Theme = "Dark",
+            Theme = "Rose",
             MinimizeKey = Enum.KeyCode.RightControl
         },
         Tabs = {
