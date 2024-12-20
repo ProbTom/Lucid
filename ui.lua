@@ -25,7 +25,7 @@ local UIConfig = {
     SubTitle = "by ProbTom",
     TabWidth = 160,
     Size = UDim2.fromOffset(600, 400),
-    Theme = "Rose",
+    Theme = "Dark",
     MinimizeKeybind = Enum.KeyCode.LeftControl
 }
 
@@ -56,6 +56,10 @@ local function loadUILibraries()
     return getgenv().Fluent ~= nil
 end
 
+function UI.IsInitialized()
+    return UI._initialized
+end
+
 -- Create main window and tabs
 function UI.CreateWindow()
     if not UI._window then
@@ -67,9 +71,13 @@ function UI.CreateWindow()
             Theme = UIConfig.Theme,
             MinimizeKeybind = UIConfig.MinimizeKeybind
         })
-        Debug.Log("UI window created successfully.")
-    elseif not UI._window then
-        Debug.Error("UI window creation failed.")
+        if UI._window then
+            Debug.Log("UI window created successfully.")
+        else
+            Debug.Error("UI window creation failed.")
+        end
+    else
+        Debug.Error("UI window already exists.")
     end
     return UI._window
 end
