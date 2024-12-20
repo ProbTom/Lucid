@@ -1,220 +1,134 @@
--- loader.lua
-local Loader = {
-    _initialized = false
-}
-
--- Wait for game to load
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
-
--- Services
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
--- Load Debug Module
-local Debug = {
-    Log = function(msg) print("[LOG]:", msg) end,
-    Error = function(msg) warn("[ERROR]:", msg) end,
-    Warning = function(msg) warn("[WARNING]:", msg) end
-}
-
--- Initialize global state
-if not getgenv().State then
-    getgenv().State = {
-        AutoCasting = false,
-        AutoReeling = false,
-        AutoShaking = false,
-        Events = {
-            Available = {}
-        }
-    }
-end
-
--- Load Fluent UI Library
-local function loadFluentUI()
-    if getgenv().Fluent then
-        return true
-    end
-
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-    end)
-
-    if success and result then
-        getgenv().Fluent = result
-        Debug.Log("Fluent UI library loaded successfully")
-        return true
+-- loader.lua (continued)
+    -- Load UI
+    local Fluent = loadFluentUI()
+    if not Fluent then
+        Debug.Error("Failed to load Fluent UI")
+        return false
     end
     
-    Debug.Error("Failed to load Fluent UI library")
-    return false
-end
-
--- Create Window
-local function createWindow()
-    if not getgenv().Fluent then
-        Debug.Error("Fluent UI library not loaded")
-        return false
-    end
-
-    if getgenv().LucidWindow then
-        return true
-    end
-
-    local success, window = pcall(function()
-        return getgenv().Fluent:CreateWindow({
-            Title = "Lucid Hub",
-            SubTitle = "by ProbTom",
-            TabWidth = 160,
-            Size = UDim2.fromOffset(580, 460),
-            Theme = "Dark"
-        })
-    end)
-
-    if success and window then
-        getgenv().LucidWindow = window
-        Debug.Log("Window created successfully")
-        return true
-    end
-
-    Debug.Error("Failed to create window")
-    return false
-end
-
--- Create Tabs
-local function createTabs()
-    if not getgenv().LucidWindow then
-        Debug.Error("Window not created")
-        return false
-    end
-
-    if not getgenv().Tabs then
-        getgenv().Tabs = {}
-    end
-
-    -- Main Tab
-    local success, mainTab = pcall(function()
-        return getgenv().LucidWindow:AddTab({
-            Title = "Main",
-            Icon = "rbxassetid://10723424505"
-        })
-    end)
-
-    if success and mainTab then
-        getgenv().Tabs.Main = mainTab
-        Debug.Log("Main tab created")
-    else
-        Debug.Error("Failed to create Main tab")
-        return false
-    end
-
-    return true
-end
-
--- Create Features
-local function createFeatures()
-    if not getgenv().Tabs.Main then
-        Debug.Error("Main tab not created")
-        return false
-    end
-
-    local success, section = pcall(function()
-        return getgenv().Tabs.Main:AddSection("Fishing Controls")
-    end)
-
-    if not success or not section then
-        Debug.Error("Failed to create section")
-        return false
-    end
-
-    -- Auto Cast Toggle
-    section:AddToggle({
-        Title = "Auto Cast",
-        Default = false,
-        Callback = function(value)
-            if getgenv().State then
-                getgenv().State.AutoCasting = value
-                Debug.Log("Auto Cast: " .. tostring(value))
-            end
-        end
-    })
-
-    -- Auto Reel Toggle
-    section:AddToggle({
-        Title = "Auto Reel",
-        Default = false,
-        Callback = function(value)
-            if getgenv().State then
-                getgenv().State.AutoReeling = value
-                Debug.Log("Auto Reel: " .. tostring(value))
-            end
-        end
-    })
-
-    -- Auto Shake Toggle
-    section:AddToggle({
-        Title = "Auto Shake",
-        Default = false,
-        Callback = function(value)
-            if getgenv().State then
-                getgenv().State.AutoShaking = value
-                Debug.Log("Auto Shake: " .. tostring(value))
-            end
-        end
-    })
-
-    return true
-end
-
--- Initialize
-function Loader.Initialize()
-    if Loader._initialized then
-        return true
-    end
-
-    Debug.Log("Starting initialization...")
-
-    -- Step 1: Load UI Library
-    if not loadFluentUI() then
-        Debug.Error("Failed to load UI library")
-        return false
-    end
-
-    -- Step 2: Create Window
-    if not createWindow() then
+    -- Create window
+    local window = createWindow(Config)
+    if not window then
         Debug.Error("Failed to create window")
         return false
     end
-
-    -- Step 3: Create Tabs
+    
+    -- Create tabs
+    local function createTabs()
+        if not getgenv().Tabs then
+            getgenv().Tabs = {}
+        end
+        
+        for tabName, tabConfig in pairs(Config.UI.Tabs) do
+            local success, tab = pcall(function()
+                return window:AddTab({
+                    Title = tabConfig.Name,
+                    Icon = tabConfig.Icon
+                })
+            end)
+            
+            if success and tab then
+                getgenv().Tabs[tabName] = tab
+                Debug.Log("Created tab: " .. tabName)
+            else
+                Debug.Error("Failed to create tab: " .. tabName)
+                return false
+            end
+        end
+        return true
+    end
+    
     if not createTabs() then
         Debug.Error("Failed to create tabs")
         return false
     end
-
-    -- Step 4: Create Features
+    
+    -- Create features
+    local function createFeatures()
+        local mainTab = getgenv().Tabs.Main
+        if not mainTab then
+            Debug.Error("Main tab not found")
+            return false
+        end
+        
+        local section = mainTab:AddSection("Fishing Controls")
+        
+        -- Auto Cast
+        section:AddToggle({
+            Title = "Auto Cast",
+            Default = State.Get("AutoCasting") or false,
+            Callback = function(value)
+                State.Set("AutoCasting", value)
+                Debug.Log("Auto Cast: " .. tostring(value))
+            end
+        })
+        
+        -- Auto Reel
+        section:AddToggle({
+            Title = "Auto Reel",
+            Default = State.Get("AutoReeling") or false,
+            Callback = function(value)
+                State.Set("AutoReeling", value)
+                Debug.Log("Auto Reel: " .. tostring(value))
+            end
+        })
+        
+        -- Auto Shake
+        section:AddToggle({
+            Title = "Auto Shake",
+            Default = State.Get("AutoShaking") or false,
+            Callback = function(value)
+                State.Set("AutoShaking", value)
+                Debug.Log("Auto Shake: " .. tostring(value))
+            end
+        })
+        
+        return true
+    end
+    
     if not createFeatures() then
         Debug.Error("Failed to create features")
         return false
     end
-
+    
     -- Setup cleanup
-    LocalPlayer.OnTeleport:Connect(function()
-        if getgenv().State then
-            getgenv().State = nil
+    local function cleanup()
+        for _, connection in pairs(Loader._connections) do
+            if typeof(connection) == "RBXScriptConnection" then
+                connection:Disconnect()
+            end
         end
+        
         if getgenv().LucidWindow then
             pcall(function()
                 getgenv().LucidWindow:Destroy()
             end)
             getgenv().LucidWindow = nil
         end
-    end)
-
+        
+        State.Set("_initialized", false)
+        Loader._initialized = false
+    end
+    
+    -- Register cleanup on teleport
+    Loader._connections.teleport = game:GetService("Players").LocalPlayer.OnTeleport:Connect(cleanup)
+    
     Loader._initialized = true
     Debug.Log("Initialization complete")
     return true
+end
+
+-- Main execution
+local function start()
+    if not Loader.Initialize() then
+        Debug.Error("Initialization failed")
+        return false
+    end
+    return true
+end
+
+if not start() then
+    Debug.Error("Failed to start Lucid Hub")
 end
 
 return Loader
