@@ -1,39 +1,53 @@
 -- init.lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Clear any existing
+if ReplicatedStorage:FindFirstChild("Lucid") then
+    ReplicatedStorage:FindFirstChild("Lucid"):Destroy()
+end
+
+-- Create container
+local Lucid = Instance.new("Folder")
+Lucid.Name = "Lucid"
+Lucid.Parent = ReplicatedStorage
+
+-- Create debug module
+local Debug = Instance.new("ModuleScript")
+Debug.Name = "Debug"
+Debug.Parent = Lucid
+Debug.Source = [[
 local Debug = {
-    Info = function(msg) print("[INFO]", msg) end,
-    Warn = function(msg) warn("[WARN]", msg) end,
-    Error = function(msg) warn("[ERROR]", msg) end
+    _initialized = false
 }
 
-local function createModule(name, source)
-    local moduleScript = Instance.new("ModuleScript")
-    moduleScript.Name = name
-    moduleScript.Source = source
-    moduleScript.Parent = game:GetService("ReplicatedStorage")
-    return moduleScript
+function Debug.Info(msg)
+    print("[LUCID INFO]", tostring(msg))
 end
 
--- Create debug module first
-local debugModule = createModule("debug", [[
-local Debug = {_initialized = false}
-function Debug.Info(msg) print("[INFO] " .. tostring(msg)) end
-function Debug.Warn(msg) warn("[WARN] " .. tostring(msg)) end
-function Debug.Error(msg) warn("[ERROR] " .. tostring(msg)) end
-function Debug.init() Debug._initialized = true return true end
+function Debug.Warn(msg)
+    warn("[LUCID WARN]", tostring(msg))
+end
+
+function Debug.Error(msg)
+    warn("[LUCID ERROR]", tostring(msg))
+end
+
+function Debug.init()
+    if Debug._initialized then return true end
+    Debug._initialized = true
+    Debug.Info("Debug module initialized")
+    return true
+end
+
 return Debug
-]])
+]]
 
--- Create and load the module
-local success, debug = pcall(require, debugModule)
-if not success then
-    warn("Failed to load debug module:", debug)
-    return
-end
-
-getgenv().Lucid = {
-    Debug = debug,
-    Version = "1.0.1"
+-- Set global state
+getgenv().LucidState = {
+    Version = "1.0.1",
+    StartTime = os.time(),
+    Debug = require(Debug)
 }
 
-debug.Info("Lucid initialized successfully")
+LucidState.Debug.Info("Lucid initialized successfully!")
 return true
