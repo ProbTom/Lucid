@@ -1,308 +1,187 @@
--- ui.lua
+-- main.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 18:47:46 UTC
-
-local UI = {}
-
--- Dependencies
-local Debug
-local Events
+-- Created: 2024-12-20 18:50:22 UTC
 
 -- Services
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
 
 -- Constants
-local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local MIN_DRAG_DISTANCE = 5
+local VERSION = "1.0.1"
 
--- UI Elements storage
-local elements = {}
-local activeWindows = {}
-local dragInfo = nil
+-- Modules (Fix the path according to your structure)
+local Debug = require(script.debug)  -- Changed from script.Parent.modules.debug
+local Utils = require(script.utils)  -- Changed from script.Parent.modules.utils
+local UI = require(script.ui)        -- Changed from script.Parent.modules.ui
 
--- FluentUI Library (from dependencies)
-local Fluent
+-- State
+local initialized = false
+local modules = {
+    debug = Debug,
+    utils = Utils,
+    ui = UI
+}
 
--- Create base window
-function UI.CreateWindow(options)
-    if not Fluent then
-        Debug.Error("FluentUI not initialized")
-        return nil
-    end
-
-    options = options or {}
-    local window = Fluent:CreateWindow({
-        Title = options.Title or "Lucid",
-        SubTitle = options.SubTitle or "",
-        TabWidth = options.TabWidth or 160,
-        Size = options.Size or UDim2.new(0, 600, 0, 400),
-        Position = options.Position or UDim2.new(0.5, -300, 0.5, -200),
-        ButtonColor = Color3.fromRGB(0, 120, 255),
-        ButtonTransparency = 0,
-        TabPadding = options.TabPadding or 8
-    })
+-- Local Functions
+local function initializeModules()
+    Debug.Info("Starting module initialization")
     
-    -- Store window reference
-    table.insert(activeWindows, window)
-    
-    return window
-end
-
--- Create tab in window
-function UI.CreateTab(window, options)
-    if not window then
-        Debug.Error("Window is required to create a tab")
-        return nil
-    end
-
-    options = options or {}
-    local tab = window:CreateTab({
-        Title = options.Title or "Tab",
-        Icon = options.Icon or "rbxassetid://3926305904"
-    })
-    
-    return tab
-end
-
--- Create button
-function UI.CreateButton(tab, options)
-    if not tab then
-        Debug.Error("Tab is required to create a button")
-        return nil
-    end
-
-    options = options or {}
-    local button = tab:CreateButton({
-        Title = options.Title or "Button",
-        Description = options.Description,
-        Callback = options.Callback or function() end
-    })
-    
-    elements[button] = {
-        type = "button",
-        options = options
-    }
-    
-    return button
-end
-
--- Create toggle
-function UI.CreateToggle(tab, options)
-    if not tab then
-        Debug.Error("Tab is required to create a toggle")
-        return nil
-    end
-
-    options = options or {}
-    local toggle = tab:CreateToggle({
-        Title = options.Title or "Toggle",
-        Description = options.Description,
-        Default = options.Default or false,
-        Callback = options.Callback or function() end
-    })
-    
-    elements[toggle] = {
-        type = "toggle",
-        options = options
-    }
-    
-    return toggle
-end
-
--- Create slider
-function UI.CreateSlider(tab, options)
-    if not tab then
-        Debug.Error("Tab is required to create a slider")
-        return nil
-    end
-
-    options = options or {}
-    local slider = tab:CreateSlider({
-        Title = options.Title or "Slider",
-        Description = options.Description,
-        Range = options.Range or {0, 100},
-        Increment = options.Increment or 1,
-        Default = options.Default or 50,
-        Callback = options.Callback or function() end
-    })
-    
-    elements[slider] = {
-        type = "slider",
-        options = options
-    }
-    
-    return slider
-end
-
--- Create dropdown
-function UI.CreateDropdown(tab, options)
-    if not tab then
-        Debug.Error("Tab is required to create a dropdown")
-        return nil
-    end
-
-    options = options or {}
-    local dropdown = tab:CreateDropdown({
-        Title = options.Title or "Dropdown",
-        Description = options.Description,
-        Items = options.Items or {},
-        Default = options.Default,
-        Callback = options.Callback or function() end
-    })
-    
-    elements[dropdown] = {
-        type = "dropdown",
-        options = options
-    }
-    
-    return dropdown
-end
-
--- Create input field
-function UI.CreateInput(tab, options)
-    if not tab then
-        Debug.Error("Tab is required to create an input")
-        return nil
-    end
-
-    options = options or {}
-    local input = tab:CreateInput({
-        Title = options.Title or "Input",
-        Description = options.Description,
-        Default = options.Default or "",
-        Callback = options.Callback or function() end
-    })
-    
-    elements[input] = {
-        type = "input",
-        options = options
-    }
-    
-    return input
-end
-
--- Create label
-function UI.CreateLabel(tab, options)
-    if not tab then
-        Debug.Error("Tab is required to create a label")
-        return nil
-    end
-
-    options = options or {}
-    local label = tab:CreateLabel({
-        Title = options.Title or "Label",
-        Description = options.Description
-    })
-    
-    elements[label] = {
-        type = "label",
-        options = options
-    }
-    
-    return label
-end
-
--- Update element
-function UI.UpdateElement(element, options)
-    local elementData = elements[element]
-    if not elementData then
-        Debug.Warn("Element not found")
+    -- Initialize Debug first
+    Debug.Info("Loading debug")
+    if not Debug.init() then
         return false
     end
     
-    for key, value in pairs(options) do
-        if elementData.options[key] ~= nil then
-            elementData.options[key] = value
-            if element.Update then
-                element:Update(key, value)
-            end
-        end
+    -- Set system version
+    Debug.Info("System Version: " .. VERSION)
+    
+    -- Initialize Utils
+    Debug.Info("Loading utils")
+    if not Utils.init({ debug = Debug }) then
+        Debug.Error("Failed to initialize utils")
+        return false
     end
     
+    -- Initialize UI
+    Debug.Info("Loading ui")
+    if not UI.init({ debug = Debug, utils = Utils }) then
+        Debug.Error("Failed to initialize ui")
+        return false
+    end
+
+    -- Create the main window
+    local window = UI.CreateWindow({
+        Title = "Lucid",
+        SubTitle = "v" .. VERSION,
+        TabWidth = 160,
+        Size = UDim2.new(0, 600, 0, 400),
+        Position = UDim2.new(0.5, -300, 0.5, -200)
+    })
+
+    if not window then
+        Debug.Error("Failed to create main window")
+        return false
+    end
+
+    -- Create main tab
+    local mainTab = UI.CreateTab(window, {
+        Title = "Main",
+        Icon = "rbxassetid://3926305904"
+    })
+
+    if not mainTab then
+        Debug.Error("Failed to create main tab")
+        return false
+    end
+
+    -- Add test button
+    UI.CreateButton(mainTab, {
+        Title = "Test Button",
+        Description = "Click me to test the UI!",
+        Callback = function()
+            UI.Notify({
+                Title = "Success",
+                Content = "UI is working correctly!",
+                Duration = 3,
+                Type = "Success"
+            })
+        end
+    })
+
+    -- Add settings tab
+    local settingsTab = UI.CreateTab(window, {
+        Title = "Settings",
+        Icon = "rbxassetid://3926307971"
+    })
+
+    -- Add some settings controls
+    UI.CreateToggle(settingsTab, {
+        Title = "Debug Mode",
+        Description = "Enable debug logging",
+        Default = false,
+        Callback = function(value)
+            Debug.setDebugMode(value)
+            UI.Notify({
+                Title = "Settings",
+                Content = "Debug Mode: " .. (value and "Enabled" or "Disabled"),
+                Duration = 2,
+                Type = "Info"
+            })
+        end
+    })
+
+    Debug.Info("All modules loaded successfully")
     return true
 end
 
--- Close all windows
-function UI.CloseAll()
-    for _, window in ipairs(activeWindows) do
-        if window.Destroy then
-            window:Destroy()
-        end
-    end
-    activeWindows = {}
-end
-
--- Notification system
-function UI.Notify(options)
-    if not Fluent then
-        Debug.Error("FluentUI not initialized")
+-- Main Functions
+local function start()
+    if initialized then
+        Debug.Warn("System already initialized")
         return
     end
-
-    options = options or {}
-    Fluent:Notify({
-        Title = options.Title or "Notification",
-        Content = options.Content or "",
-        Duration = options.Duration or 3,
-        Type = options.Type or "Info"
-    })
-end
-
--- Initialize module
-function UI.init(modules)
-    Debug = modules.debug
-    Events = modules.events
     
-    -- Load FluentUI with improved error handling
-    local function loadFluentUI()
-        local url = "https://github.com/dawid-scripts/Fluent/releases/download/1.1.0/main.lua"
-        Debug.Info("Attempting to load FluentUI from: " .. url)
-        
-        local success, content = pcall(function()
-            return game:HttpGet(url)
-        end)
-        
-        if not success then
-            Debug.Error("Failed to fetch FluentUI: " .. tostring(content))
-            return false
-        end
-        
-        if not content or content == "" then
-            Debug.Error("Empty content received from FluentUI URL")
-            return false
-        end
-        
-        -- Load the content
-        local func, err = loadstring(content)
-        if not func then
-            Debug.Error("Failed to parse FluentUI content: " .. tostring(err))
-            return false
-        end
-        
-        -- Execute the loaded function
-        local success, result = pcall(func)
-        if not success then
-            Debug.Error("Failed to execute FluentUI: " .. tostring(result))
-            return false
-        end
-        
-        Debug.Info("FluentUI loaded successfully")
-        return result
+    if not initializeModules() then
+        Debug.Error("Failed to initialize modules")
+        return
     end
     
-    -- Initialize FluentUI
-    local result = loadFluentUI()
-    if not result then
-        return false
-    end
-    
-    Fluent = result
-    Debug.Info("UI module initialized")
-    return true
+    initialized = true
+    Debug.Info("System initialization complete")
 end
 
-return UI
+local function stop()
+    if not initialized then
+        return
+    end
+    
+    -- Cleanup UI
+    UI.CloseAll()
+    
+    initialized = false
+    Debug.Info("System stopped")
+end
+
+-- Event Handlers
+local function onPlayerAdded(player)
+    if player == Players.LocalPlayer then
+        start()
+    end
+end
+
+local function onPlayerRemoving(player)
+    if player == Players.LocalPlayer then
+        stop()
+    end
+end
+
+-- Initialize
+do
+    -- Set up player events
+    Players.PlayerAdded:Connect(onPlayerAdded)
+    Players.PlayerRemoving:Connect(onPlayerRemoving)
+    
+    -- Start if player is already in game
+    if Players.LocalPlayer then
+        start()
+    end
+end
+
+-- Return API
+return {
+    Version = VERSION,
+    Debug = Debug,
+    Utils = Utils,
+    UI = UI,
+    
+    -- Methods
+    Start = start,
+    Stop = stop,
+    
+    -- Properties
+    Initialized = function()
+        return initialized
+    end
+}
