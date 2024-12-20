@@ -1,4 +1,7 @@
 -- main.lua
+-- Version: 2024.12.20
+-- Author: ProbTom
+
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
@@ -42,6 +45,7 @@ local function loadModule(name, url)
         return false
     end
     
+    Debug.Log(name .. " loaded successfully")
     return result
 end
 
@@ -58,44 +62,16 @@ local function start()
     if not Config then
         return false
     end
-    Debug.Log("Config loaded successfully")
     
     -- Step 3: Load State
     local State = loadModule("state", "https://raw.githubusercontent.com/ProbTom/Lucid/main/state.lua")
     if not State then
         return false
     end
-    Debug.Log("State loaded successfully")
     
     -- Step 4: Load Loader
     local Loader = loadModule("loader", "https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua")
     if not Loader then
-        return false
-    end
-    Debug.Log("Loader loaded successfully")
-    
-    -- Initialize global state
-    if not getgenv then
-        Debug.Error("getgenv is not available")
-        return false
-    end
-    
-    getgenv().LucidState = {
-        Debug = Debug,
-        Config = Config,
-        State = State,
-        Loader = Loader
-    }
-    
-    -- Initialize loader
-    if type(Loader.Initialize) ~= "function" then
-        Debug.Error("Loader.Initialize is not a function")
-        return false
-    end
-    
-    local success, result = pcall(Loader.Initialize)
-    if not success then
-        Debug.Error("Loader initialization failed: " .. tostring(result))
         return false
     end
     
