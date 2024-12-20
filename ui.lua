@@ -67,16 +67,20 @@ function UI.CreateWindow()
         return true
     end
 
-    UI._window = getgenv().Fluent:CreateWindow({
-        Title = UIConfig.Title,
-        SubTitle = UIConfig.SubTitle,
-        TabWidth = UIConfig.TabWidth,
-        Size = UIConfig.Size,
-        Theme = UIConfig.Theme,
-        MinimizeKeybind = UIConfig.MinimizeKeybind
-    })
-    
-    if UI._window then
+    -- Attempt to create the window
+    local success, window = pcall(function()
+        return getgenv().Fluent:CreateWindow({
+            Title = UIConfig.Title,
+            SubTitle = UIConfig.SubTitle,
+            TabWidth = UIConfig.TabWidth,
+            Size = UIConfig.Size,
+            Theme = UIConfig.Theme,
+            MinimizeKeybind = UIConfig.MinimizeKeybind
+        })
+    end)
+
+    if success and window then
+        UI._window = window
         Debug.Log("UI window created successfully.")
         return true
     else
