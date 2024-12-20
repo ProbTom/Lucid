@@ -49,7 +49,7 @@ if not success then
 end
 
 -- Initialize modules
-if type(UI.Initialize) == "function" then
+if type(UI.Initialize) == "function" and not UI.IsInitialized() then
     Debug.Log("Initializing UI module.")
     UI.Initialize()
 end
