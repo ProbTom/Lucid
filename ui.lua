@@ -1,20 +1,39 @@
 -- main.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 18:50:22 UTC
+-- Created: 2024-12-20 18:51:36 UTC
 
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
+-- Find modules
+local function findModule(name)
+    -- Try different common paths
+    local paths = {
+        script[name],              -- Direct child
+        script.Parent[name],       -- Sibling
+        script.Parent.modules[name], -- In modules folder
+        game:GetService("ReplicatedStorage").modules[name] -- In ReplicatedStorage
+    }
+    
+    for _, path in ipairs(paths) do
+        if path then
+            return path
+        end
+    end
+    
+    error("Could not find module: " .. name)
+end
+
 -- Constants
 local VERSION = "1.0.1"
 
--- Modules (Fix the path according to your structure)
-local Debug = require(script.debug)  -- Changed from script.Parent.modules.debug
-local Utils = require(script.utils)  -- Changed from script.Parent.modules.utils
-local UI = require(script.ui)        -- Changed from script.Parent.modules.ui
+-- Load Modules
+local Debug = require(findModule("debug"))
+local Utils = require(findModule("utils"))
+local UI = require(findModule("ui"))
 
 -- State
 local initialized = false
