@@ -1,215 +1,140 @@
 -- events.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:54:58 UTC
+-- Created: 2024-12-20 14:58:20 UTC
 
+-- Create Events module with minimal dependencies
 local Events = {
     _VERSION = "1.0.1",
-    _AUTHOR = "ProbTom",
+    _DESCRIPTION = "Simple event system for Lucid",
     _initialized = false
 }
 
--- Storage
-local eventStorage = {
+-- Internal storage
+local storage = {
     events = {},
-    connections = {},
     history = {},
     maxHistory = 1000
 }
 
--- Forward declaration of dependencies
-local Debug
+-- Simple print function for early debugging
+local function log(...)
+    print("[LUCID EVENTS]", ...)
+end
 
 -- Event class
 local Event = {}
 Event.__index = Event
 
 function Event.new(name)
-    local self = setmetatable({
-        Name = name,
-        Handlers = {},
-        LastFired = 0,
-        FireCount = 0,
-        Active = true
+    return setmetatable({
+        name = name,
+        handlers = {},
+        lastFired = 0,
+        fireCount = 0
     }, Event)
-    return self
 end
 
 function Event:Fire(...)
-    if not self.Active then return end
+    self.lastFired = os.time()
+    self.fireCount = self.fireCount + 1
     
-    self.LastFired = os.time()
-    self.FireCount = self.FireCount + 1
-    
-    -- Log event
-    if Debug then
-        Debug.Debug(string.format("Event '%s' fired", self.Name))
-    end
-    
-    -- Record in history
-    table.insert(eventStorage.history, {
-        name = self.Name,
-        timestamp = self.LastFired,
-        args = {...}
-    })
-    
-    -- Trim history if needed
-    while #eventStorage.history > eventStorage.maxHistory do
-        table.remove(eventStorage.history, 1)
-    end
-    
-    -- Fire handlers
-    for _, handler in ipairs(self.Handlers) do
+    for _, handler in ipairs(self.handlers) do
         task.spawn(function()
-            local success, err = pcall(handler, ...)
-            if not success and Debug then
-                Debug.Error(string.format("Event handler error in '%s': %s", self.Name, err))
+            local success = pcall(handler, ...)
+            if not success then
+                log("Handler error in event:", self.name)
             end
         end)
     end
 end
 
-function Event:Connect(handler)
-    if type(handler) ~= "function" then
-        if Debug then
-            Debug.Error("Event handler must be a function")
-        end
+function Event:Connect(fn)
+    if type(fn) ~= "function" then
         return nil
     end
     
-    table.insert(self.Handlers, handler)
+    table.insert(self.handlers, fn)
     
-    local connection = {
+    return {
         Connected = true,
         Disconnect = function(self)
             if not self.Connected then return end
             
-            for i, h in ipairs(self.Handlers) do
-                if h == handler then
-                    table.remove(self.Handlers, i)
+            for i, handler in ipairs(self.handlers) do
+                if handler == fn then
+                    table.remove(self.handlers, i)
+                    self.Connected = false
                     break
                 end
             end
-            
-            self.Connected = false
-            if Debug then
-                Debug.Debug(string.format("Disconnected handler from event '%s'", self.Name))
-            end
         end
     }
-    
-    table.insert(eventStorage.connections, connection)
-    return connection
 end
 
 -- Public API
 function Events.Create(name)
-    if not name or type(name) ~= "string" then
-        if Debug then Debug.Error("Event name must be a string") end
+    if type(name) ~= "string" then
         return nil
     end
     
-    if eventStorage.events[name] then
-        if Debug then Debug.Warn(string.format("Event '%s' already exists", name)) end
-        return eventStorage.events[name]
+    if storage.events[name] then
+        return storage.events[name]
     end
     
     local event = Event.new(name)
-    eventStorage.events[name] = event
-    
-    if Debug then
-        Debug.Info(string.format("Created event: %s", name))
-    end
-    
+    storage.events[name] = event
     return event
 end
 
 function Events.Get(name)
-    return eventStorage.events[name]
+    return storage.events[name]
 end
 
 function Events.Fire(name, ...)
-    local event = eventStorage.events[name]
-    if not event then
-        if Debug then Debug.Warn(string.format("Event '%s' does not exist", name)) end
-        return false
+    local event = storage.events[name]
+    if event then
+        event:Fire(...)
+        return true
     end
-    
-    event:Fire(...)
-    return true
+    return false
 end
 
-function Events.Connect(name, handler)
-    local event = eventStorage.events[name]
-    if not event then
-        if Debug then Debug.Warn(string.format("Event '%s' does not exist", name)) end
-        return nil
+function Events.Connect(name, fn)
+    local event = storage.events[name]
+    if event then
+        return event:Connect(fn)
     end
-    
-    return event:Connect(handler)
+    return nil
 end
 
 function Events.GetHistory()
-    return table.clone(eventStorage.history)
+    return table.clone(storage.history)
 end
 
 function Events.ClearHistory()
-    eventStorage.history = {}
-    if Debug then Debug.Info("Event history cleared") end
+    storage.history = {}
 end
 
-function Events.GetStats(name)
-    local event = eventStorage.events[name]
-    if not event then
-        if Debug then Debug.Warn(string.format("Event '%s' does not exist", name)) end
-        return nil
-    end
-    
-    return {
-        name = event.Name,
-        handlers = #event.Handlers,
-        lastFired = event.LastFired,
-        fireCount = event.FireCount
-    }
-end
-
--- Module initialization
+-- Safe initialization
 function Events.init(modules)
     if Events._initialized then
         return true
     end
     
-    if type(modules) ~= "table" then
-        return false, "Invalid modules parameter"
-    end
-    
-    -- Store debug module reference
-    Debug = modules.debug
-    if not Debug then
-        return false, "Debug module is required"
-    end
-    
     Events._initialized = true
-    Debug.Info("Events module initialized")
+    log("Events system initialized")
     return true
 end
 
--- Module shutdown
+-- Clean shutdown
 function Events.shutdown()
-    if not Events._initialized then return end
-    
-    -- Clear all events and connections
-    for name, event in pairs(eventStorage.events) do
-        event.Active = false
-        event.Handlers = {}
+    for name, event in pairs(storage.events) do
+        event.handlers = {}
     end
-    
-    eventStorage.events = {}
-    eventStorage.connections = {}
-    eventStorage.history = {}
-    
+    storage.events = {}
+    storage.history = {}
     Events._initialized = false
-    if Debug then Debug.Info("Events module shut down") end
 end
 
 return Events
