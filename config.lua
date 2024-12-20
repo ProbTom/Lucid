@@ -1,116 +1,104 @@
 -- config.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:41:31 UTC
+-- Created: 2024-12-20 19:49:16 UTC
 
-local Config = {}
+local Config = {
+    _VERSION = "1.0.1",
+    _initialized = false
+}
+
+-- Dependencies
+local Debug
+local Utils
 
 -- Default configuration
 local defaultConfig = {
-    -- Core Settings
     Version = "1.0.1",
     Debug = true,
     AutoUpdate = true,
     
-    -- UI Settings
     UI = {
         Theme = "Dark",
-        AccentColor = Color3.fromRGB(0, 120, 255),
-        Font = "Gotham",
         Scale = 1.0,
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Draggable = true
+        Position = UDim2.new(0.5, 0, 0.5, 0)
     },
     
-    -- Performance Settings
     Performance = {
         MaxFPS = 60,
-        LowLatencyMode = false,
-        OptimizeMemory = true,
-        CacheTimeout = 300
+        LowLatencyMode = false
     },
     
-    -- Security Settings
-    Security = {
-        AntiKick = true,
-        AntiTeleport = true,
-        AntiScreenshot = false,
-        ObfuscateStrings = true,
-        EncryptData = true
-    },
-    
-    -- Feature Settings
     Features = {
-        AutoRejoin = true,
-        ServerHop = true,
-        ChatLogger = false,
-        ESPEnabled = false,
-        AimbotEnabled = false
-    },
-    
-    -- Network Settings
-    Network = {
-        Timeout = 10,
-        RetryAttempts = 3,
-        RetryDelay = 1,
-        ProxyEnabled = false
+        AutoFish = false,
+        AutoCollect = false,
+        AutoSell = false
     }
 }
 
 -- Current configuration
-local currentConfig = table.clone(defaultConfig)
+local currentConfig = Utils and Utils.DeepCopy(defaultConfig) or table.clone(defaultConfig)
 
--- Load configuration from file
-function Config.Load()
-    local success, savedConfig = pcall(function()
-        local data = readfile("lucid_config.json")
-        return game:GetService("HttpService"):JSONDecode(data)
-    end)
-    
-    if success and savedConfig then
-        -- Merge saved config with defaults
-        for key, value in pairs(savedConfig) do
-            if defaultConfig[key] ~= nil then
-                currentConfig[key] = value
-            end
-        end
-        return true
-    end
-    
-    return false
-end
-
--- Save configuration to file
+-- Save configuration
 function Config.Save()
+    if not Debug then return false end
+    
     local success, err = pcall(function()
         local data = game:GetService("HttpService"):JSONEncode(currentConfig)
         writefile("lucid_config.json", data)
     end)
     
-    return success
+    if success then
+        Debug.Info("Configuration saved")
+        return true
+    else
+        Debug.Error("Failed to save configuration: " .. tostring(err))
+        return false
+    end
+end
+
+-- Load configuration
+function Config.Load()
+    if not Debug then return false end
+    
+    local success, data = pcall(function()
+        return readfile("lucid_config.json")
+    end)
+    
+    if success then
+        local decoded = game:GetService("HttpService"):JSONDecode(data)
+        currentConfig = Utils.Merge(Utils.DeepCopy(defaultConfig), decoded)
+        Debug.Info("Configuration loaded")
+        return true
+    else
+        Debug.Warn("No saved configuration found, using defaults")
+        return false
+    end
 end
 
 -- Get configuration value
 function Config.Get(key)
-    local keys = string.split(key, ".")
-    local value = currentConfig
+    if not key then return Utils.DeepCopy(currentConfig) end
     
-    for _, k in ipairs(keys) do
-        if type(value) ~= "table" then
-            return nil
-        end
+    local value = currentConfig
+    for k in key:gmatch("[^%.]+") do
+        if type(value) ~= "table" then return nil end
         value = value[k]
     end
     
-    return value
+    return Utils.DeepCopy(value)
 end
 
 -- Set configuration value
 function Config.Set(key, value)
-    local keys = string.split(key, ".")
-    local current = currentConfig
+    if not key then return false end
     
-    -- Navigate to the correct table
+    local current = currentConfig
+    local keys = {}
+    for k in key:gmatch("[^%.]+") do
+        table.insert(keys, k)
+    end
+    
     for i = 1, #keys - 1 do
         if type(current[keys[i]]) ~= "table" then
             current[keys[i]] = {}
@@ -118,53 +106,37 @@ function Config.Set(key, value)
         current = current[keys[i]]
     end
     
-    -- Set the value
     current[keys[#keys]] = value
-    
-    -- Auto-save configuration
     Config.Save()
-    
     return true
 end
 
--- Reset configuration to defaults
+-- Reset configuration
 function Config.Reset()
-    currentConfig = table.clone(defaultConfig)
+    currentConfig = Utils.DeepCopy(defaultConfig)
     Config.Save()
-    return true
-end
-
--- Get all configuration
-function Config.GetAll()
-    return table.clone(currentConfig)
-end
-
--- Validate configuration
-function Config.Validate()
-    local function validateTable(current, default)
-        for key, value in pairs(default) do
-            if current[key] == nil then
-                current[key] = value
-            elseif type(value) == "table" and type(current[key]) == "table" then
-                validateTable(current[key], value)
-            end
-        end
-    end
-    
-    validateTable(currentConfig, defaultConfig)
+    Debug.Info("Configuration reset to defaults")
     return true
 end
 
 -- Initialize module
-function Config.init()
-    -- Load saved configuration
-    if not Config.Load() then
-        Config.Save() -- Save default configuration
+function Config.init(modules)
+    if Config._initialized then return true end
+    
+    Debug = modules.debug
+    Utils = modules.utils
+    
+    if not Debug or not Utils then
+        return false
     end
     
-    -- Validate configuration
-    Config.Validate()
+    -- Load saved config or create new one
+    if not Config.Load() then
+        Config.Save()
+    end
     
+    Config._initialized = true
+    Debug.Info("Config module initialized")
     return true
 end
 
