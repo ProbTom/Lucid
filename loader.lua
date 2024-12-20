@@ -1,53 +1,49 @@
 -- loader.lua
+-- Version: 2024.12.20
+-- Author: ProbTom
+
 local Loader = {
     _initialized = false,
-    _connections = {}
+    _connections = {},
+    _modules = {}
 }
 
 -- Services
 local Services = {
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Players = game:GetService("Players")
+    Players = game:GetService("Players"),
+    RunService = game:GetService("RunService")
 }
 
-local LocalPlayer = Services.Players.LocalPlayer
-
--- Load Debug module
+-- Debug Module
 local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
 if not Debug then
     warn("[CRITICAL ERROR]: Failed to load Debug module")
     return false
 end
 
--- Load Config
-local Config = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua"))()
-if not Config then
-    Debug.Error("Failed to load Config")
-    return false
-end
-
--- Load State
-local State = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/state.lua"))()
-if not State then
-    Debug.Error("Failed to load State")
-    return false
-end
-
--- Initialize global state
-local function initializeGlobalState()
-    if not getgenv then
-        Debug.Error("getgenv is not available")
-        return false
+-- Load required modules
+local function loadModules()
+    local modules = {
+        Config = "config.lua",
+        State = "state.lua",
+        UI = "ui.lua",
+        Events = "events.lua"
+    }
+    
+    for name, file in pairs(modules) do
+        local success, module = pcall(function()
+            return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. file))()
+        end)
+        
+        if not success or not module then
+            Debug.Error("Failed to load " .. name .. " module")
+            return false
+        end
+        
+        Loader._modules[name] = module
     end
-
-    if not getgenv().LucidState then
-        getgenv().LucidState = {
-            initialized = false,
-            config = Config,
-            ui = nil,
-            modules = {}
-        }
-    end
+    
     return true
 end
 
@@ -56,18 +52,18 @@ local function loadFluentUI()
     if getgenv().Fluent then
         return getgenv().Fluent
     end
-
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(Config.URLs.FluentUI))()
+    
+    local success, Fluent = pcall(function()
+        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
     end)
-
-    if not success or not result then
+    
+    if not success or not Fluent then
         Debug.Error("Failed to load Fluent UI")
         return false
     end
-
-    getgenv().Fluent = result
-    return result
+    
+    getgenv().Fluent = Fluent
+    return Fluent
 end
 
 -- Create window
@@ -78,11 +74,6 @@ local function createWindow(config)
     end
     
     local window = getgenv().Fluent:CreateWindow(config.UI.Window)
-    if not window then
-        Debug.Error("Failed to create window")
-        return false
-    end
-
     getgenv().LucidWindow = window
     return window
 end
@@ -92,11 +83,26 @@ function Loader.Initialize()
     if Loader._initialized then
         return true
     end
-
-    -- Initialize global state
-    if not initializeGlobalState() then
-        Debug.Error("Failed to initialize global state")
+    
+    -- Load required modules
+    if not loadModules() then
+        Debug.Error("Failed to load required modules")
         return false
     end
+    
+    -- Initialize global state
+    if not getgenv then
+        Debug.Error("getgenv is not available")
+        return false
+    end
+    
+    if not getgenv().LucidState then
+        getgenv().LucidState = {
+            initialized = false,
+            config = Loader._modules.Config,
+            state = Loader._modules.State,
+            ui = nil
+        }
+    end
 
-[rest of your existing loader.lua code...]
+[Rest of your existing loader.lua code...]
