@@ -1,13 +1,16 @@
 -- events.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 16:00:34 UTC
+-- Created: 2024-12-20 15:02:37 UTC
 
 local Events = {
     _VERSION = "1.0.1",
     _DESCRIPTION = "Simple event system for Lucid",
     _initialized = false
 }
+
+-- Storage for modules
+local debug = nil  -- Will be set during init
 
 -- Internal storage
 local storage = {
@@ -21,73 +24,82 @@ local Event = {}
 Event.__index = Event
 
 function Event.new(name)
-    return setmetatable({
+    local self = setmetatable({
         name = name,
         handlers = {},
         lastFired = 0,
         fireCount = 0
     }, Event)
+    
+    if debug then
+        debug.Info("Created new event: " .. name)
+    end
+    
+    return self
 end
 
--- Fixed Fire method to ensure 'self' is properly bound
 function Event:Fire(...)
-    if not self or type(self) ~= "table" then
-        return false
-    end
-    
     self.lastFired = os.time()
-    self.fireCount = (self.fireCount or 0) + 1
-    
-    if not self.handlers then
-        self.handlers = {}
-        return false
-    end
+    self.fireCount = self.fireCount + 1
     
     for _, handler in ipairs(self.handlers) do
         task.spawn(function()
-            local success = pcall(handler, ...)
-            if not success and _G.Debug then
-                _G.Debug.Error("Handler error in event: " .. tostring(self.name))
+            local success, err = pcall(handler, ...)
+            if not success and debug then
+                debug.Error(string.format("Event '%s' handler error: %s", self.name, tostring(err)))
             end
         end)
     end
-    return true
 end
 
 function Event:Connect(fn)
     if type(fn) ~= "function" then
-        if _G.Debug then _G.Debug.Error("Cannot connect non-function to event") end
+        if debug then
+            debug.Error("Attempted to connect non-function to event: " .. self.name)
+        end
         return nil
-    end
-    
-    if not self.handlers then
-        self.handlers = {}
     end
     
     table.insert(self.handlers, fn)
     
-    return {
+    local connection = {
         Connected = true,
         Disconnect = function(self)
             if not self.Connected then return end
+            
             for i, handler in ipairs(self.handlers) do
                 if handler == fn then
                     table.remove(self.handlers, i)
                     self.Connected = false
+                    if debug then
+                        debug.Debug(string.format("Disconnected handler from event '%s'", self.name))
+                    end
                     break
                 end
             end
         end
     }
+    
+    if debug then
+        debug.Debug(string.format("Connected handler to event '%s'", self.name))
+    end
+    
+    return connection
 end
 
+-- Public API
 function Events.Create(name)
     if type(name) ~= "string" then
-        if _G.Debug then _G.Debug.Error("Event name must be a string") end
+        if debug then
+            debug.Error("Event name must be a string")
+        end
         return nil
     end
     
     if storage.events[name] then
+        if debug then
+            debug.Warn(string.format("Event '%s' already exists", name))
+        end
         return storage.events[name]
     end
     
@@ -97,25 +109,32 @@ function Events.Create(name)
 end
 
 function Events.Get(name)
-    return storage.events[name]
+    local event = storage.events[name]
+    if not event and debug then
+        debug.Warn(string.format("Event '%s' not found", name))
+    end
+    return event
 end
 
--- Fixed Fire method to ensure proper method call
 function Events.Fire(name, ...)
     local event = storage.events[name]
     if not event then
-        if _G.Debug then _G.Debug.Warn("Event '" .. name .. "' does not exist") end
+        if debug then
+            debug.Warn(string.format("Cannot fire non-existent event '%s'", name))
+        end
         return false
     end
     
-    -- Use proper method call syntax
-    return event:Fire(...)
+    event:Fire(...)
+    return true
 end
 
 function Events.Connect(name, fn)
     local event = storage.events[name]
     if not event then
-        if _G.Debug then _G.Debug.Warn("Event '" .. name .. "' does not exist") end
+        if debug then
+            debug.Warn(string.format("Cannot connect to non-existent event '%s'", name))
+        end
         return nil
     end
     
@@ -128,35 +147,45 @@ end
 
 function Events.ClearHistory()
     storage.history = {}
-    if _G.Debug then _G.Debug.Info("Event history cleared") end
+    if debug then
+        debug.Info("Event history cleared")
+    end
 end
 
+-- Critical: This is where we were having the nil error
 function Events.init(modules)
     if Events._initialized then
         return true
     end
     
     if type(modules) ~= "table" then
-        return false, "Invalid modules parameter"
+        error("Events.init requires modules table")
     end
     
-    if modules.debug then
-        _G.Debug = modules.debug
+    -- Store debug module reference properly
+    debug = modules.debug
+    if not debug then
+        error("Events module requires debug module")
     end
     
     Events._initialized = true
-    if _G.Debug then _G.Debug.Info("Events module initialized") end
+    debug.Info("Events module initialized")
     return true
 end
 
 function Events.shutdown()
+    if not Events._initialized then return end
+    
+    if debug then
+        debug.Info("Events module shutting down")
+    end
+    
     for name, event in pairs(storage.events) do
         event.handlers = {}
     end
     storage.events = {}
     storage.history = {}
     Events._initialized = false
-    if _G.Debug then _G.Debug.Info("Events module shut down") end
 end
 
 return Events
