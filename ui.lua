@@ -11,6 +11,8 @@ local UI = {
     }
 }
 
+local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
+
 -- Core services
 local Services = {
     Players = game:GetService("Players"),
@@ -60,6 +62,9 @@ function UI.CreateWindow()
             Theme = UIConfig.Theme,
             MinimizeKeybind = UIConfig.MinimizeKeybind
         })
+        Debug.Log("UI window created successfully.")
+    else
+        Debug.Error("UI window already exists.")
     end
     return UI._window
 end
@@ -71,12 +76,14 @@ function UI.CreateTabs()
         Title = "Main",
         Icon = UI._icons.main
     })
+    Debug.Log("Main tab created.")
 
     -- Settings tab with proper gear icon
     UI._tabs.Settings = UI._window:AddTab({
         Title = "Settings",
         Icon = UI._icons.settings
     })
+    Debug.Log("Settings tab created.")
 
     return UI._tabs
 end
@@ -87,6 +94,7 @@ function UI.CreateMainSections()
     
     -- Fishing Controls Section
     sections.Fishing = UI._tabs.Main:AddSection("Fishing Controls")
+    Debug.Log("Fishing Controls section created.")
     
     -- Auto Cast Toggle
     sections.Fishing:AddToggle("AutoCast", {
@@ -95,6 +103,7 @@ function UI.CreateMainSections()
         Callback = function(value)
             if getgenv().State then
                 getgenv().State.AutoCasting = value
+                Debug.Log("Auto Cast set to " .. tostring(value))
             end
         end
     })
@@ -106,6 +115,7 @@ function UI.CreateMainSections()
         Callback = function(value)
             if getgenv().State then
                 getgenv().State.AutoReeling = value
+                Debug.Log("Auto Reel set to " .. tostring(value))
             end
         end
     })
@@ -117,6 +127,7 @@ function UI.CreateMainSections()
         Callback = function(value)
             if getgenv().State then
                 getgenv().State.AutoShaking = value
+                Debug.Log("Auto Shake set to " .. tostring(value))
             end
         end
     })
@@ -127,11 +138,12 @@ end
 -- Initialize UI system
 function UI.Initialize()
     if UI._initialized then
+        Debug.Log("UI module already initialized.")
         return true
     end
 
     if not loadUILibraries() then
-        warn("Failed to load UI libraries")
+        Debug.Error("Failed to load UI libraries")
         return false
     end
 
@@ -140,10 +152,7 @@ function UI.Initialize()
     UI.CreateMainSections()
 
     UI._initialized = true
-    
-    if getgenv().Config and getgenv().Config.Debug then
-        print("✓ UI module initialized successfully")
-    end
+    Debug.Log("UI module initialized successfully.")
     
     return true
 end
@@ -153,6 +162,7 @@ function UI.Cleanup()
     for _, connection in pairs(UI._connections) do
         if typeof(connection) == "RBXScriptConnection" then
             connection:Disconnect()
+            Debug.Log("Disconnected a connection.")
         end
     end
     UI._connections = {}
@@ -162,12 +172,13 @@ end
 local success = UI.Initialize()
 
 if not success then
-    warn("⚠️ Failed to initialize UI system")
+    Debug.Error("Failed to initialize UI system")
 end
 
 -- Setup cleanup on teleport
 game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
     UI.Cleanup()
+    Debug.Log("UI cleanup on teleport.")
 end)
 
 return UI
