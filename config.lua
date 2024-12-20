@@ -1,21 +1,18 @@
 -- config.lua
 -- Core configuration module for Lucid Hub
 local Config = {
-    Version = "1.0.1",
+    Version = "1.0.2",
     Debug = true,
     
     -- Core UI Configuration
     UI = {
         Window = {
-            Name = "Lucid Hub",
             Title = "Lucid Hub",
             SubTitle = "by ProbTom",
-            LoadingTitle = "Lucid Hub",
-            LoadingSubtitle = "by ProbTom",
             TabWidth = 160,
             Size = UDim2.fromOffset(580, 460),
             Theme = "Rose",
-            MinimizeKey = Enum.KeyCode.RightControl
+            MinimizeKeybind = Enum.KeyCode.RightControl
         },
         Tabs = {
             {Name = "Home", Icon = "rbxassetid://4483345998"},
@@ -63,10 +60,5 @@ local Config = {
         InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
     }
 }
-
--- Protect configuration from modification
-if getgenv then
-    getgenv().Config = Config
-end
 
 return Config
