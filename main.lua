@@ -11,10 +11,19 @@ local UserInputService = game:GetService("UserInputService")
 -- Constants
 local VERSION = "1.0.1"
 
--- Modules - Using direct requires without path indexing
-local Debug = require(script:WaitForChild("debug"))  -- Changed from script.Parent.modules.debug
-local Utils = require(script:WaitForChild("utils"))  -- Changed from script.Parent.modules.utils
-local UI = require(script:WaitForChild("ui"))        -- Changed from script.Parent.modules.ui
+-- Modules
+local Debug = script:FindFirstChild("debug")
+local Utils = script:FindFirstChild("utils")
+local UI = script:FindFirstChild("ui")
+
+if not Debug or not Utils or not UI then
+    warn("One or more modules are missing. Please ensure 'debug', 'utils', and 'ui' modules are correctly placed as children of the script.")
+    return
+end
+
+Debug = require(Debug)
+Utils = require(Utils)
+UI = require(UI)
 
 -- State
 local initialized = false
