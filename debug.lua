@@ -1,21 +1,18 @@
 -- debug.lua
-local Debug = {}
+local Debug = {
+    _enabled = true
+}
 
--- Enable or disable debugging
-Debug.Enabled = true
-
--- Log a message if debugging is enabled
 function Debug.Log(message)
-    if Debug.Enabled then
-        print("[DEBUG] " .. message)
+    if Debug._enabled then
+        print(string.format("[%s] %s", os.date("%H:%M:%S"), message))
     end
 end
 
--- Log an error message if debugging is enabled
 function Debug.Error(message)
-    if Debug.Enabled then
-        warn("[ERROR] " .. message)
+    if Debug._enabled then
+        warn(string.format("[%s] [ERROR] %s", os.date("%H:%M:%S"), message))
     end
 end
 
-return Debug
+function
