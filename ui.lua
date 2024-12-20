@@ -1,7 +1,7 @@
 -- ui.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 17:17:01 UTC
+-- Created: 2024-12-20 17:34:28 UTC
 
 local UI = {}
 
@@ -211,13 +211,38 @@ function UI.init(modules)
     Debug = modules.debug
     Events = modules.events
     
-    -- Load FluentUI with the correct URL
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-    end)
+    -- Load FluentUI with improved error handling
+    local function loadFluentUI()
+        local url = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/main.lua"
+        Debug.Info("Attempting to load FluentUI from: " .. url)
+        
+        local success, content = pcall(function()
+            return game:HttpGet(url)
+        end)
+        
+        if not success then
+            Debug.Error("Failed to fetch FluentUI: " .. tostring(content))
+            return false
+        end
+        
+        if not content or content == "" then
+            Debug.Error("Empty content received from FluentUI URL")
+            return false
+        end
+        
+        local loadSuccess, result = pcall(loadstring(content))
+        
+        if not loadSuccess then
+            Debug.Error("Failed to load FluentUI content: " .. tostring(result))
+            return false
+        end
+        
+        Debug.Info("FluentUI loaded successfully")
+        return result
+    end
     
-    if not success then
-        Debug.Error("Failed to load FluentUI: " .. tostring(result))
+    local result = loadFluentUI()
+    if not result then
         return false
     end
     
