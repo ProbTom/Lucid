@@ -1,7 +1,7 @@
 -- init.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:52:47 UTC
+-- Created: 2024-12-20 15:08:06 UTC
 
 local Lucid = {
     _VERSION = "1.0.1",
@@ -9,18 +9,46 @@ local Lucid = {
     _DEBUG = true
 }
 
--- Early initialization logger (independent of debug module)
+-- Create folder for modules
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local lucidFolder = Instance.new("Folder")
+lucidFolder.Name = "Lucid"
+lucidFolder.Parent = ReplicatedStorage
+
+-- Function to create a ModuleScript
+local function createModule(name, source)
+    local module = Instance.new("ModuleScript")
+    module.Name = name
+    module.Source = game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. name .. ".lua")
+    module.Parent = lucidFolder
+    return module
+end
+
+-- Early initialization logger
 local function init_log(msg)
     if Lucid._DEBUG then
         print(string.format("[LUCID INIT] %s", tostring(msg)))
     end
 end
 
--- Safe require function
+-- Safe require function modified for Roblox
 local function safe_require(moduleName)
     init_log("Loading " .. moduleName)
+    
+    -- Create module if it doesn't exist
+    if not lucidFolder:FindFirstChild(moduleName) then
+        local success, err = pcall(function()
+            return createModule(moduleName)
+        end)
+        if not success then
+            init_log("Failed to create module " .. moduleName .. ": " .. tostring(err))
+            return nil
+        end
+    end
+    
+    -- Require the module
     local success, result = pcall(function()
-        return require(moduleName)
+        return require(lucidFolder:WaitForChild(moduleName))
     end)
     
     if not success then
@@ -98,7 +126,9 @@ function Lucid.Shutdown()
         end
     end
     
+    -- Clean up modules
     Lucid.modules = {}
+    lucidFolder:Destroy()
     init_log("Shutdown complete")
 end
 
