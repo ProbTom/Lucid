@@ -1,12 +1,14 @@
 -- ui.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 19:34:00 UTC
+-- Created: 2024-12-20 19:49:16 UTC
 
 local UI = {
     _VERSION = "1.0.1",
     _initialized = false,
-    _windows = {}
+    _windows = {},
+    _tabs = {},
+    _elements = {}
 }
 
 -- Dependencies
@@ -14,210 +16,162 @@ local Debug
 local Utils
 
 -- Services
+local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 
-function UI.CreateWindow(config)
-    local window = Instance.new("ScreenGui")
-    window.Name = config.Title or "Lucid Window"
-    Utils.ProtectGui(window)
+-- Constants
+local UI_CONFIG = {
+    DEFAULT_WINDOW_SIZE = UDim2.new(0, 600, 0, 400),
+    DEFAULT_WINDOW_POSITION = UDim2.new(0.5, -300, 0.5, -200),
+    DEFAULT_TAB_WIDTH = 160,
+    DEFAULT_ANIMATION_DURATION = 0.3
+}
+
+-- Create window
+function UI.CreateWindow(options)
+    options = options or {}
+    local window = {
+        Title = options.Title or "Lucid",
+        SubTitle = options.SubTitle or UI._VERSION,
+        Size = options.Size or UI_CONFIG.DEFAULT_WINDOW_SIZE,
+        Position = options.Position or UI_CONFIG.DEFAULT_WINDOW_POSITION,
+        Tabs = {}
+    }
     
-    local main = Instance.new("Frame")
-    main.Name = "Main"
-    main.Size = config.Size or UDim2.new(0, 600, 0, 400)
-    main.Position = config.Position or UDim2.new(0.5, -300, 0.5, -200)
-    main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    main.BorderSizePixel = 0
-    main.Parent = window
-    
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    title.BorderSizePixel = 0
-    title.Text = config.Title
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 14
-    title.Font = Enum.Font.GothamBold
-    title.Parent = main
-    
-    -- Make window draggable
-    local dragging = false
-    local dragStart
-    local startPos
-    
-    title.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = main.Position
-        end
+    -- Create window UI elements here
+    -- Using a protected call to load the UI library
+    local success, Fluent = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Fluent.txt"))()
     end)
     
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            main.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
+    if not success then
+        Debug.Error("Failed to load UI library")
+        return nil
+    end
     
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
+    -- Create window using Fluent
+    local WindowInstance = Fluent:CreateWindow({
+        Title = window.Title,
+        SubTitle = window.SubTitle,
+        TabWidth = UI_CONFIG.DEFAULT_TAB_WIDTH,
+        Size = window.Size,
+        Position = window.Position,
+        Theme = "Dark",
+        Enabled = true
+    })
     
+    window.Instance = WindowInstance
     table.insert(UI._windows, window)
-    return window
+    
+    Debug.Info("Created window: " .. window.Title)
+    return WindowInstance
 end
 
-function UI.CreateTab(window, config)
-    local tab = Instance.new("Frame")
-    tab.Name = config.Title
-    tab.Size = UDim2.new(1, 0, 1, -30)
-    tab.Position = UDim2.new(0, 0, 0, 30)
-    tab.BackgroundTransparency = 1
-    tab.Parent = window.Main
+-- Create tab
+function UI.CreateTab(window, options)
+    options = options or {}
     
-    local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 5)
-    layout.Parent = tab
+    if not window then
+        Debug.Error("Window is required to create tab")
+        return nil
+    end
     
+    local tab = window:CreateTab({
+        Title = options.Title or "New Tab",
+        Icon = options.Icon or ""
+    })
+    
+    table.insert(UI._tabs, tab)
+    Debug.Info("Created tab: " .. options.Title)
     return tab
 end
 
-function UI.CreateButton(tab, config)
-    local button = Instance.new("TextButton")
-    button.Name = config.Title
-    button.Size = UDim2.new(1, -20, 0, 30)
-    button.Position = UDim2.new(0, 10, 0, 0)
-    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    button.BorderSizePixel = 0
-    button.Text = config.Title
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextSize = 14
-    button.Font = Enum.Font.Gotham
-    button.Parent = tab
+-- Create button
+function UI.CreateButton(tab, options)
+    options = options or {}
     
-    button.MouseButton1Click:Connect(function()
-        Utils.SafeCall(config.Callback)
-    end)
+    if not tab then
+        Debug.Error("Tab is required to create button")
+        return nil
+    end
     
+    local button = tab:CreateButton({
+        Title = options.Title or "Button",
+        Description = options.Description,
+        Callback = function()
+            if type(options.Callback) == "function" then
+                Utils.SafeCall(options.Callback)
+            end
+        end
+    })
+    
+    table.insert(UI._elements, button)
     return button
 end
 
-function UI.CreateToggle(tab, config)
-    local toggle = Instance.new("Frame")
-    toggle.Name = config.Title
-    toggle.Size = UDim2.new(1, -20, 0, 30)
-    toggle.Position = UDim2.new(0, 10, 0, 0)
-    toggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    toggle.BorderSizePixel = 0
-    toggle.Parent = tab
+-- Create toggle
+function UI.CreateToggle(tab, options)
+    options = options or {}
     
-    local button = Instance.new("TextButton")
-    button.Name = "Toggle"
-    button.Size = UDim2.new(0, 30, 0, 30)
-    button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    button.BorderSizePixel = 0
-    button.Text = ""
-    button.Parent = toggle
+    if not tab then
+        Debug.Error("Tab is required to create toggle")
+        return nil
+    end
     
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -40, 1, 0)
-    label.Position = UDim2.new(0, 40, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = config.Title
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 14
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = toggle
+    local toggle = tab:CreateToggle({
+        Title = options.Title or "Toggle",
+        Description = options.Description,
+        Default = options.Default or false,
+        Callback = function(value)
+            if type(options.Callback) == "function" then
+                Utils.SafeCall(options.Callback, value)
+            end
+        end
+    })
     
-    local enabled = config.Default or false
-    button.BackgroundColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-    
-    button.MouseButton1Click:Connect(function()
-        enabled = not enabled
-        button.BackgroundColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-        Utils.SafeCall(config.Callback, enabled)
-    end)
-    
+    table.insert(UI._elements, toggle)
     return toggle
 end
 
-function UI.Notify(config)
-    local notification = Instance.new("ScreenGui")
-    notification.Name = "Notification"
-    Utils.ProtectGui(notification)
+-- Show notification
+function UI.Notify(options)
+    options = options or {}
     
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 250, 0, 60)
-    frame.Position = UDim2.new(1, -270, 1, -80)
-    frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    frame.BorderSizePixel = 0
-    frame.Parent = notification
-    
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 20)
-    title.BackgroundTransparency = 1
-    title.Text = config.Title
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 14
-    title.Font = Enum.Font.GothamBold
-    title.Parent = frame
-    
-    local content = Instance.new("TextLabel")
-    content.Size = UDim2.new(1, 0, 1, -20)
-    content.Position = UDim2.new(0, 0, 0, 20)
-    content.BackgroundTransparency = 1
-    content.Text = config.Content
-    content.TextColor3 = Color3.fromRGB(200, 200, 200)
-    content.TextSize = 12
-    content.Font = Enum.Font.Gotham
-    content.Parent = frame
-    
-    frame:TweenPosition(
-        UDim2.new(1, -270, 1, -80),
-        Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quad,
-        0.3,
-        true
-    )
-    
-    task.delay(config.Duration or 3, function()
-        frame:TweenPosition(
-            UDim2.new(1, 20, 1, -80),
-            Enum.EasingDirection.Out,
-            Enum.EasingStyle.Quad,
-            0.3,
-            true,
-            function()
-                notification:Destroy()
-            end
-        )
-    end)
+    if UI._windows[1] and UI._windows[1].Instance then
+        UI._windows[1].Instance:Notify({
+            Title = options.Title or "Notification",
+            Content = options.Content or "",
+            Duration = options.Duration or 3,
+            Type = options.Type or "Info"
+        })
+    end
 end
 
+-- Close all windows
 function UI.CloseAll()
     for _, window in ipairs(UI._windows) do
-        window:Destroy()
+        if window.Instance and typeof(window.Instance.Destroy) == "function" then
+            window.Instance:Destroy()
+        end
     end
+    
     UI._windows = {}
+    UI._tabs = {}
+    UI._elements = {}
+    
+    Debug.Info("Closed all UI windows")
 end
 
+-- Initialize module
 function UI.init(modules)
-    if UI._initialized then
-        return true
-    end
+    if UI._initialized then return true end
     
     Debug = modules.debug
     Utils = modules.utils
+    
+    if not Debug or not Utils then
+        return false
+    end
     
     UI._initialized = true
     Debug.Info("UI module initialized")
