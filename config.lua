@@ -1,191 +1,169 @@
 -- config.lua
--- Version: 2024.12.20
+-- Version: 1.0.1
 -- Author: ProbTom
--- Purpose: Central configuration for Lucid Hub
+-- Created: 2024-12-20 14:41:31 UTC
 
-local Config = {
+local Config = {}
+
+-- Default configuration
+local defaultConfig = {
+    -- Core Settings
     Version = "1.0.1",
-    LastUpdated = "2024-12-20",
-    Author = "ProbTom",
     Debug = true,
+    AutoUpdate = true,
     
-    URLs = {
-        FluentUI = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
-        Repository = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Updates = "https://raw.githubusercontent.com/ProbTom/Lucid/main/version.json"
-    },
-    
+    -- UI Settings
     UI = {
-        Window = {
-            Title = "Lucid Hub",
-            SubTitle = "by ProbTom",
-            TabWidth = 160,
-            Size = UDim2.fromOffset(580, 460),
-            Theme = "Dark",
-            MinimizeKeybind = Enum.KeyCode.RightControl
-        },
-        
-        Tabs = {
-            Home = {
-                Name = "Home",
-                Icon = "home",
-                Sections = {
-                    Welcome = {
-                        Title = "Welcome",
-                        Content = "Welcome to Lucid Hub!"
-                    },
-                    Status = {
-                        Title = "Status",
-                        Content = "Connected and Ready"
-                    }
-                }
-            },
-            Main = {
-                Name = "Main",
-                Icon = "list",
-                Sections = {
-                    Fishing = {
-                        Title = "Fishing Controls",
-                        Features = {
-                            AutoCast = true,
-                            AutoReel = true,
-                            AutoShake = true
-                        }
-                    }
-                }
-            },
-            Items = {
-                Name = "Items",
-                Icon = "package",
-                Sections = {
-                    Inventory = {
-                        Title = "Inventory",
-                        Features = {
-                            AutoCollect = true,
-                            AutoSell = true
-                        }
-                    }
-                }
-            },
-            Teleports = {
-                Name = "Teleports",
-                Icon = "map-pin",
-                Sections = {
-                    Locations = {
-                        Title = "Locations",
-                        Features = {
-                            SavePosition = true,
-                            LoadPosition = true
-                        }
-                    }
-                }
-            },
-            Misc = {
-                Name = "Misc",
-                Icon = "file-text",
-                Sections = {
-                    Settings = {
-                        Title = "Settings",
-                        Features = {
-                            AutoSave = true,
-                            Performance = true
-                        }
-                    }
-                }
-            },
-            Settings = {
-                Name = "Settings",
-                Icon = "settings",
-                Sections = {
-                    Configuration = {
-                        Title = "Configuration",
-                        Features = {
-                            Theme = true,
-                            Performance = true
-                        }
-                    }
-                }
-            },
-            Credits = {
-                Name = "Credits",
-                Icon = "heart",
-                Sections = {
-                    Info = {
-                        Title = "Credits",
-                        Content = {
-                            Developer = "ProbTom",
-                            UILibrary = "Fluent UI Library by dawid-scripts",
-                            Version = "1.0.1"
-                        }
-                    }
-                }
-            }
-        }
+        Theme = "Dark",
+        AccentColor = Color3.fromRGB(0, 120, 255),
+        Font = "Gotham",
+        Scale = 1.0,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Draggable = true
     },
     
-    Features = {
-        AutoCast = {
-            Enabled = false,
-            Delay = 1,
-            MaxAttempts = 3,
-            RetryDelay = 0.5
-        },
-        AutoReel = {
-            Enabled = false,
-            Delay = 0.1,
-            Sensitivity = 0.8,
-            MaxDistance = 100
-        },
-        AutoShake = {
-            Enabled = false,
-            Delay = 0.1,
-            Intensity = 1,
-            Duration = 0.5
-        }
-    },
-    
+    -- Performance Settings
     Performance = {
-        UpdateRate = 0.1,
-        MaxThreads = 10,
-        CacheTime = 30,
-        AutoCleanup = true,
-        MemoryThreshold = 1000
+        MaxFPS = 60,
+        LowLatencyMode = false,
+        OptimizeMemory = true,
+        CacheTimeout = 300
     },
     
+    -- Security Settings
     Security = {
-        AntiCheatEnabled = true,
-        MaxRetries = 3,
-        Cooldown = 5,
-        AllowedMethods = {
-            "AutoCast",
-            "AutoReel",
-            "AutoShake"
-        }
+        AntiKick = true,
+        AntiTeleport = true,
+        AntiScreenshot = false,
+        ObfuscateStrings = true,
+        EncryptData = true
     },
     
-    Events = {
-        Required = {
-            "castrod",
-            "character",
-            "fishing"
-        },
-        Optional = {
-            "trade",
-            "inventory",
-            "shop"
-        }
+    -- Feature Settings
+    Features = {
+        AutoRejoin = true,
+        ServerHop = true,
+        ChatLogger = false,
+        ESPEnabled = false,
+        AimbotEnabled = false
+    },
+    
+    -- Network Settings
+    Network = {
+        Timeout = 10,
+        RetryAttempts = 3,
+        RetryDelay = 1,
+        ProxyEnabled = false
     }
 }
 
--- Initialize Config
-function Config.Initialize()
-    if getgenv().LucidState then
-        getgenv().LucidState.Config = Config
+-- Current configuration
+local currentConfig = table.clone(defaultConfig)
+
+-- Load configuration from file
+function Config.Load()
+    local success, savedConfig = pcall(function()
+        local data = readfile("lucid_config.json")
+        return game:GetService("HttpService"):JSONDecode(data)
+    end)
+    
+    if success and savedConfig then
+        -- Merge saved config with defaults
+        for key, value in pairs(savedConfig) do
+            if defaultConfig[key] ~= nil then
+                currentConfig[key] = value
+            end
+        end
+        return true
     end
     
-    if getgenv().LucidDebug then
-        getgenv().LucidDebug.Log("Config initialized")
+    return false
+end
+
+-- Save configuration to file
+function Config.Save()
+    local success, err = pcall(function()
+        local data = game:GetService("HttpService"):JSONEncode(currentConfig)
+        writefile("lucid_config.json", data)
+    end)
+    
+    return success
+end
+
+-- Get configuration value
+function Config.Get(key)
+    local keys = string.split(key, ".")
+    local value = currentConfig
+    
+    for _, k in ipairs(keys) do
+        if type(value) ~= "table" then
+            return nil
+        end
+        value = value[k]
     end
+    
+    return value
+end
+
+-- Set configuration value
+function Config.Set(key, value)
+    local keys = string.split(key, ".")
+    local current = currentConfig
+    
+    -- Navigate to the correct table
+    for i = 1, #keys - 1 do
+        if type(current[keys[i]]) ~= "table" then
+            current[keys[i]] = {}
+        end
+        current = current[keys[i]]
+    end
+    
+    -- Set the value
+    current[keys[#keys]] = value
+    
+    -- Auto-save configuration
+    Config.Save()
+    
+    return true
+end
+
+-- Reset configuration to defaults
+function Config.Reset()
+    currentConfig = table.clone(defaultConfig)
+    Config.Save()
+    return true
+end
+
+-- Get all configuration
+function Config.GetAll()
+    return table.clone(currentConfig)
+end
+
+-- Validate configuration
+function Config.Validate()
+    local function validateTable(current, default)
+        for key, value in pairs(default) do
+            if current[key] == nil then
+                current[key] = value
+            elseif type(value) == "table" and type(current[key]) == "table" then
+                validateTable(current[key], value)
+            end
+        end
+    end
+    
+    validateTable(currentConfig, defaultConfig)
+    return true
+end
+
+-- Initialize module
+function Config.init()
+    -- Load saved configuration
+    if not Config.Load() then
+        Config.Save() -- Save default configuration
+    end
+    
+    -- Validate configuration
+    Config.Validate()
     
     return true
 end
