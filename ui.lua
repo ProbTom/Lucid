@@ -1,144 +1,231 @@
-getgenv().LucidLoaded = false
-    getgenv().LucidState = nil
+-- ui.lua
+-- Version: 1.0.1
+-- Author: ProbTom
+-- Created: 2024-12-20 14:43:50 UTC
+
+local UI = {}
+
+-- Dependencies
+local Debug
+local Config
+local Events
+
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- Constants
+local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local MIN_DRAG_DISTANCE = 5
+
+-- UI Elements storage
+local elements = {}
+local activeWindows = {}
+local dragInfo = nil
+
+-- FluentUI Library (from dependencies)
+local Fluent
+
+-- Create base window
+function UI.CreateWindow(options)
+    options = options or {}
+    local window = Fluent:CreateWindow({
+        Title = options.Title or "Lucid",
+        SubTitle = options.SubTitle or "",
+        TabWidth = options.TabWidth or 160,
+        Size = options.Size or UDim2.new(0, 600, 0, 400),
+        Position = options.Position or UDim2.new(0.5, -300, 0.5, -200),
+        ButtonColor = Color3.fromRGB(0, 120, 255),
+        ButtonTransparency = 0,
+        TabPadding = options.TabPadding or 8
+    })
     
-    return false
+    -- Store window reference
+    table.insert(activeWindows, window)
+    
+    return window
 end
 
--- Version Check
-local function checkForUpdates()
-    local success, latestVersion = pcall(function()
-        return game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/version.json")
-    end)
+-- Create tab in window
+function UI.CreateTab(window, options)
+    options = options or {}
+    local tab = window:CreateTab({
+        Title = options.Title or "Tab",
+        Icon = options.Icon or "rbxassetid://3926305904"
+    })
     
-    if success then
-        local versionData = Services.HttpService:JSONDecode(latestVersion)
-        if versionData.version ~= Lucid._version then
-            if Lucid._modules.Debug then
-                Lucid._modules.Debug.Log("New version available: " .. versionData.version)
-            end
-            
-            if Lucid._modules.UI then
-                Lucid._modules.UI.Notify({
-                    Title = "Update Available",
-                    Content = "Version " .. versionData.version .. " is available!",
-                    Duration = 10,
-                    Type = "Info"
-                })
+    return tab
+end
+
+-- Create button
+function UI.CreateButton(tab, options)
+    options = options or {}
+    local button = tab:CreateButton({
+        Title = options.Title or "Button",
+        Description = options.Description,
+        Callback = options.Callback or function() end
+    })
+    
+    elements[button] = {
+        type = "button",
+        options = options
+    }
+    
+    return button
+end
+
+-- Create toggle
+function UI.CreateToggle(tab, options)
+    options = options or {}
+    local toggle = tab:CreateToggle({
+        Title = options.Title or "Toggle",
+        Description = options.Description,
+        Default = options.Default or false,
+        Callback = options.Callback or function() end
+    })
+    
+    elements[toggle] = {
+        type = "toggle",
+        options = options
+    }
+    
+    return toggle
+end
+
+-- Create slider
+function UI.CreateSlider(tab, options)
+    options = options or {}
+    local slider = tab:CreateSlider({
+        Title = options.Title or "Slider",
+        Description = options.Description,
+        Range = options.Range or {0, 100},
+        Increment = options.Increment or 1,
+        Default = options.Default or 50,
+        Callback = options.Callback or function() end
+    })
+    
+    elements[slider] = {
+        type = "slider",
+        options = options
+    }
+    
+    return slider
+end
+
+-- Create dropdown
+function UI.CreateDropdown(tab, options)
+    options = options or {}
+    local dropdown = tab:CreateDropdown({
+        Title = options.Title or "Dropdown",
+        Description = options.Description,
+        Items = options.Items or {},
+        Default = options.Default,
+        Callback = options.Callback or function() end
+    })
+    
+    elements[dropdown] = {
+        type = "dropdown",
+        options = options
+    }
+    
+    return dropdown
+end
+
+-- Create input field
+function UI.CreateInput(tab, options)
+    options = options or {}
+    local input = tab:CreateInput({
+        Title = options.Title or "Input",
+        Description = options.Description,
+        Default = options.Default or "",
+        Callback = options.Callback or function() end
+    })
+    
+    elements[input] = {
+        type = "input",
+        options = options
+    }
+    
+    return input
+end
+
+-- Create label
+function UI.CreateLabel(tab, options)
+    options = options or {}
+    local label = tab:CreateLabel({
+        Title = options.Title or "Label",
+        Description = options.Description
+    })
+    
+    elements[label] = {
+        type = "label",
+        options = options
+    }
+    
+    return label
+end
+
+-- Update element
+function UI.UpdateElement(element, options)
+    local elementData = elements[element]
+    if not elementData then
+        Debug.Warn("Element not found")
+        return false
+    end
+    
+    for key, value in pairs(options) do
+        if elementData.options[key] ~= nil then
+            elementData.options[key] = value
+            if element.Update then
+                element:Update(key, value)
             end
         end
-    end
-end
-
--- Performance Monitoring
-local function setupPerformanceMonitoring()
-    if not Lucid._modules.Utils then return end
-    
-    local getPerformance = Lucid._modules.Utils.StartPerfMonitor()
-    
-    task.spawn(function()
-        while Lucid._initialized do
-            local avgFrameTime = getPerformance()
-            if avgFrameTime > 1/30 and Lucid._modules.Debug then
-                Lucid._modules.Debug.Warn("Performance warning: " .. math.floor(1/avgFrameTime) .. " FPS")
-            end
-            task.wait(5)
-        end
-    end)
-end
-
--- Main Initialization
-local function initialize()
-    if Lucid._initialized then
-        return true
-    end
-    
-    -- Initialize global state
-    if not initializeGlobalState() then
-        return errorHandler("Failed to initialize global state")
-    end
-    
-    -- Load all modules
-    if not loadModules() then
-        return errorHandler("Failed to load modules")
-    end
-    
-    -- Initialize modules
-    if not initializeModules() then
-        return errorHandler("Failed to initialize modules")
-    end
-    
-    -- Setup cleanup handler
-    setupCleanup()
-    
-    -- Setup performance monitoring
-    setupPerformanceMonitoring()
-    
-    -- Check for updates
-    task.spawn(checkForUpdates)
-    
-    -- Mark as initialized
-    Lucid._initialized = true
-    getgenv().LucidLoaded = true
-    getgenv().LucidState.Loaded = true
-    
-    -- Final initialization message
-    if Lucid._modules.Debug then
-        Lucid._modules.Debug.Log("Lucid Hub initialized successfully")
-    end
-    
-    -- Show welcome notification
-    if Lucid._modules.UI then
-        Lucid._modules.UI.Notify({
-            Title = "Lucid Hub",
-            Content = "Welcome, " .. LocalPlayer.Name .. "!",
-            Duration = 5,
-            Type = "Success"
-        })
     end
     
     return true
 end
 
--- Public API
-Lucid.GetModule = function(name)
-    return Lucid._modules[name]
-end
-
-Lucid.GetVersion = function()
-    return Lucid._version
-end
-
-Lucid.GetUptime = function()
-    return os.time() - Lucid._startTime
-end
-
-Lucid.Reload = function()
-    -- Cleanup current instance
-    if Lucid._initialized then
-        for _, module in pairs(Lucid._modules) do
-            if type(module.Cleanup) == "function" then
-                pcall(function()
-                    module.Cleanup()
-                end)
-            end
+-- Close all windows
+function UI.CloseAll()
+    for _, window in ipairs(activeWindows) do
+        if window.Destroy then
+            window:Destroy()
         end
     end
-    
-    -- Reset state
-    Lucid._initialized = false
-    Lucid._modules = {}
-    getgenv().LucidLoaded = false
-    getgenv().LucidState = nil
-    
-    -- Reinitialize
-    return initialize()
+    activeWindows = {}
 end
 
--- Execute initialization
-local success = pcall(initialize)
-if not success then
-    errorHandler("Failed to initialize Lucid Hub")
-    return false
+-- Notification system
+function UI.Notify(options)
+    options = options or {}
+    Fluent:Notify({
+        Title = options.Title or "Notification",
+        Content = options.Content or "",
+        Duration = options.Duration or 3,
+        Type = options.Type or "Info"
+    })
 end
 
-return Lucid
+-- Initialize module
+function UI.init(modules)
+    Debug = modules.debug
+    Config = modules.config
+    Events = modules.events
+    
+    -- Load FluentUI
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(Config.Get("dependencies.FluentUI")))()
+    end)
+    
+    if not success then
+        Debug.Error("Failed to load FluentUI: " .. tostring(result))
+        return false
+    end
+    
+    Fluent = result
+    Debug.Info("UI module initialized")
+    return true
+end
+
+return UI
