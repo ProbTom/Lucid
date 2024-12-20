@@ -47,7 +47,7 @@ if not success then
 end
 
 -- Initialize modules
-if not UI._initialized and type(UI.Initialize) == "function" then
+if type(UI.Initialize) == "function" then
     UI.Initialize()
 end
 
