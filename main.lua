@@ -3,38 +3,27 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+local function executeWithDebug(fn)
+    local success, result = pcall(fn)
+    if not success then
+        warn("[LUCID ERROR]:", result)
+        return false
+    end
+    return result
+end
+
 local function start()
     -- Load loader
-    local success, loader = pcall(function()
+    local success, loader = executeWithDebug(function()
         return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
     end)
-
-    if not success then
-        warn("[ERROR]: Failed to load loader:", loader)
+    
+    if not success or not loader then
+        warn("[LUCID ERROR]: Failed to load loader")
         return false
     end
-
-    -- Initialize
-    if loader and type(loader.Initialize) == "function" then
-        success = pcall(function()
-            return loader.Initialize()
-        end)
-
-        if not success then
-            warn("[ERROR]: Failed to initialize")
-            return false
-        end
-    else
-        warn("[ERROR]: Invalid loader")
-        return false
-    end
-
+    
     return true
 end
 
-local success = start()
-if not success then
-    warn("[ERROR]: Script failed to start")
-end
-
-return success
+return start()
