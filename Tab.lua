@@ -1,59 +1,78 @@
 -- Tab.lua
-local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
+-- Version: 2024.12.20
+-- Author: ProbTom
 
-local function initializeTabs()
-    if not game:IsLoaded() then
-        game.Loaded:Wait()
+local Tabs = {
+    _initialized = false,
+    _tabs = {},
+    _sections = {}
+}
+
+-- Debug Module (local version)
+local Debug = {
+    Log = function(msg) print("[Lucid Tabs] " .. tostring(msg)) end,
+    Error = function(msg) warn("[Lucid Tabs Error] " .. tostring(msg)) end
+}
+
+-- Protected function call wrapper
+local function protectedCall(func, ...)
+    if type(func) ~= "function" then
+        Debug.Error("Attempted to call a nil value or non-function")
+        return false
+    end
+    
+    local success, result = pcall(func, ...)
+    if not success then
+        Debug.Error(result)
+        return false
+    end
+    return true, result
+end
+
+-- Tab Configuration
+local TabConfig = {
+    {Name = "Home", Icon = "home"},
+    {Name = "Main", Icon = "list"},
+    {Name = "Items", Icon = "package"},
+    {Name = "Teleports", Icon = "map-pin"},
+    {Name = "Misc", Icon = "file-text"},
+    {Name = "Trade", Icon = "gift"},
+    {Name = "Credit", Icon = "heart"}
+}
+
+-- Initialize tabs
+function Tabs.Initialize()
+    if Tabs._initialized then
+        return true
     end
 
-    -- Verify required globals
-    local required = {
-        "Fluent",
-        "Functions",
-        "Options",
-        "Config",
-        "LucidWindow"
-    }
-
-    for _, name in ipairs(required) do
-        if not getgenv()[name] then
-            Debug.Error(name .. " not initialized")
-            return false
-        end
-    end
-
-    -- Use existing window
-    local window = getgenv().LucidWindow
-    if not window then 
+    if not getgenv or not getgenv().LucidWindow then
         Debug.Error("Window not initialized")
         return false
     end
 
-    if not getgenv().Tabs then
-        getgenv().Tabs = {}
-    end
+    local window = getgenv().LucidWindow
 
-    -- Initialize Options
-    getgenv().Options.ChestRange = getgenv().Config.Items.ChestSettings.Default
-    getgenv().Options.SelectedRarities = {Common = true}
-    getgenv().Options.AutoCollectEnabled = false
-    getgenv().Options.AutoSellEnabled = false
-    getgenv().Options.AutoEquipBestRod = false
-
-    -- Create tabs using configuration
-    for _, tabInfo in ipairs(getgenv().Config.UI.Tabs) do
-        if not getgenv().Tabs[tabInfo.Name] then
-            getgenv().Tabs[tabInfo.Name] = window:AddTab({
+    -- Create tabs
+    for _, tabInfo in ipairs(TabConfig) do
+        local success, tab = protectedCall(function()
+            return window:AddTab({
                 Title = tabInfo.Name,
                 Icon = tabInfo.Icon
             })
-            Debug.Log(tabInfo.Name .. " tab created.")
+        end)
+
+        if success and tab then
+            Tabs._tabs[tabInfo.Name] = tab
+            Debug.Log(tabInfo.Name .. " tab created")
+        else
+            Debug.Error("Failed to create " .. tabInfo.Name .. " tab")
         end
     end
 
-    -- Add Credits content
-    if getgenv().Tabs.Credit then
-        local creditsSection = getgenv().Tabs.Credit:AddSection("Credits")
+    -- Add credits content
+    if Tabs._tabs.Credit then
+        local creditsSection = Tabs._tabs.Credit:AddSection("Credits")
         
         creditsSection:AddParagraph({
             Title = "Developer",
@@ -64,10 +83,16 @@ local function initializeTabs()
             Title = "UI Library",
             Content = "Fluent UI Library by dawid-scripts"
         })
-        Debug.Log("Credits section created.")
     end
 
+    Tabs._initialized = true
+    Debug.Log("Tabs initialized successfully")
     return true
 end
 
-return initializeTabs()
+-- Get a specific tab
+function Tabs.GetTab(name)
+    if not Tabs._tabs[name] then
+        Debug.Error("Tab not found: " .. tostring(name))
+        return nil
+    end
