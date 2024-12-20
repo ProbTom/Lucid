@@ -1,87 +1,87 @@
 -- main.lua
--- Version: 2024.12.20
+-- Version: 1.0.1
 -- Author: ProbTom
+-- Created: 2024-12-20 14:40:15 UTC
 
-if not game:IsLoaded() then
-    game.Loaded:Wait()
+-- Global namespace protection
+if getgenv().LucidLoaded then
+    warn("[LUCID] System already loaded!")
+    return false
 end
 
--- Load Debug module first
-local Debug
-local function loadDebug()
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
+-- Core system state
+getgenv().LucidLoaded = true
+getgenv().LucidState = {
+    Version = "1.0.1",
+    User = "ProbTom",
+    StartTime = "2024-12-20 14:40:15",
+    Debug = true,
+    Loaded = false
+}
+
+-- Configuration
+local Config = {
+    BaseURL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
+    ModuleOrder = {
+        "debug",
+        "config",
+        "utils",
+        "state",
+        "events",
+        "ui",
+        "loader"
+    }
+}
+
+-- Module loader
+local function loadModule(name)
+    local success, module = pcall(function()
+        return loadstring(game:HttpGet(Config.BaseURL .. name .. ".lua"))()
     end)
     
     if not success then
-        warn("[CRITICAL ERROR]: Failed to load Debug module:", result)
+        warn(string.format("[LUCID] Failed to load %s module: %s", name, tostring(module)))
         return false
     end
     
-    Debug = result
+    return module
+end
+
+-- Initialize system
+local function init()
+    -- Wait for game load
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+    end
+    
+    -- Load modules in sequence
+    local modules = {}
+    for _, moduleName in ipairs(Config.ModuleOrder) do
+        local module = loadModule(moduleName)
+        if not module then
+            return false
+        end
+        modules[moduleName] = module
+    end
+    
+    -- Initialize modules
+    for _, moduleName in ipairs(Config.ModuleOrder) do
+        if modules[moduleName].init then
+            local success, err = pcall(modules[moduleName].init, modules)
+            if not success then
+                warn(string.format("[LUCID] Failed to initialize %s: %s", moduleName, tostring(err)))
+                return false
+            end
+        end
+    end
+    
+    getgenv().LucidState.Loaded = true
+    if modules.debug then
+        modules.debug.Log("Lucid system fully loaded!")
+    end
+    
     return true
 end
 
--- Load modules with detailed error reporting
-local function loadModule(name, url)
-    local success, content = pcall(function()
-        return game:HttpGet(url)
-    end)
-    
-    if not success then
-        Debug.Error("Failed to fetch " .. name .. ": " .. tostring(content))
-        return false
-    end
-    
-    local success2, module = pcall(loadstring, content)
-    if not success2 then
-        Debug.Error("Failed to compile " .. name .. ": " .. tostring(module))
-        return false
-    end
-    
-    local success3, result = pcall(module)
-    if not success3 then
-        Debug.Error("Failed to execute " .. name .. ": " .. tostring(result))
-        return false
-    end
-    
-    Debug.Log(name .. " loaded successfully")
-    return result
-end
-
--- Initialize with debug support
-local function start()
-    -- Step 1: Load Debug
-    if not loadDebug() then
-        return false
-    end
-    Debug.Log("Debug module loaded successfully")
-    
-    -- Step 2: Load Config
-    local Config = loadModule("config", "https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua")
-    if not Config then
-        return false
-    end
-    
-    -- Step 3: Load State
-    local State = loadModule("state", "https://raw.githubusercontent.com/ProbTom/Lucid/main/state.lua")
-    if not State then
-        return false
-    end
-    
-    -- Step 4: Load Loader
-    local Loader = loadModule("loader", "https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua")
-    if not Loader then
-        return false
-    end
-    
-    Debug.Log("Lucid Hub started successfully")
-    return true
-end
-
-local success = start()
-if not success then
-    warn("[LUCID ERROR]: Failed to start Lucid Hub")
-end
-
-return success
+-- Start initialization
+return init()
