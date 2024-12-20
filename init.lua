@@ -1,103 +1,120 @@
 -- init.lua
--- Version: 2024.12.20
+-- Version: 1.0.1
 -- Author: ProbTom
--- Purpose: Single entry point for Lucid Hub
+-- Created: 2024-12-20 14:52:47 UTC
 
--- Wait for game load
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
-
--- Global namespace protection
-if getgenv().LucidLoaded then
-    return warn("[LUCID] Already loaded!")
-end
-
--- Core system state
-getgenv().LucidLoaded = true
-getgenv().LucidState = {
-    Version = "1.0.1",
-    Loaded = false,
-    Debug = true
+local Lucid = {
+    _VERSION = "1.0.1",
+    _AUTHOR = "ProbTom",
+    _DEBUG = true
 }
 
--- Load core debug module
-local function loadDebug()
-    local success, Debug = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
-    end)
-    
-    if not success then
-        warn("[LUCID CRITICAL] Failed to load Debug module")
-        return false
+-- Early initialization logger (independent of debug module)
+local function init_log(msg)
+    if Lucid._DEBUG then
+        print(string.format("[LUCID INIT] %s", tostring(msg)))
     end
-    
-    getgenv().LucidDebug = Debug
-    return Debug
 end
 
--- Protected module loader
-local function loadModule(name, path)
-    if not getgenv().LucidDebug then return false end
-    local Debug = getgenv().LucidDebug
-    
+-- Safe require function
+local function safe_require(moduleName)
+    init_log("Loading " .. moduleName)
     local success, result = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. path))()
+        return require(moduleName)
     end)
     
     if not success then
-        Debug.Error("Failed to load " .. name)
-        return false
+        init_log("Failed to load " .. moduleName .. ": " .. tostring(result))
+        return nil
     end
     
-    Debug.Log(name .. " loaded successfully")
     return result
 end
 
--- Initialize system
-local function initialize()
-    -- Load debug first
-    local Debug = loadDebug()
-    if not Debug then return false end
-    Debug.Log("System initialization started")
+-- Module initialization sequence
+local MODULES = {
+    {name = "debug", critical = true},
+    {name = "utils", critical = true},
+    {name = "events", critical = true},
+    {name = "state", critical = true},
+    {name = "ui", critical = false}
+}
+
+-- Module container
+Lucid.modules = {}
+
+-- Initialize core system
+function Lucid.Initialize()
+    init_log("Starting initialization sequence")
     
-    -- Load core modules in order
-    local moduleSequence = {
-        {name = "Config", path = "config.lua"},
-        {name = "State", path = "state.lua"},
-        {name = "UI", path = "ui.lua"},
-        {name = "Loader", path = "loader.lua"}
-    }
-    
-    -- Load all modules
-    for _, module in ipairs(moduleSequence) do
-        local result = loadModule(module.name, module.path)
-        if not result then
-            Debug.Error("Failed to load " .. module.name)
-            return false
+    -- Load each module in sequence
+    for _, moduleInfo in ipairs(MODULES) do
+        local module = safe_require(moduleInfo.name)
+        
+        if not module then
+            if moduleInfo.critical then
+                init_log("Critical module failed to load: " .. moduleInfo.name)
+                return false
+            else
+                init_log("Non-critical module failed to load: " .. moduleInfo.name)
+            end
+        else
+            -- Store loaded module
+            Lucid.modules[moduleInfo.name] = module
+            
+            -- Initialize module if it has init function
+            if type(module.init) == "function" then
+                local success, err = pcall(function()
+                    return module.init(Lucid.modules)
+                end)
+                
+                if not success then
+                    init_log("Module initialization failed: " .. moduleInfo.name .. " - " .. tostring(err))
+                    if moduleInfo.critical then
+                        return false
+                    end
+                end
+            end
         end
-        getgenv().LucidState[module.name] = result
     end
     
-    -- Initialize loader
-    if type(getgenv().LucidState.Loader.Initialize) == "function" then
-        local success = getgenv().LucidState.Loader.Initialize()
-        if not success then
-            Debug.Error("Loader initialization failed")
-            return false
-        end
-    end
-    
-    getgenv().LucidState.Loaded = true
-    Debug.Log("System initialization complete")
+    init_log("Initialization sequence completed")
     return true
 end
 
--- Execute initialization
-local success = initialize()
-if not success then
-    getgenv().LucidLoaded = false
-    warn("[LUCID] Failed to initialize system")
+-- System shutdown
+function Lucid.Shutdown()
+    init_log("Beginning shutdown sequence")
+    
+    -- Shutdown modules in reverse order
+    for i = #MODULES, 1, -1 do
+        local moduleName = MODULES[i].name
+        local module = Lucid.modules[moduleName]
+        
+        if module and type(module.shutdown) == "function" then
+            pcall(function()
+                module.shutdown()
+            end)
+        end
+    end
+    
+    Lucid.modules = {}
+    init_log("Shutdown complete")
 end
 
-return success
+-- Error handler
+function Lucid.HandleError(err)
+    init_log("ERROR: " .. tostring(err))
+    
+    if Lucid.modules.debug then
+        Lucid.modules.debug.Error(err)
+    end
+end
+
+-- Initialize the system
+local success, err = pcall(Lucid.Initialize)
+if not success then
+    Lucid.HandleError(err)
+end
+
+return Lucid
