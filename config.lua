@@ -1,63 +1,38 @@
 -- config.lua
--- Core configuration module for Lucid Hub
 local Config = {
-    Version = "1.0.2",
-    Debug = true,
-    
-    -- Core UI Configuration
+    Version = "1.0.0",
     UI = {
         Window = {
             Title = "Lucid Hub",
             SubTitle = "by ProbTom",
             TabWidth = 160,
             Size = UDim2.fromOffset(580, 460),
-            Theme = "Rose",
-            MinimizeKeybind = Enum.KeyCode.RightControl
+            Theme = "Dark"
         },
         Tabs = {
-            {Name = "Home", Icon = "rbxassetid://4483345998"},
-            {Name = "Main", Icon = "rbxassetid://4483345998"},
-            {Name = "Items", Icon = "rbxassetid://4483345998"},
-            {Name = "Teleports", Icon = "rbxassetid://4483345998"},
-            {Name = "Misc", Icon = "rbxassetid://4483345998"},
-            {Name = "Trade", Icon = "rbxassetid://4483345998"},
-            {Name = "Credit", Icon = "rbxassetid://4483345998"}
+            Main = {
+                Name = "Main",
+                Icon = "rbxassetid://10723424505"
+            },
+            Settings = {
+                Name = "Settings",
+                Icon = "rbxassetid://10734931430"
+            }
         }
     },
-
-    -- Save Configuration
-    Save = {
-        Enabled = true,
-        FolderName = "LucidHub",
-        FileName = "Config"
-    },
-
-    -- Item Settings
-    Items = {
-        ChestSettings = {
-            MinRange = 10,
-            MaxRange = 100,
-            Default = 50
+    Features = {
+        AutoCast = {
+            Enabled = false,
+            Delay = 1.0
         },
-        FishRarities = {
-            "Common",
-            "Rare",
-            "Legendary",
-            "Mythical",
-            "Enchant Relics",
-            "Exotic",
-            "Limited",
-            "Gemstones"
+        AutoReel = {
+            Enabled = false,
+            Delay = 0.5
+        },
+        AutoShake = {
+            Enabled = false,
+            Delay = 0.2
         }
-    },
-
-    -- URLs for dynamic loading
-    URLs = {
-        Main = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
-        Backup = "https://raw.githubusercontent.com/ProbTom/Lucid/backup/",
-        FluentUI = "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua",
-        SaveManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua",
-        InterfaceManager = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
     }
 }
 
