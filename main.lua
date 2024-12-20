@@ -19,32 +19,83 @@ local function loadDebug()
     return true
 end
 
+-- Load modules with detailed error reporting
+local function loadModule(name, url)
+    local success, content = pcall(function()
+        return game:HttpGet(url)
+    end)
+    
+    if not success then
+        Debug.Error("Failed to fetch " .. name .. ": " .. tostring(content))
+        return false
+    end
+    
+    local success2, module = pcall(loadstring, content)
+    if not success2 then
+        Debug.Error("Failed to compile " .. name .. ": " .. tostring(module))
+        return false
+    end
+    
+    local success3, result = pcall(module)
+    if not success3 then
+        Debug.Error("Failed to execute " .. name .. ": " .. tostring(result))
+        return false
+    end
+    
+    return result
+end
+
 -- Initialize with debug support
 local function start()
     -- Step 1: Load Debug
     if not loadDebug() then
         return false
     end
+    Debug.Log("Debug module loaded successfully")
     
-    -- Step 2: Load Loader
-    local success, loader = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
-    end)
+    -- Step 2: Load Config
+    local Config = loadModule("config", "https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua")
+    if not Config then
+        return false
+    end
+    Debug.Log("Config loaded successfully")
     
-    if not success or not loader then
-        Debug.Error("Failed to load loader: " .. tostring(success))
+    -- Step 3: Load State
+    local State = loadModule("state", "https://raw.githubusercontent.com/ProbTom/Lucid/main/state.lua")
+    if not State then
+        return false
+    end
+    Debug.Log("State loaded successfully")
+    
+    -- Step 4: Load Loader
+    local Loader = loadModule("loader", "https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua")
+    if not Loader then
+        return false
+    end
+    Debug.Log("Loader loaded successfully")
+    
+    -- Initialize global state
+    if not getgenv then
+        Debug.Error("getgenv is not available")
         return false
     end
     
-    -- Step 3: Initialize
-    if type(loader.Initialize) == "function" then
-        success = pcall(loader.Initialize)
-        if not success then
-            Debug.Error("Failed to initialize loader")
-            return false
-        end
-    else
-        Debug.Error("Invalid loader: Initialize function missing")
+    getgenv().LucidState = {
+        Debug = Debug,
+        Config = Config,
+        State = State,
+        Loader = Loader
+    }
+    
+    -- Initialize loader
+    if type(Loader.Initialize) ~= "function" then
+        Debug.Error("Loader.Initialize is not a function")
+        return false
+    end
+    
+    local success, result = pcall(Loader.Initialize)
+    if not success then
+        Debug.Error("Loader initialization failed: " .. tostring(result))
         return false
     end
     
