@@ -211,17 +211,20 @@ function UI.Cleanup()
     UI._connections = {}
 end
 
--- Run initialization
-local success = UI.Initialize()
+-- Prevent re-initialization
+if not UI._initialized then
+    -- Run initialization
+    local success = UI.Initialize()
 
-if not success then
-    Debug.Error("Failed to initialize UI system")
+    if not success then
+        Debug.Error("Failed to initialize UI system")
+    end
+
+    -- Setup cleanup on teleport
+    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+        UI.Cleanup()
+        Debug.Log("UI cleanup on teleport.")
+    end)
 end
-
--- Setup cleanup on teleport
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-    UI.Cleanup()
-    Debug.Log("UI cleanup on teleport.")
-end)
 
 return UI
