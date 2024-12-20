@@ -1,8 +1,7 @@
 -- ui.lua
 local UI = {
-    _version = "1.0.1",
+    _version = "1.0.2",
     _initialized = false,
-    _window = nil,
     _tabs = {},
     _connections = {},
     _icons = {
@@ -13,109 +12,12 @@ local UI = {
 
 local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
 
--- Core services
-local Services = {
-    Players = game:GetService("Players"),
-    HttpService = game:GetService("HttpService")
-}
-
--- UI Configuration
-local UIConfig = {
-    Title = "Lucid Hub",
-    SubTitle = "by ProbTom",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(600, 400),
-    Theme = "Dark",
-    MinimizeKeybind = Enum.KeyCode.LeftControl
-}
-
--- Load required UI libraries
-local function loadUILibraries()
-    local function fetchLibrary(url, retries)
-        for i = 1, retries do
-            local success, result = pcall(function()
-                return loadstring(game:HttpGet(url))()
-            end)
-            if success and result then
-                return result
-            end
-            task.wait(1)
-        end
-        return nil
-    end
-
-    if not getgenv().Fluent then
-        getgenv().Fluent = fetchLibrary("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua", 3)
-        if getgenv().Fluent then
-            Debug.Log("Fluent UI library loaded successfully.")
-        else
-            Debug.Error("Failed to load Fluent UI library.")
-        end
-    end
-
-    return getgenv().Fluent ~= nil
-end
-
 function UI.IsInitialized()
     return UI._initialized
 end
 
--- Create main window and tabs
-function UI.CreateWindow()
-    if UI._window then
-        Debug.Error("UI window already exists.")
-        return true
-    end
-
-    -- Attempt to create the window
-    local success, window = pcall(function()
-        return getgenv().Fluent:CreateWindow({
-            Title = UIConfig.Title,
-            SubTitle = UIConfig.SubTitle,
-            TabWidth = UIConfig.TabWidth,
-            Size = UIConfig.Size,
-            Theme = UIConfig.Theme,
-            MinimizeKeybind = UIConfig.MinimizeKeybind
-        })
-    end)
-
-    if success and window then
-        UI._window = window
-        Debug.Log("UI window created successfully.")
-        return true
-    else
-        Debug.Error("UI window creation failed.")
-        return false
-    end
-end
-
--- Create main tabs with proper icons
-function UI.CreateTabs()
-    if not UI._window then
-        Debug.Error("UI window not created. Cannot create tabs.")
-        return false
-    end
-
-    -- Main tab with fishing icon
-    UI._tabs.Main = UI._window:AddTab({
-        Title = "Main",
-        Icon = UI._icons.main
-    })
-    Debug.Log("Main tab created.")
-
-    -- Settings tab with proper gear icon
-    UI._tabs.Settings = UI._window:AddTab({
-        Title = "Settings",
-        Icon = UI._icons.settings
-    })
-    Debug.Log("Settings tab created.")
-
-    return true
-end
-
--- Create main sections
 function UI.CreateMainSections()
-    if not UI._tabs.Main then
+    if not getgenv().Tabs or not getgenv().Tabs.Main then
         Debug.Error("Main tab not created. Cannot create sections.")
         return false
     end
@@ -123,7 +25,7 @@ function UI.CreateMainSections()
     local sections = {}
     
     -- Fishing Controls Section
-    sections.Fishing = UI._tabs.Main:AddSection("Fishing Controls")
+    sections.Fishing = getgenv().Tabs.Main:AddSection("Fishing Controls")
     Debug.Log("Fishing Controls section created.")
     
     -- Auto Cast Toggle
@@ -165,66 +67,36 @@ function UI.CreateMainSections()
     return true
 end
 
--- Initialize UI system
 function UI.Initialize()
     if UI._initialized then
-        Debug.Log("UI module already initialized.")
+        Debug.Log("UI already initialized")
         return true
     end
 
-    Debug.Log("Loading UI libraries.")
-    if not loadUILibraries() then
-        Debug.Error("Failed to load UI libraries.")
+    if not getgenv().LucidWindow then
+        Debug.Error("Window not initialized")
         return false
     end
 
-    Debug.Log("Creating UI window.")
-    if not UI.CreateWindow() then
-        Debug.Error("Failed to create UI window, skipping tab and section creation.")
+    local success = UI.CreateMainSections()
+    if not success then
+        Debug.Error("Failed to create main sections")
         return false
-    end
-
-    Debug.Log("Creating UI tabs.")
-    if not UI.CreateTabs() then
-        return false
-    end
-
-    Debug.Log("Creating UI sections.")
-    if not UI.CreateMainSections() then
-        return false
-    end
+    }
 
     UI._initialized = true
-    Debug.Log("UI module initialized successfully.")
-    
+    Debug.Log("UI module initialized successfully")
     return true
 end
 
--- Cleanup function
 function UI.Cleanup()
     for _, connection in pairs(UI._connections) do
         if typeof(connection) == "RBXScriptConnection" then
             connection:Disconnect()
-            Debug.Log("Disconnected a connection.")
         end
     end
     UI._connections = {}
-end
-
--- Prevent re-initialization
-if not UI._initialized then
-    -- Run initialization
-    local success = UI.Initialize()
-
-    if not success then
-        Debug.Error("Failed to initialize UI system")
-    end
-
-    -- Setup cleanup on teleport
-    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-        UI.Cleanup()
-        Debug.Log("UI cleanup on teleport.")
-    end)
+    Debug.Log("UI cleanup completed")
 end
 
 return UI
