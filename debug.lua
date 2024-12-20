@@ -1,88 +1,43 @@
 -- debug.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 16:34:06 UTC
+-- Created: 2024-12-20 19:34:00 UTC
 
 local Debug = {
     _VERSION = "1.0.1",
     _initialized = false,
-    _logHistory = {},
-    _maxHistory = 1000,
-    _startTime = os.time()
+    _debugMode = false,
+    _logHistory = {}
 }
 
--- Log levels and their colors
+-- Log levels
 local LOG_LEVELS = {
-    INFO = {priority = 1, color = "⚪"},
-    DEBUG = {priority = 2, color = "🔵"},
-    WARN = {priority = 3, color = "🟡"},
-    ERROR = {priority = 4, color = "🔴"},
-    FATAL = {priority = 5, color = "⛔"}
+    INFO = "⚪",
+    WARN = "🟡",
+    ERROR = "🔴",
+    DEBUG = "🔵"
 }
 
--- Internal logging function
-local function internal_log(level, msg, stack)
-    local timestamp = os.date("!%Y-%m-%d %H:%M:%S")
-    local logLevel = LOG_LEVELS[level] or LOG_LEVELS.INFO
-    local logEntry = {
-        timestamp = timestamp,
-        level = level,
-        message = tostring(msg),
-        stack = stack,
-        priority = logLevel.priority
-    }
-    
-    table.insert(Debug._logHistory, logEntry)
-    if #Debug._logHistory > Debug._maxHistory then
-        table.remove(Debug._logHistory, 1)
+function Debug.log(level, message)
+    local timestamp = os.date("%H:%M:%S")
+    local icon = LOG_LEVELS[level] or "⚪"
+    print(string.format("%s [%s] %s: %s", icon, timestamp, level, message))
+end
+
+function Debug.Info(message) Debug.log("INFO", message) end
+function Debug.Warn(message) Debug.log("WARN", message) end
+function Debug.Error(message) Debug.log("ERROR", message) end
+function Debug.Debug(message) 
+    if Debug._debugMode then
+        Debug.log("DEBUG", message)
     end
-    
-    local color = logLevel.color
-    print(string.format("%s %s [LUCID %s] %s", color, timestamp, level, tostring(msg)))
-    
-    return true
 end
 
--- Public logging functions
-function Debug.log(level, msg)
-    return internal_log(level, msg, debug.traceback())
+function Debug.setDebugMode(enabled)
+    Debug._debugMode = enabled
+    Debug.Info("Debug mode " .. (enabled and "enabled" or "disabled"))
 end
 
-function Debug.Info(msg) return Debug.log("INFO", msg) end
-function Debug.Debug(msg) return Debug.log("DEBUG", msg) end
-function Debug.Warn(msg) return Debug.log("WARN", msg) end
-function Debug.Error(msg) return Debug.log("ERROR", msg) end
-function Debug.Fatal(msg) return Debug.log("FATAL", msg) end
-
--- System monitoring
-function Debug.GetSystemState()
-    return {
-        version = Debug._VERSION,
-        startTime = Debug._startTime,
-        uptime = os.time() - Debug._startTime,
-        memoryUsage = gcinfo()
-    }
-end
-
-function Debug.GetLogHistory(level)
-    if not level then
-        return Debug._logHistory
-    end
-    local filtered = {}
-    for _, entry in ipairs(Debug._logHistory) do
-        if entry.level == level then
-            table.insert(filtered, entry)
-        end
-    end
-    return filtered
-end
-
-function Debug.ClearLogs()
-    Debug._logHistory = {}
-    return Debug.Info("Log history cleared")
-end
-
--- Initialize debug module
 function Debug.init()
     if Debug._initialized then
         return true
@@ -90,8 +45,6 @@ function Debug.init()
     
     Debug._initialized = true
     Debug.Info("Debug module initialized")
-    Debug.Info(string.format("System Version: %s", Debug._VERSION))
-    
     return true
 end
 
