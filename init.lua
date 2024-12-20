@@ -1,105 +1,167 @@
 -- init.lua
+-- Version: 2024.12.20
+-- Author: ProbTom
+
+-- Wait for game to load
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
 -- Debug Module
-local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
+local Debug = {
+    Enabled = true,
+    Log = function(msg) if Debug.Enabled then print("[Lucid] " .. tostring(msg)) end end,
+    Error = function(msg) if Debug.Enabled then warn("[Lucid Error] " .. tostring(msg)) end end
+}
 
--- Initialize global state handler
+-- Protected Call Function
+local function protectedCall(func, ...)
+    if type(func) ~= "function" then
+        Debug.Error("Attempted to call a nil value or non-function")
+        return false
+    end
+    
+    local success, result = pcall(func, ...)
+    if not success then
+        Debug.Error(result)
+        return false
+    end
+    return true, result
+end
+
+-- Initialize Global State
 local function initializeGlobalState()
-    if not getgenv().State then
-        getgenv().State = {
+    -- Initialize core tables if they don't exist
+    if not getgenv then
+        Debug.Error("getgenv function not available")
+        return false
+    end
+
+    if not getgenv().LucidState then
+        getgenv().LucidState = {
+            Version = "1.0.1",
             AutoCasting = false,
             AutoReeling = false,
             AutoShaking = false,
-            Events = {
-                Available = {}
-            }
+            Events = { Available = {} },
+            UI = { Initialized = false },
+            Options = {},
+            Functions = {}
         }
     end
-    if not getgenv().Options then getgenv().Options = {} end
-    if not getgenv().Functions then getgenv().Functions = {} end
-end
-
--- Load configuration first
-local Config = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/config.lua"))()
-getgenv().Config = Config
-
--- Single point of UI initialization
-local function initializeUI()
-    if getgenv().Fluent then
-        return getgenv().Fluent
-    end
-    
-    local success, Fluent = pcall(function()
-        return loadstring(game:HttpGet(Config.URLs.FluentUI))()
-    end)
-    
-    if success and Fluent then
-        getgenv().Fluent = Fluent
-        Debug.Log("Fluent UI library loaded successfully.")
-        return Fluent
-    end
-    Debug.Error("Failed to load Fluent UI library")
-    return nil
-end
-
--- Initialize in order
-initializeGlobalState()
-local Fluent = initializeUI()
-
-if not Fluent then
-    Debug.Error("Failed to initialize UI system")
-    return
-end
-
--- Load core modules after UI is ready
-getgenv().SaveManager = loadstring(game:HttpGet(Config.URLs.SaveManager))()
-getgenv().InterfaceManager = loadstring(game:HttpGet(Config.URLs.InterfaceManager))()
-
--- Create single window instance
-if not getgenv().LucidWindow then
-    getgenv().LucidWindow = Fluent:CreateWindow(Config.UI.Window)
-    Debug.Log("Main window created successfully")
-end
-
--- Load feature modules after window is created
-local function loadModule(moduleName)
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(Config.URLs.Main .. moduleName .. ".lua"))()
-    end)
-    if not success then
-        Debug.Error("Failed to load " .. moduleName .. " module")
-        return false
-    end
-    Debug.Log(moduleName .. " module loaded successfully")
     return true
 end
 
--- Load modules in order
-local moduleOrder = {
-    "functions",
-    "Tab",
-    "MainTab",
-    "ItemsTab"
-}
+-- Load UI Library
+local function loadUILibrary()
+    if getgenv().Fluent then
+        return true, getgenv().Fluent
+    end
 
-for _, moduleName in ipairs(moduleOrder) do
-    loadModule(moduleName)
+    local success, Fluent = pcall(function()
+        return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+    end)
+
+    if not success or not Fluent then
+        Debug.Error("Failed to load Fluent UI library")
+        return false
+    end
+
+    getgenv().Fluent = Fluent
+    return true, Fluent
 end
 
--- Initialize SaveManager
-getgenv().SaveManager:SetLibrary(Fluent)
-getgenv().SaveManager:SetFolder(Config.Save.FolderName)
-getgenv().SaveManager:Load(Config.Save.FileName)
-
--- Setup cleanup
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-    Debug.Log("Cleaning up before teleport")
-    if getgenv().SaveManager then
-        getgenv().SaveManager:Save(Config.Save.FileName)
+-- Initialize UI Window
+local function initializeWindow()
+    if getgenv().LucidWindow then
+        return true, getgenv().LucidWindow
     end
-end)
+
+    if not getgenv().Fluent then
+        Debug.Error("Fluent UI library not loaded")
+        return false
+    end
+
+    local window = getgenv().Fluent:CreateWindow({
+        Title = "Lucid Hub",
+        SubTitle = "by ProbTom",
+        TabWidth = 160,
+        Size = UDim2.fromOffset(580, 460),
+        Theme = "Dark",
+        MinimizeKeybind = Enum.KeyCode.RightControl
+    })
+
+    if not window then
+        Debug.Error("Failed to create window")
+        return false
+    end
+
+    getgenv().LucidWindow = window
+    return true, window
+end
+
+-- Main Initialization
+local function initialize()
+    -- Step 1: Initialize Global State
+    if not initializeGlobalState() then
+        Debug.Error("Failed to initialize global state")
+        return false
+    end
+
+    -- Step 2: Load UI Library
+    local uiSuccess = loadUILibrary()
+    if not uiSuccess then
+        Debug.Error("Failed to load UI library")
+        return false
+    end
+
+    -- Step 3: Initialize Window
+    local windowSuccess = initializeWindow()
+    if not windowSuccess then
+        Debug.Error("Failed to initialize window")
+        return false
+    end
+
+    -- Step 4: Load Core Modules
+    local moduleUrls = {
+        Functions = "https://raw.githubusercontent.com/ProbTom/Lucid/main/functions.lua",
+        UI = "https://raw.githubusercontent.com/ProbTom/Lucid/main/ui.lua",
+        Events = "https://raw.githubusercontent.com/ProbTom/Lucid/main/events.lua",
+        Tabs = "https://raw.githubusercontent.com/ProbTom/Lucid/main/Tab.lua"
+    }
+
+    for name, url in pairs(moduleUrls) do
+        local success = protectedCall(function()
+            return loadstring(game:HttpGet(url))()
+        end)
+        if not success then
+            Debug.Error("Failed to load " .. name .. " module")
+            return false
+        end
+    end
+
+    -- Step 5: Initialize Save Manager
+    if not getgenv().SaveManager then
+        local success = protectedCall(function()
+            getgenv().SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+            getgenv().SaveManager:SetLibrary(getgenv().Fluent)
+            getgenv().SaveManager:SetFolder("LucidHub")
+            getgenv().SaveManager:Load("LucidHub")
+        end)
+        if not success then
+            Debug.Error("Failed to initialize SaveManager")
+            return false
+        end
+    end
+
+    Debug.Log("Initialization complete")
+    return true
+end
+
+-- Run Initialization
+if not initialize() then
+    Debug.Error("Failed to initialize Lucid Hub")
+    return
+end
 
 return true
