@@ -1,249 +1,201 @@
 -- utils.lua
--- Version: 2024.12.20
+-- Version: 1.0.1
 -- Author: ProbTom
--- Last Updated: 2024-12-20 14:32:12
+-- Created: 2024-12-20 14:44:48 UTC
 
-local Utils = {
-    _version = "1.0.1",
-    _initialized = false,
-    _cache = {}
-}
+local Utils = {}
 
-local Debug = getgenv().LucidDebug
+-- Dependencies
+local Debug
 
 -- Services
-local Services = {
-    HttpService = game:GetService("HttpService"),
-    TweenService = game:GetService("TweenService"),
-    RunService = game:GetService("RunService"),
-    Players = game:GetService("Players")
-}
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-local LocalPlayer = Services.Players.LocalPlayer
+-- Constants
+local MAX_RETRIES = 3
+local RETRY_DELAY = 1
 
--- Time Management
-function Utils.GetTimestamp()
-    return os.time()
+-- Table utilities
+function Utils.DeepCopy(original)
+    local copy = {}
+    for k, v in pairs(original) do
+        if type(v) == "table" then
+            copy[k] = Utils.DeepCopy(v)
+        else
+            copy[k] = v
+        end
+    end
+    return copy
 end
 
-function Utils.FormatTime(timestamp)
-    return os.date("%Y-%m-%d %H:%M:%S", timestamp or Utils.GetTimestamp())
+function Utils.Merge(t1, t2)
+    for k, v in pairs(t2) do
+        if type(v) == "table" and type(t1[k]) == "table" then
+            Utils.Merge(t1[k], v)
+        else
+            t1[k] = v
+        end
+    end
+    return t1
 end
 
-function Utils.TimeSince(timestamp)
-    return os.time() - timestamp
-end
-
--- Data Management
-function Utils.ToJSON(data)
-    if type(data) ~= "table" then return "{}" end
-    
-    local success, result = pcall(function()
-        return Services.HttpService:JSONEncode(data)
+-- String utilities
+function Utils.FormatString(str, ...)
+    local args = {...}
+    return str:gsub("{(%d+)}", function(i)
+        return tostring(args[tonumber(i)])
     end)
+end
+
+function Utils.TrimString(str)
+    return str:match("^%s*(.-)%s*$")
+end
+
+-- Math utilities
+function Utils.Round(num, decimals)
+    local mult = 10^(decimals or 0)
+    return math.floor(num * mult + 0.5) / mult
+end
+
+function Utils.Lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+function Utils.Clamp(value, min, max)
+    return math.min(math.max(value, min), max)
+end
+
+-- Player utilities
+function Utils.GetPlayerFromString(str)
+    str = str:lower()
+    local players = Players:GetPlayers()
     
-    return success and result or "{}"
-end
-
-function Utils.FromJSON(str)
-    if type(str) ~= "string" then return {} end
-    
-    local success, result = pcall(function()
-        return Services.HttpService:JSONDecode(str)
-    end)
-    
-    return success and result or {}
-end
-
--- File Management
-function Utils.SaveToFile(filename, data)
-    if not writefile then return false end
-    
-    local success, result = pcall(function()
-        writefile(filename, Utils.ToJSON(data))
-        return true
-    end)
-    
-    return success
-end
-
-function Utils.LoadFromFile(filename)
-    if not readfile then return false end
-    
-    local success, content = pcall(function()
-        return readfile(filename)
-    end)
-    
-    if not success then return {} end
-    return Utils.FromJSON(content)
-end
-
--- Character Management
-function Utils.GetCharacter()
-    return LocalPlayer.Character
-end
-
-function Utils.GetHumanoid()
-    local character = Utils.GetCharacter()
-    return character and character:FindFirstChild("Humanoid")
-end
-
-function Utils.GetRoot()
-    local character = Utils.GetCharacter()
-    return character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso"))
-end
-
--- Position Management
-function Utils.GetPosition()
-    local root = Utils.GetRoot()
-    return root and root.Position
-end
-
-function Utils.Distance(pos1, pos2)
-    if not pos1 or not pos2 then return math.huge end
-    return (pos1 - pos2).Magnitude
-end
-
-function Utils.IsWithinDistance(pos1, pos2, maxDistance)
-    return Utils.Distance(pos1, pos2) <= (maxDistance or math.huge)
-end
-
--- Anti-Cheat Protection
-function Utils.SafeWait(duration)
-    duration = math.clamp(duration or 0, 0, 1)
-    local start = tick()
-    repeat 
-        Services.RunService.Heartbeat:Wait()
-    until tick() - start >= duration
-end
-
-function Utils.SafeTeleport(position)
-    local root = Utils.GetRoot()
-    if not root or not position then return false end
-    
-    local humanoid = Utils.GetHumanoid()
-    if humanoid then
-        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    -- Exact match
+    for _, player in ipairs(players) do
+        if player.Name:lower() == str then
+            return player
+        end
     end
     
-    root.CFrame = CFrame.new(position)
-    Utils.SafeWait(0.1)
-    
-    if humanoid then
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    -- Partial match
+    for _, player in ipairs(players) do
+        if player.Name:lower():find(str, 1, true) then
+            return player
+        end
     end
     
-    return true
+    return nil
 end
 
--- Cache Management
-function Utils.CacheSet(key, value, duration)
-    Utils._cache[key] = {
-        value = value,
-        expires = os.time() + (duration or 60)
-    }
+function Utils.IsPlayerAlive(player)
+    player = player or Players.LocalPlayer
+    return player and player.Character and player.Character:FindFirstChild("Humanoid") 
+           and player.Character.Humanoid.Health > 0
 end
 
-function Utils.CacheGet(key)
-    local cached = Utils._cache[key]
-    if not cached or os.time() > cached.expires then
-        Utils._cache[key] = nil
+-- HTTP utilities
+function Utils.HttpGet(url, retries)
+    retries = retries or MAX_RETRIES
+    
+    local success, result
+    for i = 1, retries do
+        success, result = pcall(function()
+            return HttpService:GetAsync(url)
+        end)
+        
+        if success then
+            return result
+        end
+        
+        Debug.Warn(string.format("HTTP GET failed (attempt %d/%d): %s", i, retries, tostring(result)))
+        if i < retries then
+            task.wait(RETRY_DELAY)
+        end
+    end
+    
+    return nil, result
+end
+
+function Utils.JsonEncode(data)
+    return HttpService:JSONEncode(data)
+end
+
+function Utils.JsonDecode(str)
+    return HttpService:JSONDecode(str)
+end
+
+-- Time utilities
+function Utils.FormatTime(seconds)
+    local days = math.floor(seconds / 86400)
+    local hours = math.floor((seconds % 86400) / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+    local secs = seconds % 60
+    
+    if days > 0 then
+        return string.format("%dd %02dh %02dm %02ds", days, hours, minutes, secs)
+    elseif hours > 0 then
+        return string.format("%02dh %02dm %02ds", hours, minutes, secs)
+    elseif minutes > 0 then
+        return string.format("%02dm %02ds", minutes, secs)
+    else
+        return string.format("%02ds", secs)
+    end
+end
+
+-- Performance utilities
+function Utils.Throttle(callback, limit)
+    local lastRun = 0
+    return function(...)
+        local now = os.clock()
+        if now - lastRun >= limit then
+            lastRun = now
+            return callback(...)
+        end
+    end
+end
+
+function Utils.Debounce(callback, delay)
+    local timer
+    return function(...)
+        local args = {...}
+        if timer then
+            timer:Disconnect()
+        end
+        
+        timer = RunService.Heartbeat:Connect(function()
+            timer:Disconnect()
+            callback(unpack(args))
+        end)
+    end
+end
+
+-- Safety utilities
+function Utils.SafeCall(func, ...)
+    local success, result = pcall(func, ...)
+    if not success then
+        Debug.Error(string.format("SafeCall failed: %s", tostring(result)))
         return nil
     end
-    return cached.value
+    return result
 end
 
-function Utils.CacheClean()
-    local now = os.time()
-    for key, cached in pairs(Utils._cache) do
-        if now > cached.expires then
-            Utils._cache[key] = nil
-        end
-    end
-end
-
--- Version Management
-function Utils.CompareVersions(v1, v2)
-    local function parseVersion(v)
-        local major, minor, patch = v:match("(%d+)%.(%d+)%.(%d+)")
-        return {
-            tonumber(major) or 0,
-            tonumber(minor) or 0,
-            tonumber(patch) or 0
-        }
-    end
-    
-    local ver1 = parseVersion(v1)
-    local ver2 = parseVersion(v2)
-    
-    for i = 1, 3 do
-        if ver1[i] > ver2[i] then
-            return 1
-        elseif ver1[i] < ver2[i] then
-            return -1
-        end
-    end
-    
-    return 0
-end
-
--- Performance Monitoring
-function Utils.StartPerfMonitor()
-    local stats = {}
-    
-    local connection = Services.RunService.Heartbeat:Connect(function(deltaTime)
-        table.insert(stats, deltaTime)
-        if #stats > 60 then
-            table.remove(stats, 1)
-        end
-    end)
-    
-    Utils._connections = Utils._connections or {}
-    table.insert(Utils._connections, connection)
-    
-    return function()
-        local avg = 0
-        for _, dt in ipairs(stats) do
-            avg = avg + dt
-        end
-        return avg / #stats
+function Utils.ProtectGui(gui)
+    if syn and syn.protect_gui then
+        syn.protect_gui(gui)
+    elseif gethui then
+        gui.Parent = gethui()
+    else
+        gui.Parent = game:GetService("CoreGui")
     end
 end
 
--- Initialize Utils
-function Utils.Initialize()
-    if Utils._initialized then
-        return true
-    end
-    
-    -- Start cache cleanup
-    task.spawn(function()
-        while true do
-            Utils.CacheClean()
-            Utils.SafeWait(30)
-        end
-    end)
-    
-    Utils._initialized = true
-    Debug.Log("Utils system initialized")
+-- Initialize module
+function Utils.init(modules)
+    Debug = modules.debug
+    Debug.Info("Utils module initialized")
     return true
-end
-
--- Cleanup
-function Utils.Cleanup()
-    Utils._cache = {}
-    
-    if Utils._connections then
-        for _, connection in ipairs(Utils._connections) do
-            if typeof(connection) == "RBXScriptConnection" then
-                connection:Disconnect()
-            end
-        end
-        Utils._connections = {}
-    end
-    
-    Utils._initialized = false
-    Debug.Log("Utils system cleaned up")
 end
 
 return Utils
