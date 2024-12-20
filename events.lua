@@ -1,216 +1,169 @@
 -- events.lua
--- Version: 2024.12.20
+-- Version: 1.0.1
 -- Author: ProbTom
--- Last Updated: 2024-12-20 14:30:12
+-- Created: 2024-12-20 14:43:08 UTC
 
-local Events = {
-    _version = "1.0.1",
-    _connections = {},
-    _handlers = {},
-    _remotes = {},
-    _initialized = false,
-    _lastUpdate = os.time()
-}
+local Events = {}
 
-local Debug = getgenv().LucidDebug
+-- Dependencies
+local Debug
 
--- Services
-local Services = {
-    ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Players = game:GetService("Players"),
-    RunService = game:GetService("RunService")
-}
+-- Storage for events
+local events = {}
+local connections = {}
+local eventHistory = {}
+local MAX_HISTORY = 1000
 
-local LocalPlayer = Services.Players.LocalPlayer
+-- Event class
+local Event = {}
+Event.__index = Event
 
--- Utility Functions
-local function isValidEventName(name)
-    return type(name) == "string" and name:match("^[%w_]+$") ~= nil
+function Event.new(name)
+    local self = setmetatable({}, Event)
+    self.Name = name
+    self.Handlers = {}
+    self.LastFired = 0
+    self.FireCount = 0
+    return self
 end
 
-local function protectedCall(func, ...)
-    if type(func) ~= "function" then return false end
-    return pcall(func, ...)
-end
-
--- Event Registration
-function Events.Register(eventName, callback)
-    if not isValidEventName(eventName) then
-        Debug.Error("Invalid event name: " .. tostring(eventName))
-        return false
+function Event:Fire(...)
+    self.LastFired = os.time()
+    self.FireCount = self.FireCount + 1
+    
+    -- Log to history
+    table.insert(eventHistory, {
+        name = self.Name,
+        timestamp = self.LastFired,
+        args = {...}
+    })
+    
+    -- Trim history if needed
+    if #eventHistory > MAX_HISTORY then
+        table.remove(eventHistory, 1)
     end
     
-    if type(callback) ~= "function" then
-        Debug.Error("Invalid callback for event: " .. eventName)
-        return false
-    end
-    
-    Events._handlers[eventName] = Events._handlers[eventName] or {}
-    table.insert(Events._handlers[eventName], callback)
-    
-    Debug.Log("Registered handler for event: " .. eventName)
-    return true
-end
-
--- Event Triggering
-function Events.Trigger(eventName, ...)
-    if not Events._handlers[eventName] then return false end
-    
-    for _, handler in ipairs(Events._handlers[eventName]) do
+    -- Fire handlers
+    for _, handler in ipairs(self.Handlers) do
         task.spawn(function()
-            local success, result = protectedCall(handler, ...)
+            local success, err = pcall(handler, ...)
             if not success then
-                Debug.Error("Event handler failed for " .. eventName .. ": " .. tostring(result))
+                Debug.Error(string.format("Error in event handler for '%s': %s", self.Name, err))
             end
         end)
     end
     
-    return true
+    Debug.Debug(string.format("Event '%s' fired with %d handlers", self.Name, #self.Handlers))
 end
 
--- Remote Event Management
-function Events.SetupRemotes()
-    local config = getgenv().LucidState.Config
-    
-    -- Required events
-    for _, eventName in ipairs(config.Events.Required) do
-        local remote = Services.ReplicatedStorage:WaitForChild(eventName, 5)
-        if not remote then
-            Debug.Error("Required remote event not found: " .. eventName)
-            return false
-        end
-        Events._remotes[eventName] = remote
+function Event:Connect(handler)
+    if type(handler) ~= "function" then
+        Debug.Error("Event handler must be a function")
+        return nil
     end
     
-    -- Optional events
-    for _, eventName in ipairs(config.Events.Optional) do
-        local remote = Services.ReplicatedStorage:FindFirstChild(eventName)
-        if remote then
-            Events._remotes[eventName] = remote
+    table.insert(self.Handlers, handler)
+    local connection = {
+        Disconnect = function()
+            for i, h in ipairs(self.Handlers) do
+                if h == handler then
+                    table.remove(self.Handlers, i)
+                    break
+                end
+            end
         end
-    end
+    }
     
-    return true
+    table.insert(connections, connection)
+    return connection
 end
 
--- Remote Event Handlers
-function Events.HandleRemote(eventName, callback)
-    local remote = Events._remotes[eventName]
-    if not remote then
-        Debug.Error("Remote event not found: " .. eventName)
+-- Create new event
+function Events.Create(name)
+    if events[name] then
+        Debug.Warn(string.format("Event '%s' already exists", name))
+        return events[name]
+    end
+    
+    events[name] = Event.new(name)
+    Debug.Info(string.format("Created event: %s", name))
+    return events[name]
+end
+
+-- Get existing event
+function Events.Get(name)
+    return events[name]
+end
+
+-- Fire event
+function Events.Fire(name, ...)
+    local event = events[name]
+    if not event then
+        Debug.Warn(string.format("Event '%s' does not exist", name))
         return false
     end
     
-    local connection = remote.OnClientEvent:Connect(function(...)
-        local success, result = protectedCall(callback, ...)
-        if not success then
-            Debug.Error("Remote handler failed for " .. eventName .. ": " .. tostring(result))
-        end
-    end)
-    
-    table.insert(Events._connections, connection)
+    event:Fire(...)
     return true
 end
 
--- Fishing Events
-function Events.SetupFishing()
-    -- Auto Cast
-    Events.Register("AutoCast", function()
-        if not getgenv().LucidState.AutoCasting then return end
-        
-        local castRemote = Events._remotes.castrod
-        if not castRemote then return end
-        
-        task.spawn(function()
-            while getgenv().LucidState.AutoCasting do
-                castRemote:FireServer()
-                task.wait(getgenv().LucidState.Config.Features.AutoCast.Delay)
-            end
-        end)
-    end)
+-- Connect to event
+function Events.Connect(name, handler)
+    local event = events[name]
+    if not event then
+        Debug.Warn(string.format("Event '%s' does not exist", name))
+        return nil
+    end
     
-    -- Auto Reel
-    Events.Register("AutoReel", function()
-        if not getgenv().LucidState.AutoReeling then return end
-        
-        local reelRemote = Events._remotes.fishing
-        if not reelRemote then return end
-        
-        task.spawn(function()
-            while getgenv().LucidState.AutoReeling do
-                reelRemote:FireServer("reel")
-                task.wait(getgenv().LucidState.Config.Features.AutoReel.Delay)
-            end
-        end)
-    end)
-    
-    -- Auto Shake
-    Events.Register("AutoShake", function()
-        if not getgenv().LucidState.AutoShaking then return end
-        
-        local shakeRemote = Events._remotes.fishing
-        if not shakeRemote then return end
-        
-        task.spawn(function()
-            while getgenv().LucidState.AutoShaking do
-                shakeRemote:FireServer("shake")
-                task.wait(getgenv().LucidState.Config.Features.AutoShake.Delay)
-            end
-        end)
-    end)
+    return event:Connect(handler)
 end
 
--- Character Events
-function Events.SetupCharacter()
-    local function onCharacterAdded(character)
-        Events.Trigger("CharacterAdded", character)
-    end
-    
-    if LocalPlayer.Character then
-        onCharacterAdded(LocalPlayer.Character)
-    end
-    
-    local connection = LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-    table.insert(Events._connections, connection)
+-- Get event history
+function Events.GetHistory()
+    return eventHistory
 end
 
--- Initialize Events System
-function Events.Initialize()
-    if Events._initialized then
-        return true
+-- Clear event history
+function Events.ClearHistory()
+    eventHistory = {}
+    Debug.Info("Event history cleared")
+end
+
+-- Get event statistics
+function Events.GetStats(name)
+    local event = events[name]
+    if not event then
+        Debug.Warn(string.format("Event '%s' does not exist", name))
+        return nil
     end
     
-    -- Setup remote events
-    if not Events.SetupRemotes() then
-        Debug.Error("Failed to setup remote events")
-        return false
+    return {
+        name = event.Name,
+        handlers = #event.Handlers,
+        lastFired = event.LastFired,
+        fireCount = event.FireCount
+    }
+end
+
+-- Get all events
+function Events.GetAll()
+    local allEvents = {}
+    for name, event in pairs(events) do
+        allEvents[name] = {
+            name = event.Name,
+            handlers = #event.Handlers,
+            lastFired = event.LastFired,
+            fireCount = event.FireCount
+        }
     end
-    
-    -- Setup fishing events
-    Events.SetupFishing()
-    
-    -- Setup character events
-    Events.SetupCharacter()
-    
-    Events._initialized = true
-    Debug.Log("Events system initialized")
+    return allEvents
+end
+
+-- Initialize module
+function Events.init(modules)
+    Debug = modules.debug
+    Debug.Info("Events module initialized")
     return true
-end
-
--- Cleanup
-function Events.Cleanup()
-    for _, connection in ipairs(Events._connections) do
-        if typeof(connection) == "RBXScriptConnection" then
-            connection:Disconnect()
-        end
-    end
-    
-    Events._connections = {}
-    Events._handlers = {}
-    Events._remotes = {}
-    Events._initialized = false
-    
-    Debug.Log("Events system cleaned up")
 end
 
 return Events
