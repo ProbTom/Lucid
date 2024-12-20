@@ -35,7 +35,12 @@ local success, result = pcall(function()
             Size = UDim2.fromOffset(580, 460),
             Theme = getgenv().Config.UI.Theme
         })
-        Debug.Log("LucidWindow created successfully.")
+        if getgenv().LucidWindow then
+            Debug.Log("LucidWindow created successfully.")
+        else
+            Debug.Error("Failed to create LucidWindow.")
+            return false
+        end
     else
         Debug.Error("LucidWindow already exists.")
     end
