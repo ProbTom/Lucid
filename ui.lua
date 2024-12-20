@@ -1,223 +1,144 @@
--- ui.lua
--- Version: 2024.12.20
--- Author: ProbTom
--- Last Updated: 2024-12-20 14:31:15
-
-local UI = {
-    _version = "1.0.1",
-    _initialized = false,
-    _elements = {},
-    _connections = {},
-    _activeNotifications = {}
-}
-
-local Debug = getgenv().LucidDebug
-
--- Services
-local Services = {
-    TweenService = game:GetService("TweenService"),
-    UserInputService = game:GetService("UserInputService"),
-    RunService = game:GetService("RunService")
-}
-
--- UI Constants
-local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local MAX_NOTIFICATIONS = 5
-local NOTIFICATION_DURATION = 5
-
--- Utility Functions
-local function createTween(instance, properties)
-    return Services.TweenService:Create(instance, TWEEN_INFO, properties)
+getgenv().LucidLoaded = false
+    getgenv().LucidState = nil
+    
+    return false
 end
 
-local function safeDestroy(instance)
-    if instance and typeof(instance) == "Instance" then
-        pcall(function()
-            instance:Destroy()
-        end)
-    end
-end
-
--- Notification System
-function UI.Notify(options)
-    options = type(options) == "table" and options or {
-        Title = type(options) == "string" and options or "Notification",
-        Content = type(options) == "string" and options or "",
-        Duration = NOTIFICATION_DURATION,
-        Type = "Info" -- Info, Success, Warning, Error
-    }
-    
-    if #UI._activeNotifications >= MAX_NOTIFICATIONS then
-        local oldest = table.remove(UI._activeNotifications, 1)
-        safeDestroy(oldest.Instance)
-    end
-    
-    if getgenv().LucidWindow then
-        getgenv().LucidWindow:Notify(options)
-    end
-end
-
--- Tab Management
-function UI.CreateTab(tabConfig)
-    if not getgenv().LucidWindow then
-        Debug.Error("Window not initialized")
-        return false
-    end
-    
-    local tab = getgenv().LucidWindow:AddTab(tabConfig)
-    if not tab then
-        Debug.Error("Failed to create tab: " .. tabConfig.Title)
-        return false
-    end
-    
-    UI._elements[tabConfig.Title] = {
-        Tab = tab,
-        Sections = {}
-    }
-    
-    return tab
-end
-
--- Section Management
-function UI.CreateSection(tabName, sectionConfig)
-    local tabData = UI._elements[tabName]
-    if not tabData or not tabData.Tab then
-        Debug.Error("Tab not found: " .. tabName)
-        return false
-    end
-    
-    local section = tabData.Tab:AddSection(sectionConfig)
-    if not section then
-        Debug.Error("Failed to create section: " .. sectionConfig.Title)
-        return false
-    end
-    
-    tabData.Sections[sectionConfig.Title] = section
-    return section
-end
-
--- Element Creation Functions
-function UI.AddToggle(tabName, sectionName, config)
-    local tabData = UI._elements[tabName]
-    if not tabData or not tabData.Sections[sectionName] then
-        Debug.Error("Tab or section not found")
-        return false
-    end
-    
-    local section = tabData.Sections[sectionName]
-    return section:AddToggle(config)
-end
-
-function UI.AddButton(tabName, sectionName, config)
-    local tabData = UI._elements[tabName]
-    if not tabData or not tabData.Sections[sectionName] then
-        Debug.Error("Tab or section not found")
-        return false
-    end
-    
-    local section = tabData.Sections[sectionName]
-    return section:AddButton(config)
-end
-
-function UI.AddSlider(tabName, sectionName, config)
-    local tabData = UI._elements[tabName]
-    if not tabData or not tabData.Sections[sectionName] then
-        Debug.Error("Tab or section not found")
-        return false
-    end
-    
-    local section = tabData.Sections[sectionName]
-    return section:AddSlider(config)
-end
-
-function UI.AddDropdown(tabName, sectionName, config)
-    local tabData = UI._elements[tabName]
-    if not tabData or not tabData.Sections[sectionName] then
-        Debug.Error("Tab or section not found")
-        return false
-    end
-    
-    local section = tabData.Sections[sectionName]
-    return section:AddDropdown(config)
-end
-
--- UI State Management
-function UI.SetEnabled(enabled)
-    if getgenv().LucidWindow then
-        if enabled then
-            getgenv().LucidWindow:Show()
-        else
-            getgenv().LucidWindow:Hide()
-        end
-    end
-end
-
-function UI.ToggleVisibility()
-    if getgenv().LucidWindow then
-        getgenv().LucidWindow:Toggle()
-    end
-end
-
--- Keybind Management
-function UI.SetupKeybinds()
-    Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.KeyCode == getgenv().LucidState.Config.UI.Window.MinimizeKeybind then
-            UI.ToggleVisibility()
-        end
+-- Version Check
+local function checkForUpdates()
+    local success, latestVersion = pcall(function()
+        return game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/version.json")
     end)
-end
-
--- Initialize UI System
-function UI.Initialize()
-    if UI._initialized then
-        return true
-    end
     
-    -- Setup keybinds
-    UI.SetupKeybinds()
-    
-    -- Create tabs from config
-    local config = getgenv().LucidState.Config
-    for tabName, tabConfig in pairs(config.UI.Tabs) do
-        local tab = UI.CreateTab({
-            Title = tabConfig.Name,
-            Icon = tabConfig.Icon
-        })
-        
-        if tab and tabConfig.Sections then
-            for sectionName, sectionConfig in pairs(tabConfig.Sections) do
-                UI.CreateSection(tabName, {
-                    Title = sectionConfig.Title
+    if success then
+        local versionData = Services.HttpService:JSONDecode(latestVersion)
+        if versionData.version ~= Lucid._version then
+            if Lucid._modules.Debug then
+                Lucid._modules.Debug.Log("New version available: " .. versionData.version)
+            end
+            
+            if Lucid._modules.UI then
+                Lucid._modules.UI.Notify({
+                    Title = "Update Available",
+                    Content = "Version " .. versionData.version .. " is available!",
+                    Duration = 10,
+                    Type = "Info"
                 })
             end
         end
     end
+end
+
+-- Performance Monitoring
+local function setupPerformanceMonitoring()
+    if not Lucid._modules.Utils then return end
     
-    UI._initialized = true
-    Debug.Log("UI system initialized")
+    local getPerformance = Lucid._modules.Utils.StartPerfMonitor()
+    
+    task.spawn(function()
+        while Lucid._initialized do
+            local avgFrameTime = getPerformance()
+            if avgFrameTime > 1/30 and Lucid._modules.Debug then
+                Lucid._modules.Debug.Warn("Performance warning: " .. math.floor(1/avgFrameTime) .. " FPS")
+            end
+            task.wait(5)
+        end
+    end)
+end
+
+-- Main Initialization
+local function initialize()
+    if Lucid._initialized then
+        return true
+    end
+    
+    -- Initialize global state
+    if not initializeGlobalState() then
+        return errorHandler("Failed to initialize global state")
+    end
+    
+    -- Load all modules
+    if not loadModules() then
+        return errorHandler("Failed to load modules")
+    end
+    
+    -- Initialize modules
+    if not initializeModules() then
+        return errorHandler("Failed to initialize modules")
+    end
+    
+    -- Setup cleanup handler
+    setupCleanup()
+    
+    -- Setup performance monitoring
+    setupPerformanceMonitoring()
+    
+    -- Check for updates
+    task.spawn(checkForUpdates)
+    
+    -- Mark as initialized
+    Lucid._initialized = true
+    getgenv().LucidLoaded = true
+    getgenv().LucidState.Loaded = true
+    
+    -- Final initialization message
+    if Lucid._modules.Debug then
+        Lucid._modules.Debug.Log("Lucid Hub initialized successfully")
+    end
+    
+    -- Show welcome notification
+    if Lucid._modules.UI then
+        Lucid._modules.UI.Notify({
+            Title = "Lucid Hub",
+            Content = "Welcome, " .. LocalPlayer.Name .. "!",
+            Duration = 5,
+            Type = "Success"
+        })
+    end
+    
     return true
 end
 
--- Cleanup
-function UI.Cleanup()
-    for _, connection in pairs(UI._connections) do
-        if typeof(connection) == "RBXScriptConnection" then
-            connection:Disconnect()
+-- Public API
+Lucid.GetModule = function(name)
+    return Lucid._modules[name]
+end
+
+Lucid.GetVersion = function()
+    return Lucid._version
+end
+
+Lucid.GetUptime = function()
+    return os.time() - Lucid._startTime
+end
+
+Lucid.Reload = function()
+    -- Cleanup current instance
+    if Lucid._initialized then
+        for _, module in pairs(Lucid._modules) do
+            if type(module.Cleanup) == "function" then
+                pcall(function()
+                    module.Cleanup()
+                end)
+            end
         end
     end
     
-    for _, notification in ipairs(UI._activeNotifications) do
-        safeDestroy(notification.Instance)
-    end
+    -- Reset state
+    Lucid._initialized = false
+    Lucid._modules = {}
+    getgenv().LucidLoaded = false
+    getgenv().LucidState = nil
     
-    UI._connections = {}
-    UI._activeNotifications = {}
-    UI._elements = {}
-    UI._initialized = false
-    
-    Debug.Log("UI system cleaned up")
+    -- Reinitialize
+    return initialize()
 end
 
-return UI
+-- Execute initialization
+local success = pcall(initialize)
+if not success then
+    errorHandler("Failed to initialize Lucid Hub")
+    return false
+end
+
+return Lucid
