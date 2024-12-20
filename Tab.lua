@@ -1,4 +1,6 @@
 -- Tab.lua
+local Debug = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/debug.lua"))()
+
 local success, result = pcall(function()
     if not game:IsLoaded() then
         game.Loaded:Wait()
@@ -7,10 +9,22 @@ local success, result = pcall(function()
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
-    if not getgenv().Fluent then return "Fluent UI library not initialized" end
-    if not getgenv().Functions then return "Functions module not initialized" end
-    if not getgenv().Options then return "Options not initialized" end
-    if not getgenv().Config then return "Config not initialized" end
+    if not getgenv().Fluent then 
+        Debug.Error("Fluent UI library not initialized")
+        return "Fluent UI library not initialized" 
+    end
+    if not getgenv().Functions then 
+        Debug.Error("Functions module not initialized")
+        return "Functions module not initialized" 
+    end
+    if not getgenv().Options then 
+        Debug.Error("Options not initialized")
+        return "Options not initialized" 
+    end
+    if not getgenv().Config then 
+        Debug.Error("Config not initialized")
+        return "Config not initialized" 
+    end
 
     -- Ensure window is created only once
     if not getgenv().LucidWindow then
@@ -21,10 +35,16 @@ local success, result = pcall(function()
             Size = UDim2.fromOffset(580, 460),
             Theme = getgenv().Config.UI.Theme
         })
+        Debug.Log("LucidWindow created successfully.")
+    else
+        Debug.Error("LucidWindow already exists.")
     end
 
     local window = getgenv().LucidWindow
-    if not window then return "Failed to create window" end
+    if not window then 
+        Debug.Error("Failed to create window")
+        return "Failed to create window" 
+    end
 
     if not getgenv().Tabs then
         getgenv().Tabs = {}
@@ -54,6 +74,9 @@ local success, result = pcall(function()
                 Title = tabInfo.Name,
                 Icon = tabInfo.Icon
             })
+            Debug.Log(tabInfo.Name .. " tab created.")
+        else
+            Debug.Error(tabInfo.Name .. " tab already exists.")
         end
     end
 
@@ -70,6 +93,7 @@ local success, result = pcall(function()
             Title = "UI Library",
             Content = "Fluent UI Library by dawid-scripts"
         })
+        Debug.Log("Credits section created.")
     end
 
     -- Setup save manager integration for Items tab
@@ -81,14 +105,16 @@ local success, result = pcall(function()
             "AutoSellEnabled",
             "AutoEquipBestRod"
         })
+        Debug.Log("Save manager integration setup.")
     end
 
     return true
 end)
 
 if not success then
-    warn("Failed to initialize Tab.lua:", result)
+    Debug.Error("Failed to initialize Tab.lua: " .. result)
     return false
 end
 
+Debug.Log("Tab.lua initialized successfully.")
 return result
