@@ -7,8 +7,26 @@ local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("F
 lucidFolder.Name = "Lucid"
 lucidFolder.Parent = ReplicatedStorage
 
+-- Create debug module first
+local debugModule = Instance.new("ModuleScript")
+debugModule.Name = "debug"
+debugModule.Source = [[
+local Debug = {_initialized = false}
+function Debug.Info(msg) print("[LUCID INFO] " .. tostring(msg)) end
+function Debug.Warn(msg) warn("[LUCID WARN] " .. tostring(msg)) end
+function Debug.Error(msg) warn("[LUCID ERROR] " .. tostring(msg)) end
+function Debug.init() Debug._initialized = true return true end
+return Debug
+]]
+debugModule.Parent = lucidFolder
+
 -- Load module from URL
 local function loadModule(name)
+    -- If it's debug module, use the one we created
+    if name == "debug" then
+        return require(debugModule)
+    end
+
     local url = "https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. name .. ".lua"
     
     local success, content = pcall(function()
@@ -39,7 +57,7 @@ end
 -- Initialize Lucid
 local function initLucid()
     -- Load modules in order
-    local Debug = loadModule("debug")
+    local Debug = loadModule("debug") -- This will now work
     if not Debug then return false end
     
     local Utils = loadModule("utils")
