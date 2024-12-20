@@ -1,14 +1,13 @@
 -- loader.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 16:34:06 UTC
+-- Created: 2024-12-20 16:56:53 UTC
 
 local Loader = {
     Version = "1.0.1",
     BaseURL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/",
     Modules = {
         "debug",    -- Debug system must be first
-        "events",   -- Event system
         "utils",    -- Utility functions
         "ui"        -- UI components if you have them
     }
