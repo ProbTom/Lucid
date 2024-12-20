@@ -1,108 +1,39 @@
 -- init.lua
--- Version: 1.0.1
--- Author: ProbTom
--- Created: 2024-12-20 19:46:51 UTC
-
--- Create module container
-local Lucid = {
-    _VERSION = "1.0.1",
-    _AUTHOR = "ProbTom",
-    _DEBUG = true,
-    modules = {}
+local Debug = {
+    Info = function(msg) print("[INFO]", msg) end,
+    Warn = function(msg) warn("[WARN]", msg) end,
+    Error = function(msg) warn("[ERROR]", msg) end
 }
 
--- Initialize global state first
-getgenv().LucidState = {
-    Version = Lucid._VERSION,
-    StartTime = os.time(),
-    Modules = {},
-    Options = {},
-    Config = {Debug = true}
-}
-
--- Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
--- Clean up any existing instance
-local existing = ReplicatedStorage:FindFirstChild("Lucid")
-if existing then existing:Destroy() end
-
--- Create fresh module folder
-local lucidFolder = Instance.new("Folder")
-lucidFolder.Name = "Lucid"
-lucidFolder.Parent = ReplicatedStorage
-
--- Early initialization logger
-local function init_log(msg)
-    print(string.format("[LUCID INIT] %s", tostring(msg)))
-end
-
--- Module loading function
-local function loadModule(name)
-    local success, content = pcall(function()
-        return game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. name .. ".lua")
-    end)
-    
-    if not success then
-        init_log("Failed to fetch module: " .. name)
-        return nil
-    end
-    
+local function createModule(name, source)
     local moduleScript = Instance.new("ModuleScript")
     moduleScript.Name = name
-    moduleScript.Source = content
-    moduleScript.Parent = lucidFolder
-    
+    moduleScript.Source = source
+    moduleScript.Parent = game:GetService("ReplicatedStorage")
     return moduleScript
 end
 
--- Initialize modules in correct order
-local function InitializeLucid()
-    -- Load modules in dependency order
-    local moduleOrder = {"debug", "utils", "ui", "config", "state"}
-    local loadedModules = {}
-    
-    for _, moduleName in ipairs(moduleOrder) do
-        init_log("Loading " .. moduleName)
-        
-        local moduleScript = loadModule(moduleName)
-        if not moduleScript then
-            init_log("Failed to load " .. moduleName)
-            return false
-        end
-        
-        local success, module = pcall(require, moduleScript)
-        if not success then
-            init_log("Failed to require " .. moduleName)
-            return false
-        end
-        
-        loadedModules[moduleName] = module
-        Lucid.modules[moduleName] = module
-    end
-    
-    -- Initialize modules with dependencies
-    for _, moduleName in ipairs(moduleOrder) do
-        local module = loadedModules[moduleName]
-        if module and module.init then
-            local success = module.init(loadedModules)
-            if not success then
-                init_log("Failed to initialize " .. moduleName)
-                return false
-            end
-        end
-    end
-    
-    return true
+-- Create debug module first
+local debugModule = createModule("debug", [[
+local Debug = {_initialized = false}
+function Debug.Info(msg) print("[INFO] " .. tostring(msg)) end
+function Debug.Warn(msg) warn("[WARN] " .. tostring(msg)) end
+function Debug.Error(msg) warn("[ERROR] " .. tostring(msg)) end
+function Debug.init() Debug._initialized = true return true end
+return Debug
+]])
+
+-- Create and load the module
+local success, debug = pcall(require, debugModule)
+if not success then
+    warn("Failed to load debug module:", debug)
+    return
 end
 
--- Run initialization
-if not InitializeLucid() then
-    init_log("⚠️ Failed to initialize Lucid")
-    return false
-end
+getgenv().Lucid = {
+    Debug = debug,
+    Version = "1.0.1"
+}
 
--- Make Lucid available globally
-_G.Lucid = Lucid
-
-return Lucid
+debug.Info("Lucid initialized successfully")
+return true
