@@ -1,235 +1,125 @@
 -- events.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:47:24 UTC
+-- Last Updated: 2024-12-20 14:49:17 UTC
 
-local Events = {}
+-- Create the Events module
+local Events = {
+    _VERSION = "1.0.1",
+    _DESCRIPTION = "Lucid Events System"
+}
 
--- Dependencies (with nil checks)
-local Debug
-local success, err = pcall(function()
-    if not Debug then
-        error("Debug module not loaded")
-    end
-end)
-
-if not success then
-    warn("[LUCID] Events module initialization warning: Debug module not found")
-    -- Provide fallback debug functions
-    Debug = {
-        Info = function(msg) print("[LUCID INFO]", msg) end,
-        Warn = function(msg) warn("[LUCID WARN]", msg) end,
-        Error = function(msg) error("[LUCID ERROR] " .. msg) end,
-        Debug = function(msg) print("[LUCID DEBUG]", msg) end
-    }
+-- Early debug function
+local function eventDebug(msg)
+    print("[LUCID EVENTS]", msg)
 end
 
--- Storage for events with initialization
-local events = {}
-local connections = {}
-local eventHistory = {}
-local MAX_HISTORY = 1000
+-- Initialize storage
+Events._storage = {
+    events = {},
+    connections = {},
+    history = {},
+    maxHistory = 1000
+}
 
--- Event class with error handling
-local Event = {}
-Event.__index = Event
-
-function Event.new(name)
+-- Basic event creation (without dependencies)
+function Events.Create(name)
+    eventDebug("Creating event: " .. tostring(name))
+    
     if type(name) ~= "string" then
-        Debug.Error("Event name must be a string")
+        eventDebug("Error: Event name must be a string")
         return nil
     end
 
-    local self = setmetatable({}, Event)
-    self.Name = name
-    self.Handlers = {}
-    self.LastFired = 0
-    self.FireCount = 0
-    return self
+    if Events._storage.events[name] then
+        eventDebug("Warning: Event already exists: " .. name)
+        return Events._storage.events[name]
+    end
+
+    local event = {
+        name = name,
+        handlers = {},
+        lastFired = 0,
+        fireCount = 0
+    }
+
+    Events._storage.events[name] = event
+    eventDebug("Successfully created event: " .. name)
+    return event
 end
 
 -- Safe event firing
-function Event:Fire(...)
-    if not self or type(self.Handlers) ~= "table" then
-        Debug.Error("Invalid event object")
-        return
+function Events.Fire(name, ...)
+    eventDebug("Attempting to fire event: " .. tostring(name))
+    
+    local event = Events._storage.events[name]
+    if not event then
+        eventDebug("Error: Event not found: " .. tostring(name))
+        return false
     end
 
-    self.LastFired = os.time()
-    self.FireCount = self.FireCount + 1
-    
-    -- Safe history logging
-    pcall(function()
-        table.insert(eventHistory, {
-            name = self.Name,
-            timestamp = self.LastFired,
-            args = {...}
-        })
-        
-        if #eventHistory > MAX_HISTORY then
-            table.remove(eventHistory, 1)
-        end
-    end)
-    
-    -- Safe handler execution
-    for _, handler in ipairs(self.Handlers) do
+    event.lastFired = os.time()
+    event.fireCount = event.fireCount + 1
+
+    for _, handler in ipairs(event.handlers) do
         task.spawn(function()
             local success, err = pcall(handler, ...)
             if not success then
-                Debug.Error(string.format("Error in event handler for '%s': %s", self.Name, err))
+                eventDebug("Handler error: " .. tostring(err))
             end
         end)
     end
-    
-    Debug.Debug(string.format("Event '%s' fired with %d handlers", self.Name, #self.Handlers))
+
+    return true
 end
 
--- Safe connection handling
-function Event:Connect(handler)
+-- Safe event connection
+function Events.Connect(name, handler)
+    eventDebug("Attempting to connect to event: " .. tostring(name))
+    
     if type(handler) ~= "function" then
-        Debug.Error("Event handler must be a function")
+        eventDebug("Error: Handler must be a function")
         return nil
     end
-    
-    -- Ensure Handlers table exists
-    if type(self.Handlers) ~= "table" then
-        self.Handlers = {}
+
+    local event = Events._storage.events[name]
+    if not event then
+        eventDebug("Error: Event not found: " .. tostring(name))
+        return nil
     end
+
+    table.insert(event.handlers, handler)
     
-    table.insert(self.Handlers, handler)
-    
-    local connection = {
+    return {
         Disconnect = function()
-            if type(self.Handlers) ~= "table" then return end
-            for i, h in ipairs(self.Handlers) do
+            for i, h in ipairs(event.handlers) do
                 if h == handler then
-                    table.remove(self.Handlers, i)
+                    table.remove(event.handlers, i)
                     break
                 end
             end
         end
     }
-    
-    -- Safe connection storage
-    pcall(function()
-        table.insert(connections, connection)
-    end)
-    
-    return connection
 end
 
--- Safe event creation
-function Events.Create(name)
-    if type(name) ~= "string" then
-        Debug.Error("Event name must be a string")
-        return nil
-    end
-
-    if events[name] then
-        Debug.Warn(string.format("Event '%s' already exists", name))
-        return events[name]
-    end
-    
-    local event = Event.new(name)
-    if not event then
-        Debug.Error("Failed to create event: " .. name)
-        return nil
-    end
-    
-    events[name] = event
-    Debug.Info(string.format("Created event: %s", name))
-    return event
-end
-
--- Safe event retrieval
-function Events.Get(name)
-    if type(name) ~= "string" then
-        Debug.Error("Event name must be a string")
-        return nil
-    end
-    return events[name]
-end
-
--- Safe event firing
-function Events.Fire(name, ...)
-    if type(name) ~= "string" then
-        Debug.Error("Event name must be a string")
-        return false
-    end
-
-    local event = events[name]
-    if not event then
-        Debug.Warn(string.format("Event '%s' does not exist", name))
-        return false
-    end
-    
-    return pcall(function()
-        event:Fire(...)
-    end)
-end
-
--- Safe event connection
-function Events.Connect(name, handler)
-    if type(name) ~= "string" then
-        Debug.Error("Event name must be a string")
-        return nil
-    end
-
-    local event = events[name]
-    if not event then
-        Debug.Warn(string.format("Event '%s' does not exist", name))
-        return nil
-    end
-    
-    return event:Connect(handler)
-end
-
--- Safe history retrieval
-function Events.GetHistory()
-    return table.clone(eventHistory)
-end
-
--- Safe history clearing
-function Events.ClearHistory()
-    eventHistory = {}
-    Debug.Info("Event history cleared")
-end
-
--- Safe stats retrieval
-function Events.GetStats(name)
-    if type(name) ~= "string" then
-        Debug.Error("Event name must be a string")
-        return nil
-    end
-
-    local event = events[name]
-    if not event then
-        Debug.Warn(string.format("Event '%s' does not exist", name))
-        return nil
-    end
-    
-    return {
-        name = event.Name,
-        handlers = #event.Handlers,
-        lastFired = event.LastFired,
-        fireCount = event.FireCount
-    }
-end
-
--- Initialize module with error handling
+-- Initialize module
 function Events.init(modules)
+    eventDebug("Initializing events module")
+    
     if type(modules) ~= "table" then
-        error("Invalid modules parameter")
+        eventDebug("Error: modules parameter must be a table")
         return false
     end
 
-    Debug = modules.debug
-    if not Debug then
-        error("Debug module is required")
-        return false
+    -- Store debug module if available
+    if modules.debug then
+        Events.debug = modules.debug
+        eventDebug("Debug module connected")
+    else
+        eventDebug("Warning: Debug module not found")
     end
 
-    Debug.Info("Events module initialized")
+    eventDebug("Events module initialized successfully")
     return true
 end
 
