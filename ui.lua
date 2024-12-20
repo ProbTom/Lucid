@@ -1,142 +1,223 @@
 -- ui.lua
 -- Version: 2024.12.20
 -- Author: ProbTom
+-- Last Updated: 2024-12-20 14:31:15
 
 local UI = {
     _version = "1.0.1",
     _initialized = false,
-    _tabs = {},
-    _connections = {}
+    _elements = {},
+    _connections = {},
+    _activeNotifications = {}
 }
 
--- Debug Module (local version)
-local Debug = {
-    Log = function(msg) print("[Lucid UI] " .. tostring(msg)) end,
-    Error = function(msg) warn("[Lucid UI Error] " .. tostring(msg)) end
+local Debug = getgenv().LucidDebug
+
+-- Services
+local Services = {
+    TweenService = game:GetService("TweenService"),
+    UserInputService = game:GetService("UserInputService"),
+    RunService = game:GetService("RunService")
 }
 
--- Protected function call wrapper
-local function protectedCall(func, ...)
-    if type(func) ~= "function" then
-        Debug.Error("Attempted to call a nil value or non-function")
+-- UI Constants
+local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local MAX_NOTIFICATIONS = 5
+local NOTIFICATION_DURATION = 5
+
+-- Utility Functions
+local function createTween(instance, properties)
+    return Services.TweenService:Create(instance, TWEEN_INFO, properties)
+end
+
+local function safeDestroy(instance)
+    if instance and typeof(instance) == "Instance" then
+        pcall(function()
+            instance:Destroy()
+        end)
+    end
+end
+
+-- Notification System
+function UI.Notify(options)
+    options = type(options) == "table" and options or {
+        Title = type(options) == "string" and options or "Notification",
+        Content = type(options) == "string" and options or "",
+        Duration = NOTIFICATION_DURATION,
+        Type = "Info" -- Info, Success, Warning, Error
+    }
+    
+    if #UI._activeNotifications >= MAX_NOTIFICATIONS then
+        local oldest = table.remove(UI._activeNotifications, 1)
+        safeDestroy(oldest.Instance)
+    end
+    
+    if getgenv().LucidWindow then
+        getgenv().LucidWindow:Notify(options)
+    end
+end
+
+-- Tab Management
+function UI.CreateTab(tabConfig)
+    if not getgenv().LucidWindow then
+        Debug.Error("Window not initialized")
         return false
     end
     
-    local success, result = pcall(func, ...)
-    if not success then
-        Debug.Error(result)
+    local tab = getgenv().LucidWindow:AddTab(tabConfig)
+    if not tab then
+        Debug.Error("Failed to create tab: " .. tabConfig.Title)
         return false
     end
-    return true, result
+    
+    UI._elements[tabConfig.Title] = {
+        Tab = tab,
+        Sections = {}
+    }
+    
+    return tab
 end
 
--- Check if UI system is ready
-function UI.IsReady()
-    return getgenv and getgenv().LucidWindow and getgenv().Fluent
-end
-
--- Create a new section
-function UI.CreateSection(tab, name)
-    if not UI.IsReady() or not tab then
-        Debug.Error("Cannot create section - UI not ready or tab not provided")
-        return nil
+-- Section Management
+function UI.CreateSection(tabName, sectionConfig)
+    local tabData = UI._elements[tabName]
+    if not tabData or not tabData.Tab then
+        Debug.Error("Tab not found: " .. tabName)
+        return false
     end
-
-    local success, section = protectedCall(function()
-        return tab:AddSection(name)
-    end)
-
-    if not success then
-        Debug.Error("Failed to create section: " .. tostring(name))
-        return nil
+    
+    local section = tabData.Tab:AddSection(sectionConfig)
+    if not section then
+        Debug.Error("Failed to create section: " .. sectionConfig.Title)
+        return false
     end
-
+    
+    tabData.Sections[sectionConfig.Title] = section
     return section
 end
 
--- Add a toggle to a section
-function UI.AddToggle(section, name, default, callback)
-    if not section then
-        Debug.Error("Cannot add toggle - section not provided")
-        return nil
+-- Element Creation Functions
+function UI.AddToggle(tabName, sectionName, config)
+    local tabData = UI._elements[tabName]
+    if not tabData or not tabData.Sections[sectionName] then
+        Debug.Error("Tab or section not found")
+        return false
     end
-
-    local success, toggle = protectedCall(function()
-        return section:AddToggle({
-            Title = name,
-            Default = default or false,
-            Callback = function(value)
-                if type(callback) == "function" then
-                    protectedCall(callback, value)
-                end
-            end
-        })
-    end)
-
-    if not success then
-        Debug.Error("Failed to create toggle: " .. tostring(name))
-        return nil
-    end
-
-    return toggle
+    
+    local section = tabData.Sections[sectionName]
+    return section:AddToggle(config)
 end
 
--- Add a button to a section
-function UI.AddButton(section, name, callback)
-    if not section then
-        Debug.Error("Cannot add button - section not provided")
-        return nil
+function UI.AddButton(tabName, sectionName, config)
+    local tabData = UI._elements[tabName]
+    if not tabData or not tabData.Sections[sectionName] then
+        Debug.Error("Tab or section not found")
+        return false
     end
-
-    local success, button = protectedCall(function()
-        return section:AddButton({
-            Title = name,
-            Callback = function()
-                if type(callback) == "function" then
-                    protectedCall(callback)
-                end
-            end
-        })
-    end)
-
-    if not success then
-        Debug.Error("Failed to create button: " .. tostring(name))
-        return nil
-    end
-
-    return button
+    
+    local section = tabData.Sections[sectionName]
+    return section:AddButton(config)
 end
 
--- Initialize UI system
+function UI.AddSlider(tabName, sectionName, config)
+    local tabData = UI._elements[tabName]
+    if not tabData or not tabData.Sections[sectionName] then
+        Debug.Error("Tab or section not found")
+        return false
+    end
+    
+    local section = tabData.Sections[sectionName]
+    return section:AddSlider(config)
+end
+
+function UI.AddDropdown(tabName, sectionName, config)
+    local tabData = UI._elements[tabName]
+    if not tabData or not tabData.Sections[sectionName] then
+        Debug.Error("Tab or section not found")
+        return false
+    end
+    
+    local section = tabData.Sections[sectionName]
+    return section:AddDropdown(config)
+end
+
+-- UI State Management
+function UI.SetEnabled(enabled)
+    if getgenv().LucidWindow then
+        if enabled then
+            getgenv().LucidWindow:Show()
+        else
+            getgenv().LucidWindow:Hide()
+        end
+    end
+end
+
+function UI.ToggleVisibility()
+    if getgenv().LucidWindow then
+        getgenv().LucidWindow:Toggle()
+    end
+end
+
+-- Keybind Management
+function UI.SetupKeybinds()
+    Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == getgenv().LucidState.Config.UI.Window.MinimizeKeybind then
+            UI.ToggleVisibility()
+        end
+    end)
+end
+
+-- Initialize UI System
 function UI.Initialize()
     if UI._initialized then
         return true
     end
-
-    if not UI.IsReady() then
-        Debug.Error("UI system not ready for initialization")
-        return false
+    
+    -- Setup keybinds
+    UI.SetupKeybinds()
+    
+    -- Create tabs from config
+    local config = getgenv().LucidState.Config
+    for tabName, tabConfig in pairs(config.UI.Tabs) do
+        local tab = UI.CreateTab({
+            Title = tabConfig.Name,
+            Icon = tabConfig.Icon
+        })
+        
+        if tab and tabConfig.Sections then
+            for sectionName, sectionConfig in pairs(tabConfig.Sections) do
+                UI.CreateSection(tabName, {
+                    Title = sectionConfig.Title
+                })
+            end
+        end
     end
-
+    
     UI._initialized = true
-    Debug.Log("UI system initialized successfully")
+    Debug.Log("UI system initialized")
     return true
 end
 
--- Cleanup function
+-- Cleanup
 function UI.Cleanup()
     for _, connection in pairs(UI._connections) do
         if typeof(connection) == "RBXScriptConnection" then
             connection:Disconnect()
         end
     end
+    
+    for _, notification in ipairs(UI._activeNotifications) do
+        safeDestroy(notification.Instance)
+    end
+    
     UI._connections = {}
-    Debug.Log("UI cleanup completed")
+    UI._activeNotifications = {}
+    UI._elements = {}
+    UI._initialized = false
+    
+    Debug.Log("UI system cleaned up")
 end
-
--- Setup cleanup on teleport
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-    UI.Cleanup()
-end)
 
 return UI
