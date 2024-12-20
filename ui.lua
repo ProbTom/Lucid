@@ -62,31 +62,34 @@ end
 
 -- Create main window and tabs
 function UI.CreateWindow()
-    if not UI._window then
-        UI._window = getgenv().Fluent:CreateWindow({
-            Title = UIConfig.Title,
-            SubTitle = UIConfig.SubTitle,
-            TabWidth = UIConfig.TabWidth,
-            Size = UIConfig.Size,
-            Theme = UIConfig.Theme,
-            MinimizeKeybind = UIConfig.MinimizeKeybind
-        })
-        if UI._window then
-            Debug.Log("UI window created successfully.")
-        else
-            Debug.Error("UI window creation failed.")
-        end
-    else
+    if UI._window then
         Debug.Error("UI window already exists.")
+        return true
     end
-    return UI._window
+
+    UI._window = getgenv().Fluent:CreateWindow({
+        Title = UIConfig.Title,
+        SubTitle = UIConfig.SubTitle,
+        TabWidth = UIConfig.TabWidth,
+        Size = UIConfig.Size,
+        Theme = UIConfig.Theme,
+        MinimizeKeybind = UIConfig.MinimizeKeybind
+    })
+    
+    if UI._window then
+        Debug.Log("UI window created successfully.")
+        return true
+    else
+        Debug.Error("UI window creation failed.")
+        return false
+    end
 end
 
 -- Create main tabs with proper icons
 function UI.CreateTabs()
     if not UI._window then
         Debug.Error("UI window not created. Cannot create tabs.")
-        return
+        return false
     end
 
     -- Main tab with fishing icon
@@ -103,14 +106,14 @@ function UI.CreateTabs()
     })
     Debug.Log("Settings tab created.")
 
-    return UI._tabs
+    return true
 end
 
 -- Create main sections
 function UI.CreateMainSections()
     if not UI._tabs.Main then
         Debug.Error("Main tab not created. Cannot create sections.")
-        return
+        return false
     end
 
     local sections = {}
@@ -155,7 +158,7 @@ function UI.CreateMainSections()
         end
     })
 
-    return sections
+    return true
 end
 
 -- Initialize UI system
@@ -178,9 +181,14 @@ function UI.Initialize()
     end
 
     Debug.Log("Creating UI tabs.")
-    UI.CreateTabs()
+    if not UI.CreateTabs() then
+        return false
+    end
+
     Debug.Log("Creating UI sections.")
-    UI.CreateMainSections()
+    if not UI.CreateMainSections() then
+        return false
+    end
 
     UI._initialized = true
     Debug.Log("UI module initialized successfully.")
