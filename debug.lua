@@ -1,7 +1,7 @@
 -- debug.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 14:53:45 UTC
+-- Created: 2024-12-20 15:06:45 UTC
 
 local Debug = {
     _VERSION = "1.0.1",
@@ -32,7 +32,8 @@ local logHistory = {}
 
 -- Format timestamp
 local function formatTimestamp()
-    return os.date("[%Y-%m-%d %H:%M:%S]")
+    local date = os.date("*t")
+    return string.format("[%02d:%02d:%02d]", date.hour, date.min, date.sec)
 end
 
 -- Format message
@@ -83,7 +84,7 @@ function Debug.Debug(msg)
 end
 
 function Debug.Warn(msg)
-    return log(Debug.LEVELS.WARN, "WARN", msg)
+    return log(Debug.LEVELS.WARN, "WARNING", msg)
 end
 
 function Debug.Error(msg)
@@ -120,44 +121,6 @@ end
 function Debug.ClearHistory()
     logHistory = {}
     Debug.Info("Log history cleared")
-end
-
--- Debug utilities
-function Debug.Trace(...)
-    local args = {...}
-    local trace = ""
-    
-    for i, v in ipairs(args) do
-        if type(v) == "table" then
-            trace = trace .. Debug.TableToString(v, 0)
-        else
-            trace = trace .. tostring(v)
-        end
-        
-        if i < #args then
-            trace = trace .. " "
-        end
-    end
-    
-    return Debug.Debug(trace)
-end
-
-function Debug.TableToString(tbl, depth)
-    if depth > 10 then return "..." end
-    
-    local str = "{"
-    for k, v in pairs(tbl) do
-        local key = type(k) == "string" and k or "[" .. tostring(k) .. "]"
-        str = str .. key .. "="
-        
-        if type(v) == "table" then
-            str = str .. Debug.TableToString(v, (depth or 0) + 1)
-        else
-            str = str .. tostring(v)
-        end
-        str = str .. ", "
-    end
-    return str:sub(1, -3) .. "}"
 end
 
 -- Module initialization
