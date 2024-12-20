@@ -1,23 +1,48 @@
 -- debug.lua
-local Debug = {}
+local Debug = {
+    _initialized = false,
+    _enabled = true
+}
 
--- Ensure methods exist before use
-Debug.Log = function(msg)
-    if type(msg) == "string" then
-        print("[LUCID LOG]:", msg)
+-- Core logging functions
+function Debug.Log(message)
+    if Debug._enabled then
+        print("[LUCID LOG]:", tostring(message))
     end
 end
 
-Debug.Error = function(msg)
-    if type(msg) == "string" then
-        warn("[LUCID ERROR]:", msg)
+function Debug.Error(message)
+    if Debug._enabled then
+        warn("[LUCID ERROR]:", tostring(message))
     end
 end
 
-Debug.Warn = function(msg)
-    if type(msg) == "string" then
-        warn("[LUCID WARN]:", msg)
+function Debug.Warning(message)
+    if Debug._enabled then
+        warn("[LUCID WARNING]:", tostring(message))
     end
 end
+
+-- Enable/Disable debug output
+function Debug.SetEnabled(enabled)
+    Debug._enabled = enabled
+end
+
+-- Initialize debug module
+function Debug.Initialize()
+    if Debug._initialized then
+        return
+    end
+    
+    if getgenv().Config and getgenv().Config.Debug ~= nil then
+        Debug._enabled = getgenv().Config.Debug
+    end
+    
+    Debug._initialized = true
+    Debug.Log("Debug module initialized")
+end
+
+-- Run initialization
+Debug.Initialize()
 
 return Debug
