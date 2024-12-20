@@ -1,240 +1,192 @@
 -- loader.lua
--- Version: 2024.12.20
+-- Version: 1.0.1
 -- Author: ProbTom
--- Last Updated: 2024-12-20
+-- Created: 2024-12-20 14:45:42 UTC
 
-local Loader = {
-    _initialized = false,
-    _connections = {},
-    _version = "1.0.1"
-}
+local Loader = {}
+
+-- Dependencies
+local Debug
+local Config
+local Events
+local Utils
 
 -- Services
-local Services = {
-    ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Players = game:GetService("Players"),
-    RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+-- Constants
+local REPO_URL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
+local MODULE_LOAD_ORDER = {
+    "debug",
+    "config",
+    "state",
+    "events",
+    "ui",
+    "utils"
 }
 
-local LocalPlayer = Services.Players.LocalPlayer
-local Debug = getgenv().LucidDebug
+-- Module cache
+local loadedModules = {}
 
--- Protected Call Function
-local function protectedCall(func, ...)
-    if type(func) ~= "function" then
-        Debug.Error("Protected call failed: not a function")
-        return false
-    end
-    
-    local success, result = pcall(func, ...)
-    if not success then
-        Debug.Error("Protected call failed: " .. tostring(result))
-        return false
-    end
-    
-    return true, result
-end
-
--- Load Fluent UI Library
-local function loadFluentUI()
-    if getgenv().LucidState.UI then
-        return getgenv().LucidState.UI
-    end
-
-    local success, UI = pcall(function()
-        return loadstring(game:HttpGet(getgenv().LucidState.Config.URLs.FluentUI))()
+-- Version checking
+function Loader.CheckVersion()
+    local success, versionData = pcall(function()
+        return Utils.JsonDecode(Utils.HttpGet(REPO_URL .. "version.json"))
     end)
-
-    if not success or not UI then
-        Debug.Error("Failed to load Fluent UI library")
+    
+    if not success then
+        Debug.Error("Failed to check version: " .. tostring(versionData))
         return false
     end
-
-    getgenv().LucidState.UI = UI
-    return UI
+    
+    local currentVersion = Config.Get("Version")
+    if currentVersion ~= versionData.version then
+        Debug.Info(string.format("New version available: %s (current: %s)", versionData.version, currentVersion))
+        return versionData
+    end
+    
+    return true
 end
 
--- Create window (only if none exists)
-local function createWindow()
-    if getgenv().LucidWindow then
-        return getgenv().LucidWindow
+-- Module loading
+function Loader.LoadModule(name)
+    if loadedModules[name] then
+        return loadedModules[name]
     end
-
-    if not getgenv().LucidState.UI then
-        Debug.Error("UI library not loaded")
-        return false
+    
+    local moduleUrl = REPO_URL .. name .. ".lua"
+    local success, moduleContent = pcall(function()
+        return Utils.HttpGet(moduleUrl)
+    end)
+    
+    if not success then
+        Debug.Error(string.format("Failed to load module '%s': %s", name, tostring(moduleContent)))
+        return nil
     end
-
-    local window = getgenv().LucidState.UI:CreateWindow(getgenv().LucidState.Config.UI.Window)
-    if not window then
-        Debug.Error("Failed to create window")
-        return false
+    
+    local moduleFunc, err = loadstring(moduleContent)
+    if not moduleFunc then
+        Debug.Error(string.format("Failed to parse module '%s': %s", name, tostring(err)))
+        return nil
     end
-
-    getgenv().LucidWindow = window
-    return window
+    
+    local module = moduleFunc()
+    loadedModules[name] = module
+    
+    -- Initialize module if it has an init function
+    if type(module.init) == "function" then
+        success, err = pcall(module.init, loadedModules)
+        if not success then
+            Debug.Error(string.format("Failed to initialize module '%s': %s", name, tostring(err)))
+            return nil
+        end
+    end
+    
+    Debug.Info(string.format("Loaded module: %s", name))
+    return module
 end
 
--- Initialize tabs
-local function initializeTabs()
-    local window = getgenv().LucidWindow
-    if not window then return false end
+-- Auto-update functionality
+function Loader.AutoUpdate()
+    local versionData = Loader.CheckVersion()
+    if type(versionData) == "table" then
+        Debug.Info("Starting auto-update process...")
+        
+        -- Backup current configuration
+        local currentConfig = Config.GetAll()
+        
+        -- Reload all modules
+        for _, moduleName in ipairs(MODULE_LOAD_ORDER) do
+            local success = Loader.LoadModule(moduleName)
+            if not success then
+                Debug.Error(string.format("Auto-update failed at module: %s", moduleName))
+                return false
+            end
+        end
+        
+        -- Restore configuration with new defaults
+        Config.Reset()
+        Config.Set("Version", versionData.version)
+        Utils.Merge(Config.GetAll(), currentConfig)
+        
+        Events.Fire("UpdateComplete", versionData)
+        Debug.Info(string.format("Auto-update completed. New version: %s", versionData.version))
+        return true
+    end
+    
+    return false
+end
 
-    getgenv().LucidState.Tabs = {}
-    local tabs = getgenv().LucidState.Config.UI.Tabs
-
-    for tabName, tabConfig in pairs(tabs) do
-        local success, tab = protectedCall(function()
-            return window:AddTab({
-                Title = tabConfig.Name,
-                Icon = tabConfig.Icon
-            })
+-- Module dependency check
+function Loader.CheckDependencies()
+    local missing = {}
+    
+    -- Check for required Roblox services
+    local requiredServices = {
+        "HttpService",
+        "Players",
+        "RunService",
+        "TweenService",
+        "UserInputService"
+    }
+    
+    for _, service in ipairs(requiredServices) do
+        local success = pcall(function()
+            return game:GetService(service)
         end)
-
-        if success and tab then
-            getgenv().LucidState.Tabs[tabName] = tab
-            Debug.Log("Created tab: " .. tabName)
-        else
-            Debug.Error("Failed to create tab: " .. tabName)
-            return false
+        if not success then
+            table.insert(missing, "Service: " .. service)
         end
     end
-
-    return true
-end
-
--- Initialize features
-local function initializeFeatures()
-    local mainTab = getgenv().LucidState.Tabs.Main
-    if not mainTab then
-        Debug.Error("Main tab not found")
-        return false
+    
+    -- Check for required functions
+    local requiredFunctions = {
+        "loadstring",
+        "pcall",
+        "typeof"
+    }
+    
+    for _, func in ipairs(requiredFunctions) do
+        if not _G[func] then
+            table.insert(missing, "Function: " .. func)
+        end
     end
-
-    local section = mainTab:AddSection("Fishing Controls")
-    local features = getgenv().LucidState.Config.Features
-
-    -- Auto Cast
-    section:AddToggle({
-        Title = "Auto Cast",
-        Default = features.AutoCast.Enabled,
-        Callback = function(value)
-            getgenv().LucidState.AutoCasting = value
-            Debug.Log("Auto Cast: " .. tostring(value))
-        end
-    })
-
-    -- Auto Reel
-    section:AddToggle({
-        Title = "Auto Reel",
-        Default = features.AutoReel.Enabled,
-        Callback = function(value)
-            getgenv().LucidState.AutoReeling = value
-            Debug.Log("Auto Reel: " .. tostring(value))
-        end
-    })
-
-    -- Auto Shake
-    section:AddToggle({
-        Title = "Auto Shake",
-        Default = features.AutoShake.Enabled,
-        Callback = function(value)
-            getgenv().LucidState.AutoShaking = value
-            Debug.Log("Auto Shake: " .. tostring(value))
-        end
-    })
-
-    return true
-end
-
--- Initialize credits
-local function initializeCredits()
-    local creditsTab = getgenv().LucidState.Tabs.Credits
-    if not creditsTab then return false end
-
-    local section = creditsTab:AddSection("Credits")
-
-    section:AddParagraph({
-        Title = "Developer",
-        Content = "ProbTom"
-    })
-
-    section:AddParagraph({
-        Title = "UI Library",
-        Content = "Fluent UI Library by dawid-scripts"
-    })
-
-    section:AddParagraph({
-        Title = "Version",
-        Content = Loader._version
-    })
-
-    return true
+    
+    return #missing == 0, missing
 end
 
 -- Initialize loader
 function Loader.Initialize()
-    if Loader._initialized then
-        return true
-    end
-
-    -- Load UI Library
-    if not loadFluentUI() then
-        Debug.Error("Failed to load UI library")
+    -- Check dependencies first
+    local dependenciesOk, missing = Loader.CheckDependencies()
+    if not dependenciesOk then
+        warn("[LUCID] Missing dependencies:")
+        for _, item in ipairs(missing) do
+            warn("  - " .. item)
+        end
         return false
     end
-
-    -- Create window
-    if not createWindow() then
-        Debug.Error("Failed to create window")
-        return false
-    end
-
-    -- Initialize tabs
-    if not initializeTabs() then
-        Debug.Error("Failed to initialize tabs")
-        return false
-    end
-
-    -- Initialize features
-    if not initializeFeatures() then
-        Debug.Error("Failed to initialize features")
-        return false
-    end
-
-    -- Initialize credits
-    if not initializeCredits() then
-        Debug.Error("Failed to initialize credits")
-        return false
-    end
-
-    Loader._initialized = true
-    Debug.Log("Loader initialization complete")
-    return true
-end
-
--- Cleanup function
-function Loader.Cleanup()
-    for _, connection in pairs(Loader._connections) do
-        if typeof(connection) == "RBXScriptConnection" then
-            connection:Disconnect()
+    
+    -- Load modules in order
+    for _, moduleName in ipairs(MODULE_LOAD_ORDER) do
+        local success = Loader.LoadModule(moduleName)
+        if not success then
+            return false
         end
     end
     
-    if getgenv().LucidWindow then
-        pcall(function()
-            getgenv().LucidWindow:Destroy()
-        end)
-        getgenv().LucidWindow = nil
-    end
+    -- Set up auto-update check interval
+    task.spawn(function()
+        while true do
+            task.wait(3600) -- Check every hour
+            if Config.Get("AutoUpdate") then
+                Loader.AutoUpdate()
+            end
+        end
+    end)
     
-    Loader._initialized = false
-    Debug.Log("Loader cleanup complete")
+    Debug.Info("Loader initialized successfully")
+    return true
 end
-
--- Register cleanup on teleport
-LocalPlayer.OnTeleport:Connect(function()
-    Loader.Cleanup()
-end)
 
 return Loader
