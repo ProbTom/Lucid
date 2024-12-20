@@ -1,7 +1,7 @@
 -- ui.lua
 -- Version: 1.0.1
 -- Author: ProbTom
--- Created: 2024-12-20 17:34:28 UTC
+-- Created: 2024-12-20 17:42:54 UTC
 
 local UI = {}
 
@@ -213,7 +213,7 @@ function UI.init(modules)
     
     -- Load FluentUI with improved error handling
     local function loadFluentUI()
-        local url = "https://raw.githubusercontent.com/dawid-scripts/Fluent/main/main.lua"
+        local url = "https://github.com/dawid-scripts/Fluent/releases/download/1.1.0/main.lua"
         Debug.Info("Attempting to load FluentUI from: " .. url)
         
         local success, content = pcall(function()
@@ -241,6 +241,7 @@ function UI.init(modules)
         return result
     end
     
+    -- Initialize FluentUI
     local result = loadFluentUI()
     if not result then
         return false
