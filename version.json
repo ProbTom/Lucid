@@ -1,0 +1,42 @@
+{
+    "version": "1.0.1",
+    "lastUpdated": "2024-12-20 14:37:26",
+    "author": "ProbTom",
+    "changelog": {
+        "1.0.1": {
+            "date": "2024-12-20",
+            "changes": [
+                "Initial release",
+                "Added comprehensive UI system",
+                "Implemented state management",
+                "Added event handling",
+                "Included performance monitoring",
+                "Added anti-cheat protection"
+            ]
+        }
+    },
+    "modules": {
+        "debug.lua": "1.0.1",
+        "config.lua": "1.0.1",
+        "state.lua": "1.0.1",
+        "events.lua": "1.0.1",
+        "ui.lua": "1.0.1",
+        "utils.lua": "1.0.1",
+        "loader.lua": "1.0.1",
+        "main.lua": "1.0.1"
+    },
+    "required": [
+        "debug.lua",
+        "config.lua",
+        "state.lua",
+        "events.lua",
+        "ui.lua",
+        "utils.lua",
+        "loader.lua",
+        "main.lua"
+    ],
+    "optional": [],
+    "dependencies": {
+        "FluentUI": "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
+    }
+}
