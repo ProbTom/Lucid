@@ -1,86 +1,77 @@
 -- debug.lua
--- Version: 1.0.1
--- Author: ProbTom
--- Created: 2024-12-20 19:46:51 UTC
-
 local Debug = {
-    _VERSION = "1.0.1",
+    _VERSION = "1.1.0",
     _initialized = false,
-    _logHistory = {},
-    _maxHistory = 1000
+    LastUpdated = "2024-12-21"
 }
 
--- Log levels with emojis
+-- Dependencies
+local WindUI
+
+-- Constants
 local LOG_LEVELS = {
-    INFO = {color = "⚪"},
-    DEBUG = {color = "🔵"},
-    WARN = {color = "🟡"},
-    ERROR = {color = "🔴"},
-    FATAL = {color = "⛔"}
+    INFO = "INFO",
+    WARN = "WARN",
+    ERROR = "ERROR",
+    DEBUG = "DEBUG"
 }
 
--- Basic logging function
-function Debug.log(level, msg)
-    local timestamp = os.date("!%Y-%m-%d %H:%M:%S")
-    local logLevel = LOG_LEVELS[level] or LOG_LEVELS.INFO
-    
-    -- Create log entry
-    local logEntry = {
-        timestamp = timestamp,
-        level = level,
-        message = tostring(msg)
-    }
-    
-    -- Store in history
-    table.insert(Debug._logHistory, logEntry)
-    if #Debug._logHistory > Debug._maxHistory then
-        table.remove(Debug._logHistory, 1)
-    end
-    
-    -- Print with color
-    print(string.format("%s %s [LUCID %s] %s", 
-        logLevel.color,
-        timestamp,
-        level,
-        tostring(msg)
-    ))
-    
-    return true
-end
+local LOG_COLORS = {
+    INFO = Color3.fromRGB(114, 255, 114),
+    WARN = Color3.fromRGB(255, 255, 114),
+    ERROR = Color3.fromRGB(255, 114, 114),
+    DEBUG = Color3.fromRGB(114, 114, 255)
+}
 
--- Convenience methods
-function Debug.Info(msg) return Debug.log("INFO", msg) end
-function Debug.Warn(msg) return Debug.log("WARN", msg) end
-function Debug.Error(msg) return Debug.log("ERROR", msg) end
-function Debug.Fatal(msg) return Debug.log("FATAL", msg) end
-
--- Get log history
-function Debug.GetLogs(level)
-    if not level then
-        return Debug._logHistory
-    end
+function Debug.init(deps)
+    if Debug._initialized then return end
     
-    return table.filter(Debug._logHistory, function(entry)
-        return entry.level == level
-    end)
-end
-
--- Clear logs
-function Debug.ClearLogs()
-    Debug._logHistory = {}
-    Debug.Info("Log history cleared")
-    return true
-end
-
--- Initialize module
-function Debug.init()
-    if Debug._initialized then
-        return true
-    end
-    
+    WindUI = deps.windui
     Debug._initialized = true
-    Debug.Info("Debug module initialized")
     return true
+end
+
+local function formatMessage(level, message)
+    local timestamp = os.date("%H:%M:%S")
+    return string.format("[LUCID %s] [%s] %s", level, timestamp, tostring(message))
+end
+
+function Debug.Log(level, message, notify)
+    local formatted = formatMessage(level, message)
+    
+    if level == LOG_LEVELS.ERROR then
+        error(formatted)
+    elseif level == LOG_LEVELS.WARN then
+        warn(formatted)
+    else
+        print(formatted)
+    end
+    
+    if notify and WindUI then
+        WindUI:Notify({
+            Title = level,
+            Content = tostring(message),
+            Duration = level == LOG_LEVELS.ERROR and 10 or 5
+        })
+    end
+end
+
+function Debug.Info(message, notify)
+    Debug.Log(LOG_LEVELS.INFO, message, notify)
+end
+
+function Debug.Warn(message, notify)
+    Debug.Log(LOG_LEVELS.WARN, message, notify)
+end
+
+function Debug.Error(message, notify)
+    Debug.Log(LOG_LEVELS.ERROR, message, notify)
+end
+
+function Debug.Debug(message)
+    if game:GetService("RunService"):IsStudio() then
+        Debug.Log(LOG_LEVELS.DEBUG, message, false)
+    end
 end
 
 return Debug
