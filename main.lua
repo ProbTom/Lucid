@@ -1,122 +1,167 @@
 -- main.lua
-local Lucid = {
-    Name = "Lucid Hub",
-    Version = "1.1.0",
-    WindUIVersion = "1.0.0",
-    Author = "ProbTom",
-    LastUpdated = "2024-12-21"
-}
+local function LoadLucid()
+    -- First load and verify WindUI
+    local success, WindUI = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    end)
 
--- First, ensure WindUI is loaded
-local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-if not WindUI then
-    warn("Failed to load WindUI")
-    return
-end
-
--- Create global environment
-getgenv().Lucid = Lucid
-getgenv().WindUI = WindUI
-
--- Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
-
--- Create Lucid folder in ReplicatedStorage
-local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("Folder")
-lucidFolder.Name = "Lucid"
-lucidFolder.Parent = ReplicatedStorage
-
--- Load core modules
-local success, error = pcall(function()
-    -- Load loader first
-    local Loader = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
-    if not Loader then
-        error("Failed to load Lucid loader")
-        return
+    if not success or not WindUI then
+        warn("Failed to load WindUI:", WindUI)
+        return false
     end
 
-    -- Initialize modules with dependencies
-    Lucid.Debug = Loader.load("debug")
-    if not Lucid.Debug then error("Failed to load Debug module") end
-    Lucid.Debug.init({windui = WindUI})
+    -- Create base environment
+    local Lucid = {
+        Name = "Lucid Hub",
+        Version = "1.1.0",
+        WindUIVersion = "1.0.0",
+        Author = "ProbTom",
+        LastUpdated = "2024-12-21"
+    }
 
-    Lucid.Utils = Loader.load("utils")
-    if not Lucid.Utils then error("Failed to load Utils module") end
-    Lucid.Utils.init({windui = WindUI, debug = Lucid.Debug})
+    -- Set up global access
+    getgenv().Lucid = Lucid
+    getgenv().WindUI = WindUI
 
-    Lucid.Functions = Loader.load("functions")
-    if not Lucid.Functions then error("Failed to load Functions module") end
-    Lucid.Functions.init({windui = WindUI, debug = Lucid.Debug, utils = Lucid.Utils})
+    -- Load loader with proper error handling
+    local Loader = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
+    if not Loader then
+        warn("Failed to load Lucid loader")
+        return false
+    end
 
-    Lucid.Options = Loader.load("options")
-    if not Lucid.Options then error("Failed to load Options module") end
-    Lucid.Options.init({windui = WindUI, debug = Lucid.Debug, utils = Lucid.Utils, functions = Lucid.Functions})
+    -- Verify WindUI is properly loaded
+    if not WindUI.CreateWindow then
+        warn("WindUI not properly initialized")
+        return false
+    end
 
-    Lucid.UI = Loader.load("ui")
-    if not Lucid.UI then error("Failed to load UI module") end
-    Lucid.UI.init({windui = WindUI, debug = Lucid.Debug, utils = Lucid.Utils, functions = Lucid.Functions})
+    -- Initialize base window first
+    local MainWindow = WindUI:CreateWindow({
+        Title = "Lucid Hub",
+        Icon = "rbxassetid://7733960981", -- Fishing icon
+        Theme = "Dark",
+        SaveConfig = true,
+        ConfigFolder = "LucidHub"
+    })
 
-    -- Create default settings if they don't exist
+    if not MainWindow then
+        warn("Failed to create main window")
+        return false
+    end
+
+    -- Load core modules with proper dependency injection
+    local modules = {
+        Debug = Loader.load("debug"),
+        Utils = Loader.load("utils"),
+        Functions = Loader.load("functions"),
+        Options = Loader.load("options"),
+        UI = Loader.load("ui")
+    }
+
+    -- Verify all modules loaded
+    for name, module in pairs(modules) do
+        if not module then
+            warn("Failed to load module:", name)
+            return false
+        end
+    end
+
+    -- Initialize modules in correct order with proper dependencies
+    local initSuccess = pcall(function()
+        modules.Debug.init({
+            windui = WindUI,
+            window = MainWindow
+        })
+
+        modules.Utils.init({
+            windui = WindUI,
+            window = MainWindow,
+            debug = modules.Debug
+        })
+
+        modules.Functions.init({
+            windui = WindUI,
+            window = MainWindow,
+            debug = modules.Debug,
+            utils = modules.Utils
+        })
+
+        modules.Options.init({
+            windui = WindUI,
+            window = MainWindow,
+            debug = modules.Debug,
+            utils = modules.Utils,
+            functions = modules.Functions
+        })
+
+        modules.UI.init({
+            windui = WindUI,
+            window = MainWindow,
+            debug = modules.Debug,
+            utils = modules.Utils,
+            functions = modules.Functions
+        })
+    end)
+
+    if not initSuccess then
+        warn("Failed to initialize modules")
+        return false
+    end
+
+    -- Merge modules into Lucid environment
+    for name, module in pairs(modules) do
+        Lucid[name] = module
+    end
+
+    -- Create settings system
     if not isfolder("LucidHub") then
         makefolder("LucidHub")
     end
 
-    -- Load or create settings
+    -- Settings management
     local function loadSettings()
         if isfile("LucidHub/settings.json") then
             local success, settings = pcall(function()
-                return HttpService:JSONDecode(readfile("LucidHub/settings.json"))
+                return game:GetService("HttpService"):JSONDecode(readfile("LucidHub/settings.json"))
             end)
             if success and settings then
                 return settings
             end
         end
-        return Lucid.Options.getDefaultSettings()
+        return modules.Options.getDefaultSettings()
     end
 
-    -- Initialize settings
     getgenv().Settings = loadSettings()
 
-    -- Start auto-save loop
+    -- Auto-save settings
     spawn(function()
         while wait(30) do
             if getgenv().Settings then
-                writefile("LucidHub/settings.json", HttpService:JSONEncode(getgenv().Settings))
+                writefile("LucidHub/settings.json", game:GetService("HttpService"):JSONEncode(getgenv().Settings))
             end
         end
     end)
 
-    -- Log successful initialization
-    Lucid.Debug.Info("Lucid Hub v" .. Lucid.Version .. " loaded successfully!", true)
-end)
+    -- Version checker
+    spawn(function()
+        local success, latestVersion = pcall(function()
+            return game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/version.txt")
+        end)
+        
+        if success and latestVersion ~= Lucid.Version then
+            modules.Debug.Info("Update available: v" .. latestVersion, true)
+        end
+    end)
 
-if not success then
-    warn("Failed to initialize Lucid:", error)
-    if WindUI then
-        WindUI:Notify({
-            Title = "Initialization Error",
-            Content = tostring(error),
-            Duration = 10
-        })
-    end
+    modules.Debug.Info("Lucid Hub v" .. Lucid.Version .. " loaded successfully!", true)
+    return true
 end
 
--- Version check
-spawn(function()
-    local success, latestVersion = pcall(function()
-        return game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/version.txt")
-    end)
-    
-    if success and latestVersion ~= Lucid.Version then
-        if WindUI then
-            WindUI:Notify({
-                Title = "Update Available",
-                Content = "A new version of Lucid Hub is available: " .. latestVersion,
-                Duration = 10
-            })
-        end
-    end
-end)
+-- Execute with error handling
+local success, result = pcall(LoadLucid)
+if not success then
+    warn("Critical error loading Lucid:", result)
+end
 
-return Lucid
+return getgenv().Lucid
