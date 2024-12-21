@@ -1,16 +1,6 @@
 -- main.lua
 local function LoadLucid()
-    -- First load and verify WindUI
-    local success, WindUI = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-    end)
-
-    if not success or not WindUI then
-        warn("Failed to load WindUI:", WindUI)
-        return false
-    end
-
-    -- Create base environment
+    -- Create base environment first
     local Lucid = {
         Name = "Lucid Hub",
         Version = "1.1.0",
@@ -19,107 +9,143 @@ local function LoadLucid()
         LastUpdated = "2024-12-21"
     }
 
-    -- Set up global access
+    -- Set up global access early
     getgenv().Lucid = Lucid
-    getgenv().WindUI = WindUI
 
-    -- Load loader with proper error handling
-    local Loader = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
-    if not Loader then
-        warn("Failed to load Lucid loader")
+    -- Load WindUI with proper error handling
+    local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    if not WindUI then
+        warn("[Lucid] Failed to load WindUI")
         return false
     end
 
-    -- Verify WindUI is properly loaded
-    if not WindUI.CreateWindow then
-        warn("WindUI not properly initialized")
-        return false
-    end
-
-    -- Initialize base window first
+    -- Create window immediately after WindUI loads
     local MainWindow = WindUI:CreateWindow({
-        Title = "Lucid Hub",
-        Icon = "rbxassetid://7733960981", -- Fishing icon
-        Theme = "Dark",
-        SaveConfig = true,
-        ConfigFolder = "LucidHub"
+        Name = "Lucid Hub",
+        LoadingTitle = "Lucid Hub",
+        LoadingSubtitle = "by ProbTom",
+        ConfigurationSaving = {
+            Enabled = true,
+            FolderName = "LucidHub",
+            FileName = "LucidHub_Settings"
+        },
+        KeySystem = false
     })
 
     if not MainWindow then
-        warn("Failed to create main window")
+        warn("[Lucid] Failed to create main window")
         return false
     end
 
-    -- Load core modules with proper dependency injection
-    local modules = {
-        Debug = Loader.load("debug"),
-        Utils = Loader.load("utils"),
-        Functions = Loader.load("functions"),
-        Options = Loader.load("options"),
-        UI = Loader.load("ui")
-    }
+    -- Store these in the environment
+    Lucid.WindUI = WindUI
+    Lucid.MainWindow = MainWindow
 
-    -- Verify all modules loaded
-    for name, module in pairs(modules) do
-        if not module then
-            warn("Failed to load module:", name)
-            return false
-        end
-    end
-
-    -- Initialize modules in correct order with proper dependencies
-    local initSuccess = pcall(function()
-        modules.Debug.init({
-            windui = WindUI,
-            window = MainWindow
-        })
-
-        modules.Utils.init({
-            windui = WindUI,
-            window = MainWindow,
-            debug = modules.Debug
-        })
-
-        modules.Functions.init({
-            windui = WindUI,
-            window = MainWindow,
-            debug = modules.Debug,
-            utils = modules.Utils
-        })
-
-        modules.Options.init({
-            windui = WindUI,
-            window = MainWindow,
-            debug = modules.Debug,
-            utils = modules.Utils,
-            functions = modules.Functions
-        })
-
-        modules.UI.init({
-            windui = WindUI,
-            window = MainWindow,
-            debug = modules.Debug,
-            utils = modules.Utils,
-            functions = modules.Functions
-        })
+    -- Load loader with error handling
+    local success, Loader = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
     end)
 
-    if not initSuccess then
-        warn("Failed to initialize modules")
+    if not success or not Loader then
+        warn("[Lucid] Failed to load loader:", Loader)
         return false
     end
 
-    -- Merge modules into Lucid environment
-    for name, module in pairs(modules) do
-        Lucid[name] = module
+    -- Initialize core modules with proper dependency injection
+    local modules = {
+        Debug = {
+            module = Loader.load("debug"),
+            deps = {windui = WindUI, window = MainWindow}
+        },
+        Utils = {
+            module = nil,
+            deps = nil
+        },
+        Functions = {
+            module = nil,
+            deps = nil
+        },
+        Options = {
+            module = nil,
+            deps = nil
+        },
+        UI = {
+            module = nil,
+            deps = nil
+        }
+    }
+
+    -- Load Debug first
+    if not modules.Debug.module then
+        warn("[Lucid] Failed to load Debug module")
+        return false
     end
 
-    -- Create settings system
+    -- Initialize Debug
+    local Debug = modules.Debug.module
+    Debug.init(modules.Debug.deps)
+
+    -- Now load remaining modules in order
+    modules.Utils.module = Loader.load("utils")
+    modules.Utils.deps = {
+        windui = WindUI,
+        window = MainWindow,
+        debug = Debug
+    }
+
+    modules.Functions.module = Loader.load("functions")
+    modules.Functions.deps = {
+        windui = WindUI,
+        window = MainWindow,
+        debug = Debug,
+        utils = modules.Utils.module
+    }
+
+    modules.Options.module = Loader.load("options")
+    modules.Options.deps = {
+        windui = WindUI,
+        window = MainWindow,
+        debug = Debug,
+        utils = modules.Utils.module,
+        functions = modules.Functions.module
+    }
+
+    modules.UI.module = Loader.load("ui")
+    modules.UI.deps = {
+        windui = WindUI,
+        window = MainWindow,
+        debug = Debug,
+        utils = modules.Utils.module,
+        functions = modules.Functions.module,
+        options = modules.Options.module
+    }
+
+    -- Initialize each module in sequence
+    for name, data in pairs(modules) do
+        if not data.module then
+            Debug.Error("Failed to load " .. name .. " module")
+            return false
+        end
+
+        local success = pcall(function()
+            data.module.init(data.deps)
+        end)
+
+        if not success then
+            Debug.Error("Failed to initialize " .. name .. " module")
+            return false
+        end
+
+        -- Store initialized module in Lucid environment
+        Lucid[name] = data.module
+    end
+
+    -- Create settings handler
     if not isfolder("LucidHub") then
         makefolder("LucidHub")
     end
 
-    -- Settings management
+    -- Load or create settings
     local function loadSettings()
         if isfile("LucidHub/settings.json") then
             local success, settings = pcall(function()
@@ -129,7 +155,7 @@ local function LoadLucid()
                 return settings
             end
         end
-        return modules.Options.getDefaultSettings()
+        return Lucid.Options.getDefaultSettings()
     end
 
     getgenv().Settings = loadSettings()
@@ -143,25 +169,14 @@ local function LoadLucid()
         end
     end)
 
-    -- Version checker
-    spawn(function()
-        local success, latestVersion = pcall(function()
-            return game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/version.txt")
-        end)
-        
-        if success and latestVersion ~= Lucid.Version then
-            modules.Debug.Info("Update available: v" .. latestVersion, true)
-        end
-    end)
-
-    modules.Debug.Info("Lucid Hub v" .. Lucid.Version .. " loaded successfully!", true)
+    Debug.Info("Lucid Hub v" .. Lucid.Version .. " loaded successfully!")
     return true
 end
 
 -- Execute with error handling
-local success, result = pcall(LoadLucid)
+local success = pcall(LoadLucid)
 if not success then
-    warn("Critical error loading Lucid:", result)
+    warn("[Lucid] Critical error during initialization")
 end
 
 return getgenv().Lucid
