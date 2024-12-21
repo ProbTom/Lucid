@@ -11,134 +11,110 @@ local function LoadLucid()
         Initialized = false
     }
 
-    -- Create Window Library
-    local Window = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/source.lua"))()
+    -- Load the correct WindUI Library
+    local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wind'))()
 
-    if not Window then
-        warn("[Lucid] Failed to load Window Library")
+    if not Library then
+        warn("[Lucid] Failed to load Library")
         return false
-    end
+    }
 
-    -- Create main window
-    local MainWindow = Window:Create({
-        Name = "Lucid Hub",
-        Theme = "Dark",
-        Size = UDim2.new(0, 555, 0, 400)
-    })
+    -- Create Window with correct API
+    local MainWindow = Library.CreateLib("Lucid Hub", "Ocean")
 
-    -- Create Tabs
-    local MainTab = MainWindow:Tab("Main", "rbxassetid://7733960981")
-    local ItemsTab = MainWindow:Tab("Items", "rbxassetid://7734053495")
-    local SettingsTab = MainWindow:Tab("Settings", "rbxassetid://7734039272")
+    -- Create Tabs using correct API
+    local MainTab = MainWindow:NewTab("Main")
+    local MainSection = MainTab:NewSection("Fishing")
 
-    -- Initialize sections
-    local FishingSection = MainTab:Section("Fishing")
-    
-    -- Add toggles
-    FishingSection:Toggle({
-        Name = "Auto Fish",
-        Default = false,
-        Flag = "AutoFish",
-        Callback = function(Value)
-            print("Auto Fish:", Value)
-        end
-    })
+    -- Add toggles with correct API
+    MainSection:NewToggle("Auto Fish", "Toggles auto fishing", function(state)
+        getgenv().Settings.AutoFish = state
+    end)
 
-    FishingSection:Toggle({
-        Name = "Auto Reel",
-        Default = false,
-        Flag = "AutoReel",
-        Callback = function(Value)
-            print("Auto Reel:", Value)
-        end
-    })
+    MainSection:NewToggle("Auto Reel", "Toggles auto reeling", function(state)
+        getgenv().Settings.AutoReel = state
+    end)
 
-    -- Add dropdowns
-    FishingSection:Dropdown({
-        Name = "Cast Mode",
-        Default = "Legit",
-        Options = {"Legit", "Semi-Legit", "Instant"},
-        Flag = "CastMode",
-        Callback = function(Value)
-            print("Cast Mode:", Value)
-        end
-    })
+    MainSection:NewToggle("Auto Shake", "Toggles auto shaking", function(state)
+        getgenv().Settings.AutoShake = state
+    end)
+
+    MainSection:NewDropdown("Cast Mode", "Select casting mode", {"Legit", "Semi-Legit", "Instant"}, function(currentOption)
+        getgenv().Settings.CastMode = currentOption
+    end)
 
     -- Items Tab
-    local ChestSection = ItemsTab:Section("Chest Collector")
-    
-    ChestSection:Toggle({
-        Name = "Enable Chest Collector",
-        Default = false,
-        Flag = "ChestCollector",
-        Callback = function(Value)
-            print("Chest Collector:", Value)
-        end
-    })
+    local ItemsTab = MainWindow:NewTab("Items")
+    local ChestSection = ItemsTab:NewSection("Chest Collector")
 
-    ChestSection:Slider({
-        Name = "Collection Range",
-        Default = 50,
-        Min = 10,
-        Max = 100,
-        Increment = 5,
-        Flag = "ChestRange",
-        Callback = function(Value)
-            print("Chest Range:", Value)
-        end
-    })
+    ChestSection:NewToggle("Enable Chest Collector", "Toggles chest collector", function(state)
+        getgenv().Settings.Items.ChestCollector.Enabled = state
+    end)
+
+    ChestSection:NewSlider("Collection Range", "Adjust collection range", 100, 10, function(value)
+        getgenv().Settings.Items.ChestCollector.Range = value
+    end)
 
     -- Settings Tab
-    local SettingsSection = SettingsTab:Section("Settings")
+    local SettingsTab = MainWindow:NewTab("Settings")
+    local SettingsSection = SettingsTab:NewSection("Settings")
 
-    SettingsSection:Dropdown({
-        Name = "Theme",
-        Default = "Dark",
-        Options = {"Light", "Dark", "Mocha", "Aqua"},
-        Flag = "Theme",
-        Callback = function(Value)
-            MainWindow:ChangeTheme(Value)
-        end
-    })
+    SettingsSection:NewKeybind("Toggle UI", "Toggle the UI visibility", Enum.KeyCode.RightControl, function()
+        Library:ToggleUI()
+    end)
 
-    SettingsSection:Button({
-        Name = "Save Settings",
-        Callback = function()
-            local settings = Window:GetSettings()
-            writefile("LucidHub/settings.json", HttpService:JSONEncode(settings))
-        end
-    })
+    -- Initialize settings
+    getgenv().Settings = {
+        AutoFish = false,
+        AutoReel = false,
+        AutoShake = false,
+        CastMode = "Legit",
+        Items = {
+            ChestCollector = {
+                Enabled = false,
+                Range = 50
+            },
+            AutoSell = {
+                Enabled = false,
+                Rarities = {}
+            }
+        }
+    }
 
-    -- Initialize settings folder
+    -- Create settings folder
     if not isfolder("LucidHub") then
         makefolder("LucidHub")
     end
 
     -- Load settings if they exist
     if isfile("LucidHub/settings.json") then
-        local success, settings = pcall(function()
+        local success, loadedSettings = pcall(function()
             return HttpService:JSONDecode(readfile("LucidHub/settings.json"))
         end)
-        if success and settings then
-            Window:LoadSettings(settings)
+        if success and loadedSettings then
+            getgenv().Settings = loadedSettings
         end
     end
 
     -- Auto-save settings
     spawn(function()
         while wait(30) do
-            local settings = Window:GetSettings()
-            writefile("LucidHub/settings.json", HttpService:JSONEncode(settings))
+            if getgenv().Settings then
+                pcall(function()
+                    writefile("LucidHub/settings.json", 
+                        HttpService:JSONEncode(getgenv().Settings)
+                    )
+                end)
+            end
         end
     end)
 
-    -- Store in global environment
-    getgenv().Lucid = Lucid
-    getgenv().Window = Window
-    
-    Lucid.Window = Window
+    -- Store references
+    Lucid.Library = Library
     Lucid.MainWindow = MainWindow
     Lucid.Initialized = true
+
+    getgenv().Lucid = Lucid
 
     return true
 end
