@@ -1,181 +1,293 @@
 -- ui.lua
--- Version: 1.0.1
--- Author: ProbTom
--- Created: 2024-12-20 19:49:16 UTC
-
 local UI = {
-    _VERSION = "1.0.1",
+    _VERSION = "1.1.0",
     _initialized = false,
-    _windows = {},
-    _tabs = {},
-    _elements = {}
+    LastUpdated = "2024-12-21"
 }
 
 -- Dependencies
+local WindUI
 local Debug
 local Utils
+local Functions
 
 -- Services
-local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
--- Constants
-local UI_CONFIG = {
-    DEFAULT_WINDOW_SIZE = UDim2.new(0, 600, 0, 400),
-    DEFAULT_WINDOW_POSITION = UDim2.new(0.5, -300, 0.5, -200),
-    DEFAULT_TAB_WIDTH = 160,
-    DEFAULT_ANIMATION_DURATION = 0.3
+-- UI Elements Storage
+UI.Elements = {
+    Window = nil,
+    Tabs = {},
+    Controls = {},
+    Stats = {}
 }
 
--- Create window
-function UI.CreateWindow(options)
-    options = options or {}
-    local window = {
-        Title = options.Title or "Lucid",
-        SubTitle = options.SubTitle or UI._VERSION,
-        Size = options.Size or UI_CONFIG.DEFAULT_WINDOW_SIZE,
-        Position = options.Position or UI_CONFIG.DEFAULT_WINDOW_POSITION,
-        Tabs = {}
-    }
+function UI.init(deps)
+    if UI._initialized then return end
     
-    -- Create window UI elements here
-    -- Using a protected call to load the UI library
-    local success, Fluent = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Fluent.txt"))()
-    end)
-    
-    if not success then
-        Debug.Error("Failed to load UI library")
-        return nil
-    end
-    
-    -- Create window using Fluent
-    local WindowInstance = Fluent:CreateWindow({
-        Title = window.Title,
-        SubTitle = window.SubTitle,
-        TabWidth = UI_CONFIG.DEFAULT_TAB_WIDTH,
-        Size = window.Size,
-        Position = window.Position,
+    WindUI = deps.windui or error("WindUI dependency missing")
+    Debug = deps.debug or error("Debug dependency missing")
+    Utils = deps.utils or error("Utils dependency missing")
+    Functions = deps.functions or error("Functions dependency missing")
+
+    -- Create main window
+    UI.Elements.Window = WindUI:CreateWindow({
+        Title = "Lucid Hub",
+        Icon = "fish", -- Fishing theme icon
+        Author = "ProbTom",
         Theme = "Dark",
-        Enabled = true
+        Folder = "LucidHub"
     })
-    
-    window.Instance = WindowInstance
-    table.insert(UI._windows, window)
-    
-    Debug.Info("Created window: " .. window.Title)
-    return WindowInstance
+
+    -- Initialize UI components
+    UI:InitMainTab()
+    UI:InitItemsTab()
+    UI:InitSettingsTab()
+
+    -- Set up window handlers
+    UI:SetupWindowHandlers()
+
+    UI._initialized = true
+    Debug.Info("UI System Initialized")
+    return true
 end
 
--- Create tab
-function UI.CreateTab(window, options)
-    options = options or {}
-    
-    if not window then
-        Debug.Error("Window is required to create tab")
-        return nil
-    end
-    
-    local tab = window:CreateTab({
-        Title = options.Title or "New Tab",
-        Icon = options.Icon or ""
+function UI:InitMainTab()
+    local MainTab = UI.Elements.Window:Tab({
+        Title = "Fishing",
+        Icon = "fish"
     })
-    
-    table.insert(UI._tabs, tab)
-    Debug.Info("Created tab: " .. options.Title)
-    return tab
-end
+    UI.Elements.Tabs.Main = MainTab
 
--- Create button
-function UI.CreateButton(tab, options)
-    options = options or {}
-    
-    if not tab then
-        Debug.Error("Tab is required to create button")
-        return nil
-    end
-    
-    local button = tab:CreateButton({
-        Title = options.Title or "Button",
-        Description = options.Description,
-        Callback = function()
-            if type(options.Callback) == "function" then
-                Utils.SafeCall(options.Callback)
-            end
-        end
+    -- Fishing Controls Section
+    local FishingSection = MainTab:Section({
+        Title = "Fishing Controls"
     })
-    
-    table.insert(UI._elements, button)
-    return button
-end
 
--- Create toggle
-function UI.CreateToggle(tab, options)
-    options = options or {}
-    
-    if not tab then
-        Debug.Error("Tab is required to create toggle")
-        return nil
-    end
-    
-    local toggle = tab:CreateToggle({
-        Title = options.Title or "Toggle",
-        Description = options.Description,
-        Default = options.Default or false,
+    -- Auto Fish Toggle
+    UI.Elements.Controls.AutoFish = FishingSection:Toggle({
+        Title = "Auto Fish",
+        Value = false,
         Callback = function(value)
-            if type(options.Callback) == "function" then
-                Utils.SafeCall(options.Callback, value)
-            end
+            Functions.ToggleAutoFish(value)
         end
     })
-    
-    table.insert(UI._elements, toggle)
-    return toggle
+
+    -- Auto Reel Toggle
+    UI.Elements.Controls.AutoReel = FishingSection:Toggle({
+        Title = "Auto Reel",
+        Value = false,
+        Callback = function(value)
+            Functions.ToggleAutoReel(value)
+        end
+    })
+
+    -- Auto Shake Toggle
+    UI.Elements.Controls.AutoShake = FishingSection:Toggle({
+        Title = "Auto Shake",
+        Value = false,
+        Callback = function(value)
+            Functions.ToggleAutoShake(value)
+        end
+    })
+
+    -- Cast Mode Dropdown
+    UI.Elements.Controls.CastMode = FishingSection:Dropdown({
+        Title = "Cast Mode",
+        Values = {"Legit", "Instant"},
+        Default = "Legit",
+        Callback = function(value)
+            getgenv().Options.CastMode = value
+        end
+    })
+
+    -- Stats Section
+    local StatsSection = MainTab:Section({
+        Title = "Stats Tracker"
+    })
+
+    UI.Elements.Stats = {
+        FishCaught = StatsSection:Label("Fish Caught: 0"),
+        Coins = StatsSection:Label("Coins: 0"),
+        CurrentRod = StatsSection:Label("Current Rod: None")
+    }
 end
 
--- Show notification
-function UI.Notify(options)
-    options = options or {}
-    
-    if UI._windows[1] and UI._windows[1].Instance then
-        UI._windows[1].Instance:Notify({
-            Title = options.Title or "Notification",
-            Content = options.Content or "",
-            Duration = options.Duration or 3,
-            Type = options.Type or "Info"
+function UI:InitItemsTab()
+    local ItemsTab = UI.Elements.Window:Tab({
+        Title = "Items",
+        Icon = "package"
+    })
+    UI.Elements.Tabs.Items = ItemsTab
+
+    -- Chest Collector Section
+    local ChestSection = ItemsTab:Section({
+        Title = "Chest Collector"
+    })
+
+    UI.Elements.Controls.ChestCollector = ChestSection:Toggle({
+        Title = "Auto Collect Chests",
+        Value = false,
+        Callback = function(value)
+            Functions.ToggleChestCollector(value)
+        end
+    })
+
+    UI.Elements.Controls.ChestRange = ChestSection:Slider({
+        Title = "Collection Range",
+        Min = 10,
+        Max = 100,
+        Default = 50,
+        Callback = function(value)
+            getgenv().Options.Items.ChestCollector.Range = value
+        end
+    })
+
+    -- Auto Sell Section
+    local SellSection = ItemsTab:Section({
+        Title = "Auto Sell"
+    })
+
+    UI.Elements.Controls.AutoSell = SellSection:Toggle({
+        Title = "Auto Sell Items",
+        Value = false,
+        Callback = function(value)
+            Functions.ToggleAutoSell(value)
+        end
+    })
+
+    -- Rarity Settings
+    local rarities = {
+        "Common", "Uncommon", "Rare", "Epic", "Legendary", 
+        "Mythical", "Enchant Relics", "Exotic", "Limited", "Gemstones"
+    }
+
+    for _, rarity in ipairs(rarities) do
+        UI.Elements.Controls[rarity.."Sell"] = SellSection:Toggle({
+            Title = "Sell "..rarity,
+            Value = false,
+            Callback = function(value)
+                getgenv().Options.Items.AutoSell.Rarities[rarity] = value
+            end
         })
     end
 end
 
--- Close all windows
-function UI.CloseAll()
-    for _, window in ipairs(UI._windows) do
-        if window.Instance and typeof(window.Instance.Destroy) == "function" then
-            window.Instance:Destroy()
+function UI:InitSettingsTab()
+    local SettingsTab = UI.Elements.Window:Tab({
+        Title = "Settings",
+        Icon = "settings"
+    })
+    UI.Elements.Tabs.Settings = SettingsTab
+
+    -- Theme Section
+    local ThemeSection = SettingsTab:Section({
+        Title = "Interface"
+    })
+
+    -- Get available themes
+    local themes = {}
+    for name, _ in pairs(WindUI:GetThemes()) do
+        table.insert(themes, name)
+    end
+
+    UI.Elements.Controls.Theme = ThemeSection:Dropdown({
+        Title = "Theme",
+        Values = themes,
+        Default = "Dark",
+        Callback = function(theme)
+            WindUI:SetTheme(theme)
+            getgenv().Options.UI.Theme = theme
+        end
+    })
+
+    -- Transparency Toggle
+    UI.Elements.Controls.Transparency = ThemeSection:Toggle({
+        Title = "Window Transparency",
+        Value = false,
+        Callback = function(value)
+            UI.Elements.Window:ToggleTransparency(value)
+            getgenv().Options.UI.Transparency = value and 0.5 or 0
+        end
+    })
+
+    -- Settings Management
+    local ConfigSection = SettingsTab:Section({
+        Title = "Configuration"
+    })
+
+    ConfigSection:Button({
+        Title = "Save Settings",
+        Callback = function()
+            Utils.SaveToFile("settings.json", getgenv().Options)
+            UI:Notify("Settings Saved", "Your settings have been saved successfully.")
+        end
+    })
+
+    ConfigSection:Button({
+        Title = "Reset Settings",
+        Callback = function()
+            getgenv().Options = Utils.DeepCopy(require("options"))
+            UI:UpdateAllControls()
+            UI:Notify("Settings Reset", "All settings have been reset to default.")
+        end
+    })
+end
+
+function UI:SetupWindowHandlers()
+    -- Keybind for toggling UI
+    game:GetService("UserInputService").InputBegan:Connect(function(input)
+        if input.KeyCode == getgenv().Options.UI.MinimizeKey then
+            UI.Elements.Window:Minimize()
+        end
+    end)
+end
+
+function UI:UpdateStats(stats)
+    if not UI._initialized then return end
+    
+    UI.Elements.Stats.FishCaught:SetText("Fish Caught: "..tostring(stats.fishCaught or 0))
+    UI.Elements.Stats.Coins:SetText("Coins: "..tostring(stats.coins or 0))
+    UI.Elements.Stats.CurrentRod:SetText("Current Rod: "..tostring(stats.currentRod or "None"))
+end
+
+function UI:UpdateAllControls()
+    if not UI._initialized then return end
+    
+    local options = getgenv().Options
+    
+    -- Update main controls
+    UI.Elements.Controls.AutoFish:SetValue(options.AutoFish)
+    UI.Elements.Controls.AutoReel:SetValue(options.AutoReel)
+    UI.Elements.Controls.AutoShake:SetValue(options.AutoShake)
+    UI.Elements.Controls.CastMode:SetValue(options.CastMode)
+    
+    -- Update item controls
+    UI.Elements.Controls.ChestCollector:SetValue(options.Items.ChestCollector.Enabled)
+    UI.Elements.Controls.ChestRange:SetValue(options.Items.ChestCollector.Range)
+    UI.Elements.Controls.AutoSell:SetValue(options.Items.AutoSell.Enabled)
+    
+    -- Update rarity toggles
+    for rarity, enabled in pairs(options.Items.AutoSell.Rarities) do
+        if UI.Elements.Controls[rarity.."Sell"] then
+            UI.Elements.Controls[rarity.."Sell"]:SetValue(enabled)
         end
     end
     
-    UI._windows = {}
-    UI._tabs = {}
-    UI._elements = {}
-    
-    Debug.Info("Closed all UI windows")
+    -- Update theme settings
+    UI.Elements.Controls.Theme:SetValue(options.UI.Theme)
+    UI.Elements.Controls.Transparency:SetValue(options.UI.Transparency > 0)
 end
 
--- Initialize module
-function UI.init(modules)
-    if UI._initialized then return true end
+function UI:Notify(title, content, duration)
+    if not UI._initialized then return end
     
-    Debug = modules.debug
-    Utils = modules.utils
-    
-    if not Debug or not Utils then
-        return false
-    end
-    
-    UI._initialized = true
-    Debug.Info("UI module initialized")
-    return true
+    WindUI:Notify({
+        Title = title,
+        Content = content,
+        Duration = duration or 5
+    })
 end
 
 return UI
