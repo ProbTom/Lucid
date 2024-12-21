@@ -1,105 +1,56 @@
 -- main.lua
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
+local Lucid = {}
 
--- Create Lucid folder
-local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("Folder")
-lucidFolder.Name = "Lucid"
-lucidFolder.Parent = ReplicatedStorage
-
--- Create debug module first
-local debugModule = Instance.new("ModuleScript")
-debugModule.Name = "debug"
-debugModule.Source = [[
-local Debug = {_initialized = false}
-function Debug.Info(msg) print("[LUCID INFO] " .. tostring(msg)) end
-function Debug.Warn(msg) warn("[LUCID WARN] " .. tostring(msg)) end
-function Debug.Error(msg) warn("[LUCID ERROR] " .. tostring(msg)) end
-function Debug.init() Debug._initialized = true return true end
-return Debug
-]]
-debugModule.Parent = lucidFolder
-
--- Load module from URL
-local function loadModule(name)
-    -- If it's debug module, use the one we created
-    if name == "debug" then
-        return require(debugModule)
-    end
-
-    local url = "https://raw.githubusercontent.com/ProbTom/Lucid/main/" .. name .. ".lua"
-    
-    local success, content = pcall(function()
-        return game:HttpGet(url)
-    end)
-    
-    if not success then
-        warn("Failed to fetch module:", name)
-        return nil
-    end
-    
-    -- Create or update ModuleScript
-    local moduleScript = lucidFolder:FindFirstChild(name) or Instance.new("ModuleScript")
-    moduleScript.Name = name
-    moduleScript.Source = content
-    moduleScript.Parent = lucidFolder
-    
-    -- Require the module
-    local success, module = pcall(require, moduleScript)
-    if not success then
-        warn("Failed to load module:", name, module)
-        return nil
-    end
-    
-    return module
+-- Load core modules through your existing loader
+local Loader = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProbTom/Lucid/main/loader.lua"))()
+if not Loader then
+    warn("Failed to load Lucid loader")
+    return
 end
 
--- Initialize Lucid
-local function initLucid()
-    -- Load modules in order
-    local Debug = loadModule("debug") -- This will now work
-    if not Debug then return false end
-    
-    local Utils = loadModule("utils")
-    if not Utils then return false end
-    
-    local UI = loadModule("ui")
-    if not UI then return false end
-    
-    -- Initialize modules
-    if not Debug.init() then return false end
-    if not Utils.init({debug = Debug}) then return false end
-    if not UI.init({debug = Debug, utils = Utils}) then return false end
-    
-    -- Create basic UI
-    local window = UI.CreateWindow({
-        Title = "Lucid",
-        Size = UDim2.new(0, 600, 0, 400)
-    })
-    
-    local mainTab = UI.CreateTab(window, {
-        Title = "Main"
-    })
-    
-    UI.CreateButton(mainTab, {
-        Title = "Test",
-        Callback = function()
-            Debug.Info("Button clicked!")
-        end
-    })
-    
-    return true
+-- Initialize WindUI
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+if not WindUI then
+    warn("Failed to load WindUI")
+    return
 end
 
--- Start when player is ready
-if Players.LocalPlayer then
-    if not initLucid() then
-        warn("Failed to initialize Lucid")
-    end
+-- Load modules with WindUI integration
+Lucid.Debug = Loader.load("debug")
+Lucid.Utils = Loader.load("utils")
+Lucid.Functions = Loader.load("functions")
+Lucid.Options = Loader.load("options")
+Lucid.UI = Loader.load("ui")
+
+-- Initialize modules with dependencies
+if Lucid.Debug then
+    Lucid.Debug.init({windui = WindUI})
+end
+
+if Lucid.Utils then
+    Lucid.Utils.init({windui = WindUI, debug = Lucid.Debug})
+end
+
+if Lucid.Functions then
+    Lucid.Functions.init({windui = WindUI, debug = Lucid.Debug, utils = Lucid.Utils})
+end
+
+if Lucid.Options then
+    Lucid.Options.init({windui = WindUI, debug = Lucid.Debug, utils = Lucid.Utils, functions = Lucid.Functions})
+end
+
+if Lucid.UI then
+    Lucid.UI.init({windui = WindUI, debug = Lucid.Debug, utils = Lucid.Utils, functions = Lucid.Functions})
+end
+
+-- Make Lucid accessible globally
+getgenv().Lucid = Lucid
+
+-- Start the script
+if Lucid.UI and Lucid.UI._initialized then
+    Lucid.Debug.Info("Lucid Hub successfully loaded!", true)
 else
-    Players.PlayerAdded:Connect(function()
-        if not initLucid() then
-            warn("Failed to initialize Lucid")
-        end
-    end)
+    warn("Failed to initialize Lucid Hub UI")
 end
+
+return Lucid
