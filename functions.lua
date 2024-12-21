@@ -1,7 +1,8 @@
 -- functions.lua
 local Functions = {
     _VERSION = "1.1.0",
-    _initialized = false
+    _initialized = false,
+    LastUpdated = "2024-12-21"
 }
 
 -- Dependencies
@@ -15,8 +16,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- Cooldown management
-local Cooldowns = {
+-- Constants
+local COOLDOWNS = {
     Cast = 1.5,
     Reel = 0.1,
     Shake = 0.1,
@@ -25,157 +26,204 @@ local Cooldowns = {
     LastShake = 0
 }
 
--- Initialize Functions
+-- State Management
+local State = {
+    AutoCasting = false,
+    AutoReeling = false,
+    AutoShaking = false,
+    ChestCollecting = false,
+    AutoSelling = false
+}
+
 function Functions.init(deps)
     if Functions._initialized then return end
     
-    WindUI = deps.windui
-    Debug = deps.debug
-    Utils = deps.utils
-
-    -- Initialize state
-    getgenv().State = {
-        AutoCasting = false,
-        AutoReeling = false,
-        AutoShaking = false,
-        ChestCollecting = false,
-        AutoSelling = false
-    }
-
+    WindUI = deps.windui or error("WindUI dependency missing")
+    Debug = deps.debug or error("Debug dependency missing")
+    Utils = deps.utils or error("Utils dependency missing")
+    
+    -- Initialize event connections
+    Functions:InitializeEvents()
+    
     Functions._initialized = true
-    Debug.Info("Functions module initialized")
     return true
 end
 
--- Core fishing functions
+-- Core Fishing Functions
 function Functions.Cast()
-    if tick() - Cooldowns.LastCast < Cooldowns.Cast then return end
+    if tick() - COOLDOWNS.LastCast < COOLDOWNS.Cast then return end
     
     local events = ReplicatedStorage:WaitForChild("events")
     if events and events:FindFirstChild("castrod") then
-        events.castrod:FireServer()
-        Cooldowns.LastCast = tick()
-        Debug.Info("Cast rod")
+        Utils.SafeCall(function()
+            events.castrod:FireServer()
+            COOLDOWNS.LastCast = tick()
+            Debug.Debug("Cast rod")
+        end)
     end
 end
 
 function Functions.Reel()
-    if tick() - Cooldowns.LastReel < Cooldowns.Reel then return end
+    if tick() - COOLDOWNS.LastReel < COOLDOWNS.Reel then return end
     
     local events = ReplicatedStorage:WaitForChild("events")
     if events and events:FindFirstChild("reelfinished") then
-        events.reelfinished:FireServer()
-        Cooldowns.LastReel = tick()
-        Debug.Info("Reeled line")
+        Utils.SafeCall(function()
+            events.reelfinished:FireServer()
+            COOLDOWNS.LastReel = tick()
+            Debug.Debug("Reeled line")
+        end)
     end
 end
 
 function Functions.Shake()
-    if tick() - Cooldowns.LastShake < Cooldowns.Shake then return end
+    if tick() - COOLDOWNS.LastShake < COOLDOWNS.Shake then return end
     
     local events = ReplicatedStorage:WaitForChild("events")
     if events and events:FindFirstChild("character") then
-        events.character:FireServer("shake")
-        Cooldowns.LastShake = tick()
-        Debug.Info("Performed shake")
+        Utils.SafeCall(function()
+            events.character:FireServer("shake")
+            COOLDOWNS.LastShake = tick()
+            Debug.Debug("Performed shake")
+        end)
     end
 end
 
--- Toggle functions
+-- Auto Functions
 function Functions.ToggleAutoFish(enabled)
-    getgenv().State.AutoCasting = enabled
-    Debug.Info("Auto fish " .. (enabled and "enabled" or "disabled"))
+    State.AutoCasting = enabled
+    Debug.Info(enabled and "Auto Fish enabled" or "Auto Fish disabled", true)
 end
 
 function Functions.ToggleAutoReel(enabled)
-    getgenv().State.AutoReeling = enabled
-    Debug.Info("Auto reel " .. (enabled and "enabled" or "disabled"))
+    State.AutoReeling = enabled
+    Debug.Info(enabled and "Auto Reel enabled" or "Auto Reel disabled", true)
 end
 
 function Functions.ToggleAutoShake(enabled)
-    getgenv().State.AutoShaking = enabled
-    Debug.Info("Auto shake " .. (enabled and "enabled" or "disabled"))
+    State.AutoShaking = enabled
+    Debug.Info(enabled and "Auto Shake enabled" or "Auto Shake disabled", true)
 end
 
+-- Item Management Functions
 function Functions.ToggleChestCollector(enabled)
-    getgenv().State.ChestCollecting = enabled
-    Debug.Info("Chest collector " .. (enabled and "enabled" or "disabled"))
+    State.ChestCollecting = enabled
+    Debug.Info(enabled and "Chest Collector enabled" or "Chest Collector disabled", true)
 end
 
 function Functions.ToggleAutoSell(enabled)
-    getgenv().State.AutoSelling = enabled
-    Debug.Info("Auto sell " .. (enabled and "enabled" or "disabled"))
+    State.AutoSelling = enabled
+    Debug.Info(enabled and "Auto Sell enabled" or "Auto Sell disabled", true)
 end
 
--- Equipment management
+function Functions.SellItems(rarities)
+    local events = ReplicatedStorage:WaitForChild("events")
+    if not events or not events:FindFirstChild("sellitems") then return end
+    
+    Utils.SafeCall(function()
+        for rarity, shouldSell in pairs(rarities) do
+            if shouldSell then
+                events.sellitems:FireServer(rarity)
+                task.wait(0.1) -- Prevent throttling
+            end
+        end
+    end)
+end
+
+-- Rod Management
 function Functions.EquipBestRod()
-    local inventory = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("Inventory")
-    if not inventory then return end
+    local events = ReplicatedStorage:WaitForChild("events")
+    if not events or not events:FindFirstChild("equiprod") then return end
     
-    -- Rod equip logic here
-    Debug.Info("Attempting to equip best rod")
+    Utils.SafeCall(function()
+        local stats = Functions.GetPlayerStats()
+        if stats and stats.bestRod then
+            events.equiprod:FireServer(stats.bestRod)
+            Debug.Info("Equipped best rod: " .. stats.bestRod)
+        end
+    end)
 end
 
--- Main loop handler
-Functions.MainLoop = RunService.Heartbeat:Connect(function()
-    if not LocalPlayer or not LocalPlayer.Character then return end
+-- Stats Functions
+function Functions.GetPlayerStats()
+    local stats = ReplicatedStorage:FindFirstChild("playerstats")
+    if not stats then return nil end
     
-    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-    if not playerGui then return end
+    local playerStats = stats:FindFirstChild(LocalPlayer.Name)
+    if not playerStats then return nil end
     
-    local fishingGui = playerGui:FindFirstChild("FishingGui")
-    if not fishingGui then return end
-    
-    -- Auto fishing logic
-    if getgenv().State.AutoCasting then
-        local castingBar = fishingGui:FindFirstChild("CastingBar")
-        if not castingBar or not castingBar.Visible then
-            Functions.Cast()
+    return {
+        fishCaught = playerStats:FindFirstChild("fishcaught") and playerStats.fishcaught.Value or 0,
+        coins = playerStats:FindFirstChild("coins") and playerStats.coins.Value or 0,
+        currentRod = playerStats:FindFirstChild("rod") and playerStats.rod.Value or "None",
+        bestRod = playerStats:FindFirstChild("bestrod") and playerStats.bestrod.Value or nil
+    }
+end
+
+-- Event Handling
+function Functions:InitializeEvents()
+    -- Main Game Loop
+    RunService.Heartbeat:Connect(function()
+        if not LocalPlayer or not LocalPlayer.Character then return end
+        
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+        if not playerGui then return end
+        
+        local fishingGui = playerGui:FindFirstChild("FishingGui")
+        if not fishingGui then return end
+        
+        -- Auto Cast
+        if State.AutoCasting then
+            local castingBar = fishingGui:FindFirstChild("CastingBar")
+            if not castingBar or not castingBar.Visible then
+                Functions.Cast()
+            end
         end
-    end
-    
-    -- Auto reel logic
-    if getgenv().State.AutoReeling then
-        local reelButton = fishingGui:FindFirstChild("ReelButton")
-        if reelButton and reelButton.Visible then
-            Functions.Reel()
+        
+        -- Auto Reel
+        if State.AutoReeling then
+            local reelButton = fishingGui:FindFirstChild("ReelButton")
+            if reelButton and reelButton.Visible then
+                Functions.Reel()
+            end
         end
-    end
-    
-    -- Auto shake logic
-    if getgenv().State.AutoShaking then
-        local shakeBar = fishingGui:FindFirstChild("ShakeBar")
-        if shakeBar and shakeBar.Visible then
-            Functions.Shake()
+        
+        -- Auto Shake
+        if State.AutoShaking then
+            local shakeBar = fishingGui:FindFirstChild("ShakeBar")
+            if shakeBar and shakeBar.Visible then
+                Functions.Shake()
+            end
         end
-    end
+    end)
     
-    -- Chest collector logic
-    if getgenv().State.ChestCollecting then
-        Functions.CollectNearbyChests()
-    end
-    
-    -- Auto sell logic
-    if getgenv().State.AutoSelling then
-        Functions.AutoSellItems()
+    -- Stats Update Loop
+    task.spawn(function()
+        while task.wait(1) do
+            local stats = Functions.GetPlayerStats()
+            if stats then
+                WindUI:UpdateStats(stats)
+            end
+        end
+    end)
+end
+
+-- Chest Collection Loop
+task.spawn(function()
+    while task.wait(0.5) do
+        if State.ChestCollecting then
+            Functions.CollectNearbyChests()
+        end
     end
 end)
 
--- Chest collection
-function Functions.CollectNearbyChests()
-    local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    
-    local hrp = character.HumanoidRootPart
-    
-    -- Chest collection logic here
-    Debug.Info("Checking for nearby chests")
-end
-
--- Auto sell
-function Functions.AutoSellItems()
-    -- Auto sell logic here
-    Debug.Info("Checking items for auto-sell")
-end
+-- Auto Sell Loop
+task.spawn(function()
+    while task.wait(5) do
+        if State.AutoSelling then
+            Functions.SellItems(getgenv().Options.Items.AutoSell.Rarities)
+        end
+    end
+end)
 
 return Functions
