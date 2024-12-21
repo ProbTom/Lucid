@@ -1,69 +1,96 @@
 -- main.lua
-local function LoadLucid()
+-- First, let's wrap everything in a protected load
+local function StartLucid()
+    -- Ensure we can access global environment
+    assert(getgenv, "getgenv not found")
+
+    -- Initialize core services
+    local Players = game:GetService("Players")
     local HttpService = game:GetService("HttpService")
 
-    -- Initialize base structure
+    -- Load the UI Library with error handling
+    local Library
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet('https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wind'))()
+    end)
+
+    if not success then
+        warn("[Lucid] Failed to load UI Library:", result)
+        return false
+    end
+    Library = result
+
+    -- Verify Library loaded correctly
+    if not Library or type(Library.CreateLib) ~= "function" then
+        warn("[Lucid] Invalid UI Library")
+        return false
+    end
+
+    -- Create base environment
     local Lucid = {
         Name = "Lucid Hub",
         Version = "1.1.0",
         Author = "ProbTom",
         LastUpdated = "2024-12-21",
+        Library = Library,
         Initialized = false
     }
 
-    -- Load the correct WindUI Library
-    local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wind'))()
+    -- Set up global access
+    getgenv().Lucid = Lucid
 
-    if not Library then
-        warn("[Lucid] Failed to load Library")
+    -- Create Window with error handling
+    local MainWindow
+    success, result = pcall(function()
+        return Library.CreateLib("Lucid Hub", "Ocean")
+    end)
+
+    if not success then
+        warn("[Lucid] Failed to create window:", result)
         return false
-    }
+    end
+    MainWindow = result
+    Lucid.MainWindow = MainWindow
 
-    -- Create Window with correct API
-    local MainWindow = Library.CreateLib("Lucid Hub", "Ocean")
+    -- Initialize Tabs
+    local function CreateTab(name)
+        local success, tab = pcall(function()
+            return MainWindow:NewTab(name)
+        end)
+        if not success then
+            warn("[Lucid] Failed to create tab:", name)
+            return nil
+        end
+        return tab
+    end
 
-    -- Create Tabs using correct API
-    local MainTab = MainWindow:NewTab("Main")
-    local MainSection = MainTab:NewSection("Fishing")
+    -- Create tabs with error handling
+    local MainTab = CreateTab("Main")
+    if not MainTab then return false end
 
-    -- Add toggles with correct API
-    MainSection:NewToggle("Auto Fish", "Toggles auto fishing", function(state)
-        getgenv().Settings.AutoFish = state
-    end)
+    local ItemsTab = CreateTab("Items")
+    if not ItemsTab then return false end
 
-    MainSection:NewToggle("Auto Reel", "Toggles auto reeling", function(state)
-        getgenv().Settings.AutoReel = state
-    end)
+    local SettingsTab = CreateTab("Settings")
+    if not SettingsTab then return false end
 
-    MainSection:NewToggle("Auto Shake", "Toggles auto shaking", function(state)
-        getgenv().Settings.AutoShake = state
-    end)
+    -- Create sections
+    local function CreateSection(tab, name)
+        local success, section = pcall(function()
+            return tab:NewSection(name)
+        end)
+        if not success then
+            warn("[Lucid] Failed to create section:", name)
+            return nil
+        end
+        return section
+    end
 
-    MainSection:NewDropdown("Cast Mode", "Select casting mode", {"Legit", "Semi-Legit", "Instant"}, function(currentOption)
-        getgenv().Settings.CastMode = currentOption
-    end)
+    -- Initialize sections with error handling
+    local MainSection = CreateSection(MainTab, "Fishing")
+    if not MainSection then return false end
 
-    -- Items Tab
-    local ItemsTab = MainWindow:NewTab("Items")
-    local ChestSection = ItemsTab:NewSection("Chest Collector")
-
-    ChestSection:NewToggle("Enable Chest Collector", "Toggles chest collector", function(state)
-        getgenv().Settings.Items.ChestCollector.Enabled = state
-    end)
-
-    ChestSection:NewSlider("Collection Range", "Adjust collection range", 100, 10, function(value)
-        getgenv().Settings.Items.ChestCollector.Range = value
-    end)
-
-    -- Settings Tab
-    local SettingsTab = MainWindow:NewTab("Settings")
-    local SettingsSection = SettingsTab:NewSection("Settings")
-
-    SettingsSection:NewKeybind("Toggle UI", "Toggle the UI visibility", Enum.KeyCode.RightControl, function()
-        Library:ToggleUI()
-    end)
-
-    -- Initialize settings
+    -- Create settings structure
     getgenv().Settings = {
         AutoFish = false,
         AutoReel = false,
@@ -81,48 +108,81 @@ local function LoadLucid()
         }
     }
 
-    -- Create settings folder
-    if not isfolder("LucidHub") then
-        makefolder("LucidHub")
-    end
-
-    -- Load settings if they exist
-    if isfile("LucidHub/settings.json") then
-        local success, loadedSettings = pcall(function()
-            return HttpService:JSONDecode(readfile("LucidHub/settings.json"))
+    -- Add elements with error handling
+    pcall(function()
+        MainSection:NewToggle("Auto Fish", "Toggles auto fishing", function(state)
+            getgenv().Settings.AutoFish = state
         end)
-        if success and loadedSettings then
-            getgenv().Settings = loadedSettings
-        end
+
+        MainSection:NewToggle("Auto Reel", "Toggles auto reeling", function(state)
+            getgenv().Settings.AutoReel = state
+        end)
+
+        MainSection:NewToggle("Auto Shake", "Toggles auto shaking", function(state)
+            getgenv().Settings.AutoShake = state
+        end)
+
+        MainSection:NewDropdown("Cast Mode", "Select casting mode", 
+            {"Legit", "Semi-Legit", "Instant"}, 
+            function(currentOption)
+                getgenv().Settings.CastMode = currentOption
+            end
+        )
+    end)
+
+    -- Initialize settings system
+    if not isfolder("LucidHub") then
+        pcall(function()
+            makefolder("LucidHub")
+        end)
     end
 
-    -- Auto-save settings
-    spawn(function()
-        while wait(30) do
-            if getgenv().Settings then
-                pcall(function()
-                    writefile("LucidHub/settings.json", 
-                        HttpService:JSONEncode(getgenv().Settings)
-                    )
-                end)
+    -- Load settings
+    pcall(function()
+        if isfile("LucidHub/settings.json") then
+            local data = readfile("LucidHub/settings.json")
+            local decoded = HttpService:JSONDecode(data)
+            if type(decoded) == "table" then
+                getgenv().Settings = decoded
             end
         end
     end)
 
-    -- Store references
-    Lucid.Library = Library
-    Lucid.MainWindow = MainWindow
+    -- Auto-save settings
+    spawn(function()
+        while true do
+            wait(30)
+            pcall(function()
+                if getgenv().Settings then
+                    writefile("LucidHub/settings.json", 
+                        HttpService:JSONEncode(getgenv().Settings)
+                    )
+                end
+            end)
+        end
+    end)
+
     Lucid.Initialized = true
-
-    getgenv().Lucid = Lucid
-
     return true
 end
 
--- Execute with protected call
-local success, result = pcall(LoadLucid)
+-- Execute the loader with full error handling
+local success, result = pcall(function()
+    -- Ensure the script can run
+    assert(game, "Expected 'game' to be available")
+    assert(game:GetService("Players"), "Players service not available")
+    
+    return StartLucid()
+end)
+
 if not success then
-    warn("[Lucid] Critical error during initialization:", result)
+    warn("[Lucid] Failed to start:", result)
+    return false
+end
+
+if type(getgenv().Lucid) ~= "table" then
+    warn("[Lucid] Failed to initialize properly")
+    return false
 end
 
 return getgenv().Lucid
