@@ -1,163 +1,195 @@
 -- loader.lua
 local Loader = {
     _VERSION = "1.1.0",
-    LastUpdated = "2024-12-21",
-    Debug = false
+    LastUpdated = "2024-12-21"
 }
 
--- Core Services
+-- Core dependency URLs
+local Dependencies = {
+    UI = "https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wind",
+    Modules = {
+        Debug = "https://raw.githubusercontent.com/ProbTom/Lucid/main/modules/debug.lua",
+        Utils = "https://raw.githubusercontent.com/ProbTom/Lucid/main/modules/utils.lua",
+        Functions = "https://raw.githubusercontent.com/ProbTom/Lucid/main/modules/functions.lua",
+        UI = "https://raw.githubusercontent.com/ProbTom/Lucid/main/modules/ui.lua"
+    }
+}
+
+-- Core services
 local HttpService = game:GetService("HttpService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
--- Constants
-local BASE_URL = "https://raw.githubusercontent.com/ProbTom/Lucid/main/"
-local MODULES = {
-    debug = "debug.lua",
-    utils = "utils.lua",
-    functions = "functions.lua",
-    options = "options.lua",
-    ui = "ui.lua"
-}
-
--- Dependencies
-local WindUI
-
--- Module cache
-local loadedModules = {}
-
--- Local storage for loaded content
-local moduleSource = {}
-
--- Initialize environment
-function Loader.init()
-    -- Create Lucid folder in ReplicatedStorage if it doesn't exist
-    local lucidFolder = ReplicatedStorage:FindFirstChild("Lucid") or Instance.new("Folder")
-    lucidFolder.Name = "Lucid"
-    lucidFolder.Parent = ReplicatedStorage
-
-    -- Load WindUI first
-    local success, windui = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-    end)
-
-    if success then
-        WindUI = windui
-        if Loader.Debug then
-            print("[Lucid Loader] WindUI loaded successfully")
-        end
-    else
-        warn("[Lucid Loader] Failed to load WindUI:", windui)
-    end
-
+-- Environment verification
+local function verifyEnvironment()
+    assert(getgenv, "getgenv not available")
+    assert(game, "game not available")
+    assert(HttpService, "HttpService not available")
+    assert(Players, "Players not available")
     return true
 end
 
--- Fetch module content
-function Loader.fetch(moduleName)
-    if moduleSource[moduleName] then
-        return moduleSource[moduleName]
-    end
-
-    local moduleUrl = BASE_URL .. MODULES[moduleName]
-    
-    local success, content = pcall(function()
-        return game:HttpGet(moduleUrl)
+-- Safe HTTP get
+local function safeGet(url)
+    local success, result = pcall(function()
+        return game:HttpGet(url)
     end)
-
-    if success then
-        moduleSource[moduleName] = content
-        if Loader.Debug then
-            print("[Lucid Loader] Successfully fetched:", moduleName)
-        end
-        return content
-    else
-        warn("[Lucid Loader] Failed to fetch", moduleName, ":", content)
+    
+    if not success then
+        warn("[Loader] Failed to fetch:", url)
         return nil
     end
+    return result
 end
 
--- Load a module
-function Loader.load(moduleName)
-    if loadedModules[moduleName] then
-        return loadedModules[moduleName]
-    end
-
-    if not MODULES[moduleName] then
-        warn("[Lucid Loader] Invalid module name:", moduleName)
-        return nil
-    end
-
-    local moduleContent = Loader.fetch(moduleName)
-    if not moduleContent then
-        return nil
-    end
-
-    local success, module = pcall(function()
-        return loadstring(moduleContent)()
+-- Safe loadstring
+local function safeLoad(source)
+    local success, result = pcall(function()
+        return loadstring(source)()
     end)
-
-    if success then
-        loadedModules[moduleName] = module
-        if Loader.Debug then
-            print("[Lucid Loader] Successfully loaded:", moduleName)
-        end
-        return module
-    else
-        warn("[Lucid Loader] Failed to load", moduleName, ":", module)
+    
+    if not success then
+        warn("[Loader] Failed to load source")
         return nil
     end
+    return result
 end
 
--- Get WindUI instance
-function Loader.getWindUI()
-    return WindUI
+-- Initialize UI Library
+local function initializeUI()
+    local uiSource = safeGet(Dependencies.UI)
+    if not uiSource then return nil end
+    
+    local UI = safeLoad(uiSource)
+    if not UI or type(UI.CreateLib) ~= "function" then
+        warn("[Loader] Invalid UI library")
+        return nil
+    end
+    
+    return UI
 end
 
--- Load all modules
-function Loader.loadAll()
-    local modules = {}
+-- Load module
+local function loadModule(name, url, dependencies)
+    local source = safeGet(url)
+    if not source then return nil end
     
-    -- Load core modules in specific order
-    local loadOrder = {"debug", "utils", "functions", "options", "ui"}
+    local module = safeLoad(source)
+    if not module then return nil end
     
-    for _, moduleName in ipairs(loadOrder) do
-        modules[moduleName] = Loader.load(moduleName)
-        if not modules[moduleName] then
-            warn("[Lucid Loader] Failed to load core module:", moduleName)
+    if type(module.init) == "function" then
+        local success = pcall(function()
+            module.init(dependencies)
+        end)
+        
+        if not success then
+            warn("[Loader] Failed to initialize module:", name)
             return nil
         end
     end
-
-    return modules
+    
+    return module
 end
 
--- Check for updates
-function Loader.checkUpdate()
-    local success, latestVersion = pcall(function()
-        local versionUrl = BASE_URL .. "version.txt"
-        return game:HttpGet(versionUrl)
-    end)
-
-    if success and latestVersion ~= Loader._VERSION then
-        if WindUI then
-            WindUI:Notify({
-                Title = "Update Available",
-                Content = "A new version of Lucid Hub is available: " .. latestVersion,
-                Duration = 10
-            })
-        end
-        return latestVersion
+-- Initialize settings
+local function initializeSettings()
+    local defaultSettings = {
+        AutoFish = false,
+        AutoReel = false,
+        AutoShake = false,
+        CastMode = "Legit",
+        Items = {
+            ChestCollector = {
+                Enabled = false,
+                Range = 50
+            },
+            AutoSell = {
+                Enabled = false,
+                Rarities = {}
+            }
+        },
+        UI = {
+            Theme = "Ocean",
+            MinimizeKey = Enum.KeyCode.RightControl
+        }
+    }
+    
+    -- Create settings directory
+    if not isfolder("LucidHub") then
+        pcall(function()
+            makefolder("LucidHub")
+        end)
     end
     
-    return nil
+    -- Load existing settings or use defaults
+    local settings = defaultSettings
+    if isfile("LucidHub/settings.json") then
+        pcall(function()
+            local data = readfile("LucidHub/settings.json")
+            local decoded = HttpService:JSONDecode(data)
+            if type(decoded) == "table" then
+                settings = decoded
+            end
+        end)
+    end
+    
+    return settings
 end
 
--- Set debug mode
-function Loader.setDebug(enabled)
-    Loader.Debug = enabled
+function Loader.start()
+    -- Verify environment
+    if not verifyEnvironment() then
+        return false
+    end
+    
+    -- Initialize core components
+    local UI = initializeUI()
+    if not UI then
+        warn("[Loader] Failed to initialize UI")
+        return false
+    end
+    
+    -- Create window
+    local MainWindow = UI.CreateLib("Lucid Hub", "Ocean")
+    if not MainWindow then
+        warn("[Loader] Failed to create main window")
+        return false
+    end
+    
+    -- Initialize settings
+    local Settings = initializeSettings()
+    getgenv().Settings = Settings
+    
+    -- Initialize modules with dependencies
+    local modules = {}
+    local dependencies = {
+        ui = UI,
+        window = MainWindow,
+        settings = Settings
+    }
+    
+    -- Load modules in order
+    for name, url in pairs(Dependencies.Modules) do
+        modules[name] = loadModule(name, url, dependencies)
+        if not modules[name] then
+            warn("[Loader] Failed to load module:", name)
+            return false
+        end
+        dependencies[string.lower(name)] = modules[name]
+    end
+    
+    -- Create global access
+    getgenv().Lucid = {
+        Name = "Lucid Hub",
+        Version = "1.1.0",
+        Author = "ProbTom",
+        LastUpdated = "2024-12-21",
+        UI = UI,
+        Window = MainWindow,
+        Modules = modules,
+        Settings = Settings
+    }
+    
+    return true
 end
-
--- Initialize the loader
-Loader.init()
 
 return Loader
